@@ -5,6 +5,7 @@ import { workspaceRequest, demoMode } from './api'
 
 type Row = Record<string, string | number | null>
 type SyncState = {
+  connection?: { configured: boolean; worker: null | { id: string; name: string; ready: boolean; connected: boolean; seenAt: number }; guilds: { id: string; name: string; connected: boolean; memberCount: number | null }[] };
   configured: boolean; state: 'waiting' | 'synced' | 'stale'; receivedAt: string | null;
   snapshot: null | { name: string; capturedAt: string; rowLimit: number;
     bot: { name: string; ready: boolean; latencyMs: number | null; guildName: string | null; guildId: string; memberCount: number | null };
@@ -19,7 +20,7 @@ const tabs = [
   { key: 'submissions', label: '제출 내역', columns: [['assignment_title', '과제명'], ['user_name', '제출자'], ['team', '팀'], ['content', '내용'], ['link', '제출 링크'], ['submitted_at', '제출일시']] },
 ] as const
 const formatDate = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
-export default function RenderMonitor({ query, workspaceId, workspaceName, sourceId }: { query: string; workspaceId: string; workspaceName: string; sourceId: string }) {
+export default function RenderMonitor({ query, workspaceId, workspaceName }: { query: string; workspaceId: string; workspaceName: string }) {
   const [result, setResult] = useState<SyncState | null>(null)
   const [error, setError] = useState('')
   const [active, setActive] = useState(0)
@@ -42,6 +43,7 @@ export default function RenderMonitor({ query, workspaceId, workspaceName, sourc
     return () => { controller.abort(); clearInterval(interval) }
   }, [refresh])
   const snapshot = result?.snapshot
+  const connection = result?.connection
   const synced = !error && result?.configured && result.state === 'synced'
   const status = demoMode ? '데모 · 운영 API 미연결' : error ? '조회 실패' : !result ? '확인 중' : !result.configured ? '연결 설정 필요' : !snapshot ? '데이터 수신 대기' : result.state === 'stale' ? '동기화 지연' : '동기화 정상'
   const tab = tabs[active]
@@ -54,10 +56,11 @@ export default function RenderMonitor({ query, workspaceId, workspaceName, sourc
     return value === null || value === '' ? '—' : value
   }
   return <>
+    {connection && <section className="panel shared-bot-status"><CardHeading title="Render 공통 봇" subtitle="봇 하나가 연결된 모든 워크스페이스를 관리합니다."><Badge tone={connection.worker?.connected ? 'green' : 'orange'}>{connection.worker?.connected ? '공통 봇 온라인' : connection.worker ? connection.worker.ready ? '공통 봇 응답 지연' : '공통 봇 연결 끊김' : '공통 봇 상태 대기'}</Badge></CardHeading><div className="admission-detail"><p>{connection.worker ? `${connection.worker.name} · ${connection.worker.id}` : '봇의 연결 상태를 기다리고 있습니다.'}</p>{connection.worker && <p>마지막 상태 수신: {formatDate(new Date(connection.worker.seenAt).toISOString())}</p>}{!connection.guilds.length && <p>Discord 채널 설정에서 이 워크스페이스의 서버 ID를 연결하세요.</p>}</div>{connection.guilds.length > 0 && <div className="table-scroll"><table><thead><tr><th>이 워크스페이스의 Discord 서버</th><th>멤버</th><th>봇 연결</th></tr></thead><tbody>{connection.guilds.map(guild => <tr key={guild.id}><td>{guild.name}<small className="muted"> · {guild.id}</small></td><td>{guild.memberCount ?? '—'}</td><td><Badge tone={guild.connected ? 'green' : 'orange'}>{guild.connected ? '서버 참여 중' : '서버 연결 대기'}</Badge></td></tr>)}</tbody></table></div>}</section>}
     <div className="operations-toolbar"><Badge tone={synced ? 'green' : 'orange'}>{status}</Badge><button className="button secondary" disabled={busy} onClick={() => void refresh()}><RefreshCw size={15} />새로고침</button></div>
     {error && <div className="inline-note error-note" role="alert">{error}{snapshot && ' · 아래는 마지막 수신 데이터입니다.'}</div>}
-    <section className="panel remote-overview"><div className="remote-title"><span className="server-icon"><Server size={24} /></span><div><h2>{workspaceName}</h2><p>Render · 운영 데이터 조회</p></div><Badge tone="neutral">읽기 전용</Badge></div><dl className="remote-status"><div><dt>Discord 봇</dt><dd>{synced && snapshot ? snapshot.bot.ready ? '연결됨' : '연결 끊김' : '현재 상태 확인 불가'}</dd></div><div><dt>Discord 서버</dt><dd>{snapshot?.bot.guildName || '—'}</dd></div><div><dt>전체 서버 멤버</dt><dd>{snapshot?.bot.memberCount ?? '—'}</dd></div><div><dt>마지막 수신 (한국 시간)</dt><dd>{result?.receivedAt ? formatDate(result.receivedAt) : '수신 이력 없음'}</dd></div></dl></section>
-    {!snapshot ? <section className="panel remote-empty"><Bot size={34} /><h2>Render 봇의 데이터 수신을 기다리고 있습니다.</h2><p>기존 봇에 동기화 코드를 배포하고 웹 API 주소와 전용 인증 키를 설정하면 데이터가 표시됩니다.</p><div className="remote-steps"><span>1. 웹 API를 HTTPS 주소로 배포</span><span>2. Render에 LEARNINGOPS_SYNC_URL / TOKEN 설정</span><span>데이터 소스: {sourceId} (LEARNINGOPS_SOURCE_ID)</span><span>3. 봇 배포 후 최초 데이터 수신 확인</span></div><p>현재 PC의 localhost 주소에는 Render가 접속할 수 없습니다. 동기화 설정 전에는 운영 상태를 추정하지 않습니다.</p></section> : <>
+    {(snapshot || !connection?.worker) && <section className="panel remote-overview"><div className="remote-title"><span className="server-icon"><Server size={24} /></span><div><h2>{workspaceName}</h2><p>기존 운영 DB · 마지막 수신 기록</p></div><Badge tone="neutral">읽기 전용</Badge></div><dl className="remote-status"><div><dt>수신 당시 봇</dt><dd>{synced && snapshot ? snapshot.bot.ready ? '연결됨' : '연결 끊김' : '현재 상태 확인 불가'}</dd></div><div><dt>Discord 서버</dt><dd>{snapshot?.bot.guildName || '—'}</dd></div><div><dt>전체 서버 멤버</dt><dd>{snapshot?.bot.memberCount ?? '—'}</dd></div><div><dt>마지막 수신 (한국 시간)</dt><dd>{result?.receivedAt ? formatDate(result.receivedAt) : '수신 이력 없음'}</dd></div></dl></section>}
+    {!snapshot ? <section className="panel remote-empty"><Bot size={34} /><h2>이 워크스페이스에 수신된 운영 데이터가 없습니다.</h2><p>채널 구성·수강생 초대·계정 인증은 Render의 공통 봇이 처리합니다.</p><p>기존 운영 데이터는 연결된 Discord 서버에 해당하는 워크스페이스에만 표시됩니다.</p></section> : <>
       {!synced && <div className="inline-note">마지막 수신 데이터입니다. 봇이 현재 실행 중인지 이 데이터만으로 확인할 수 없습니다.</div>}
       <section className="stats-grid">{[{ label: '멘토', value: snapshot.counts.mentors }, { label: '멘토링 예약', value: snapshot.counts.bookings }, { label: '과제', value: snapshot.counts.assignments }, { label: '과제 제출', value: snapshot.counts.submissions }].map(item => <div className="stat-card" key={item.label}><div className="stat-top">{item.label}</div><div className="stat-value">{item.value}<span>건</span></div></div>)}</section>
       <div className="remote-meta"><span>승인 대기 {snapshot.counts.pending_bookings}건</span><span>온보딩 기록 {snapshot.counts.onboarding_progress}명</span><span>봇 보고 시각 {formatDate(snapshot.capturedAt)}</span></div>

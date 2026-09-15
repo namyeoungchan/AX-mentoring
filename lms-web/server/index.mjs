@@ -92,6 +92,7 @@ app.post('/api/auth/login', async (req, res) => {
 })
 app.post('/api/integrations/discord/provision/:operation', (req, res) => {
   if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '채널 설정 봇 인증에 실패했습니다.' })
+  if (req.params.operation === 'heartbeat') { provision.heartbeat(req.body); return res.json({ ok: true }) }
   if (req.params.operation === 'poll') return res.json(provision.poll(req.body))
   if (req.params.operation === 'complete') return res.json(provision.complete(req.body))
   return res.status(404).json({ error: '지원하지 않는 작업입니다.' })
@@ -163,7 +164,7 @@ app.post('/api/workspaces/:workspaceId/invitations/:invitationId/revoke', (req, 
 app.get('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(workspaces.snapshot(req.workspaceId)))
 app.patch('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(workspaces.mutate(req.workspaceId, req.body, req.account.username)))
 app.get('/api/workspaces/:workspaceId/audit', (req, res) => res.json(workspaces.open(req.workspaceId).db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 500').all()))
-app.get('/api/workspaces/:workspaceId/integrations/render', (req, res) => res.json(workspaces.remote(req.workspaceId).read()))
+app.get('/api/workspaces/:workspaceId/integrations/render', (req, res) => res.json({ ...workspaces.remote(req.workspaceId).read(), connection: workspaces.connection(req.workspaceId) }))
 app.get('/api/workspaces/:workspaceId/discord/provision', (req, res) => res.json(workspaces.provisionRead(req.workspaceId)))
 app.post('/api/workspaces/:workspaceId/discord/provision/plans', (req, res) => res.json(workspaces.savePlan(req.workspaceId, req.body)))
 app.post('/api/workspaces/:workspaceId/discord/provision/jobs', (req, res) => res.status(202).json(workspaces.enqueue(req.workspaceId, req.body)))

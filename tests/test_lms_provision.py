@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 import discord
-from cogs.lms_provision import apply_channels, ProvisionError, validate_provision_endpoint
+from cogs.lms_provision import apply_channels, ProvisionError, validate_provision_endpoint, worker_status
 
 
 class Guild:
@@ -31,6 +31,16 @@ class Guild:
 
 
 class ProvisionTests(unittest.IsolatedAsyncioTestCase):
+    def test_shared_worker_reports_all_guilds_instead_of_only_the_first_hundred(self):
+        bot = SimpleNamespace(user=SimpleNamespace(id=999456789012345678), is_ready=lambda: True,
+                              guilds=[SimpleNamespace(id=123456789012345678 + i, name=f"서버 {i}",
+                                                      me=SimpleNamespace(guild_permissions=SimpleNamespace(manage_channels=True)),
+                                                      member_count=i) for i in range(105)])
+        report = worker_status(bot)
+        self.assertEqual(len(report["guilds"]), 105)
+        self.assertEqual(report["guilds"][-1]["id"], str(bot.guilds[-1].id))
+        self.assertTrue(report["bot"]["ready"])
+
     def items(self):
         return [{"id": "t", "name": "공지", "type": "text", "parentId": "c"},
                 {"id": "c", "name": "학습", "type": "category", "parentId": ""},

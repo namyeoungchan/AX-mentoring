@@ -1,4 +1,6 @@
-# 운영 중인 아산 AX 연결
+# Render 공통 봇과 기존 아산 운영 데이터 연결
+
+봇 인스턴스는 기존 Render Worker 하나입니다. 전체 워크스페이스의 채널 구성·가입 초대·인증과 공통 상태 보고는 [DISCORD-LMS.md](./DISCORD-LMS.md)의 공통 연결을 사용합니다. 이 문서는 같은 봇의 기존 아산 운영 DB를 읽기 전용으로 전송하는 설정입니다.
 
 ## 구현한 연결
 
@@ -29,13 +31,12 @@ LearningOps 웹 API /api/integrations/render/snapshot
 ```dotenv
 LEARNINGOPS_SYNC_URL=https://실제-웹-API-도메인/api/integrations/render/snapshot
 LEARNINGOPS_SYNC_TOKEN=<웹 API와 같은 전용 키>
-LEARNINGOPS_SOURCE_ID=asan-ax
 LEARNINGOPS_SOURCE_NAME=아산 AX
 LEARNINGOPS_SYNC_INTERVAL=60
 ```
 
 5. `bot.py`, `cogs/learningops_sync.py`, `requirements.txt`가 포함된 코드를 기존 Worker에 배포합니다. 기존 `DISCORD_TOKEN`, `GUILD_ID`, `DB_PATH=/data/mentoring.db`와 디스크 설정을 유지합니다. 코드를 로드하려면 한 번 재배포해야 하며, 그동안 봇이 잠시 재연결됩니다. 무중단 적용을 보장하지 않습니다.
-6. Worker 로그의 `LearningOps snapshot published`와 웹의 `동기화 정상`을 확인합니다. 첫 동기화는 Discord 연결 준비가 끝난 후 실행됩니다. 브라우저는 15초 간격으로 수신 상태를 갱신합니다.
+6. 웹의 아산 AX 워크스페이스에 기존 봇 `GUILD_ID` 서버를 연결합니다. 가입 인증용 서버 설정이나 기존 수신 이력으로 이미 연결됐다면 추가 작업은 없습니다. Worker 로그의 `LearningOps snapshot published`와 웹의 `동기화 정상`을 확인합니다. 첫 동기화는 Discord 연결 준비가 끝난 후 실행됩니다. 브라우저는 15초 간격으로 수신 상태를 갱신합니다.
 
 Render 대시보드 주소만으로는 운영 DB를 읽거나 환경변수를 적용할 수 없습니다. 이 세션에서는 Render 계정 인증, 서비스 배포, 운영 데이터 수신을 아직 수행하지 않았습니다. 로컬에서 테스트한 데이터는 운영 데이터로 저장하지 않았습니다.
 
@@ -46,7 +47,7 @@ Render 대시보드 주소만으로는 운영 DB를 읽거나 환경변수를 �
 - 전송 타임아웃은 20초이며 실패 시 다음 주기에 재시도합니다. 전송 실패가 봇의 명령 처리 루프를 종료하지 않습니다.
 - 주기는 30~120초로 제한합니다. 전송은 한 작업에서 순차 실행되어 겹치지 않습니다.
 - HTTPS만 허용하며 HTTP는 localhost 테스트용으로만 허용합니다. 리다이렉트를 따라가며 인증 키를 전달하지 않습니다.
-- 수신 API는 전용 Bearer 키, source ID, 데이터 형식, 건수, 생성 시각, 재전송 여부를 검증합니다. 관리자 로그인 세션은 동기화 키로 대체할 수 없습니다.
+- 수신 API는 전용 Bearer 키, Discord 서버와 워크스페이스 연결, 데이터 형식, 건수, 생성 시각, 재전송 여부를 검증합니다. 관리자 로그인 세션은 동기화 키로 대체할 수 없습니다.
 - 동기화 키, Discord 토큰 및 API 응답 본문을 로그에 출력하지 않습니다.
 - 재시도 오류 시 과거 스냅샷을 유지하되 현재 온라인 상태로 표시하지 않습니다.
 

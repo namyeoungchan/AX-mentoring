@@ -20,6 +20,10 @@ const planSchema = z.object({ guildId: snowflake, name: z.string().trim().min(1)
   }
 })
 const outcome = z.object({ id: z.string().max(80), discordId: snowflake, action: z.enum(['created', 'reused']) }).strict()
+const heartbeatSchema = z.object({
+  bot: z.object({ id: snowflake, name: z.string().min(1).max(100), ready: z.boolean() }).strict().optional(),
+  guilds: z.array(z.object({ id: snowflake, name: z.string().min(1).max(100), manageChannels: z.boolean(), memberCount: z.number().int().nonnegative().nullable().optional() }).strict()).max(10000),
+}).strict()
 
 export function createProvision(db, { token = '', now = Date.now } = {}) {
   const enabled = token.length >= 32
@@ -35,7 +39,9 @@ export function createProvision(db, { token = '', now = Date.now } = {}) {
       created_at INTEGER NOT NULL, completed_at INTEGER, lease_until INTEGER, claim_hash TEXT,
       error_code TEXT, results TEXT NOT NULL DEFAULT '[]'
     );
-    CREATE UNIQUE INDEX IF NOT EXISTS lms_discord_active_job ON lms_discord_jobs(guild_id) WHERE state IN ('queued','running');`)
+    CREATE UNIQUE INDEX IF NOT EXISTS lms_discord_active_job ON lms_discord_jobs(guild_id) WHERE state IN ('queued','running');
+    CREATE TABLE IF NOT EXISTS lms_discord_worker (id INTEGER PRIMARY KEY CHECK(id=1), bot_id TEXT NOT NULL, name TEXT NOT NULL, ready INTEGER NOT NULL, seen_at INTEGER NOT NULL);`)
+  if (!db.prepare('PRAGMA table_info(lms_discord_guilds)').all().some(row => row.name === 'member_count')) db.exec('ALTER TABLE lms_discord_guilds ADD COLUMN member_count INTEGER')
   function authorized(header = '') { return enabled && timingSafeEqual(Buffer.from(digest(header)), Buffer.from(digest(`Bearer ${token}`))) }
   function expire() { db.prepare("UPDATE lms_discord_jobs SET state='failed',error_code='timeout',completed_at=? WHERE state='running' AND lease_until<=?").run(now(), now()) }
   function plan(guildId) { const row = db.prepare('SELECT * FROM lms_discord_plans WHERE guild_id=?').get(guildId); return row ? { ...JSON.parse(row.data), revision: row.revision } : null }
@@ -66,20 +72,35 @@ export function createProvision(db, { token = '', now = Date.now } = {}) {
     expire()
     const filter = guildIds === null ? '' : ' WHERE guild_id IN (SELECT value FROM json_each(?))'
     const args = guildIds === null ? [] : [JSON.stringify(guildIds)]
-    return { enabled,
+    const observed = db.prepare('SELECT bot_id AS id,name,ready,seen_at AS seenAt FROM lms_discord_worker WHERE id=1').get()
+    const worker = observed ? { ...observed, ready: Boolean(observed.ready), connected: Boolean(observed.ready) && observed.seenAt > now() - 90000 } : null
+    return { enabled, worker,
       plans: db.prepare(`SELECT guild_id FROM lms_discord_plans${filter} ORDER BY updated_at DESC`).all(...args).map(row => plan(row.guild_id)),
-      guilds: db.prepare(`SELECT guild_id AS id,name,manage_channels AS manageChannels,seen_at AS seenAt FROM lms_discord_guilds${filter}`).all(...args).map(row => ({ ...row, connected: row.seenAt > now() - 90000 })),
+      guilds: db.prepare(`SELECT guild_id AS id,name,manage_channels AS manageChannels,member_count AS memberCount,seen_at AS seenAt FROM lms_discord_guilds${filter}`).all(...args).map(row => ({ ...row, connected: row.seenAt > now() - 90000 && (!worker || worker.connected) })),
       jobs: db.prepare(`SELECT id,guild_id AS guildId,state,created_at AS createdAt,completed_at AS completedAt,error_code AS errorCode,results FROM lms_discord_jobs${filter} ORDER BY created_at DESC,rowid DESC LIMIT 50`).all(...args).map(row => ({ ...row, results: JSON.parse(row.results) })),
     }
   }
-  function poll(body) {
-    const { guilds } = z.object({ guilds: z.array(z.object({ id: snowflake, name: z.string().min(1).max(100), manageChannels: z.boolean() }).strict()).max(100) }).strict().parse(body)
+  function heartbeat(body) {
+    const { bot, guilds } = heartbeatSchema.parse(body)
     if (new Set(guilds.map(g => g.id)).size !== guilds.length) throw new ApiError(422, '중복된 서버입니다.')
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      if (bot) {
+        db.prepare('INSERT INTO lms_discord_worker VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET bot_id=excluded.bot_id,name=excluded.name,ready=excluded.ready,seen_at=excluded.seen_at').run(bot.id, bot.name, Number(bot.ready), now())
+        // A single bot reports its entire guild list, including departures.
+        db.prepare('UPDATE lms_discord_guilds SET seen_at=0 WHERE guild_id NOT IN (SELECT value FROM json_each(?))').run(JSON.stringify(guilds.map(g => g.id)))
+      }
+      for (const guild of guilds) db.prepare('INSERT INTO lms_discord_guilds(guild_id,name,manage_channels,seen_at,member_count) VALUES(?,?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET name=excluded.name,manage_channels=excluded.manage_channels,seen_at=excluded.seen_at,member_count=excluded.member_count').run(guild.id, guild.name, Number(guild.manageChannels), now(), guild.memberCount ?? null)
+      db.exec('COMMIT')
+      return { guilds: bot?.ready === false ? [] : guilds }
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
+  function poll(body) {
+    const { guilds } = heartbeat(body)
     expire()
     db.exec('BEGIN IMMEDIATE')
     try {
       for (const guild of guilds) {
-        db.prepare('INSERT INTO lms_discord_guilds VALUES(?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET name=excluded.name,manage_channels=excluded.manage_channels,seen_at=excluded.seen_at').run(guild.id, guild.name, Number(guild.manageChannels), now())
         const desired = plan(guild.id)
         const attempted = desired && db.prepare('SELECT id FROM lms_discord_jobs WHERE guild_id=? AND revision=?').get(guild.id, desired.revision)
         if (desired?.autoApply && !attempted && !active(guild.id)) enqueue(guild.id, desired.revision)
@@ -105,5 +126,5 @@ export function createProvision(db, { token = '', now = Date.now } = {}) {
     db.prepare('UPDATE lms_discord_jobs SET state=?,completed_at=?,error_code=?,results=?,claim_hash=NULL WHERE id=?').run(input.success ? 'succeeded' : 'failed', now(), input.errorCode, JSON.stringify(input.results), input.id)
     return { ok: true }
   }
-  return { enabled, authorized, save, enqueue, read, poll, complete }
+  return { enabled, authorized, save, enqueue, read, poll, complete, heartbeat }
 }

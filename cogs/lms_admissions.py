@@ -62,7 +62,7 @@ class LMSAdmissions(commands.Cog):
                     if self.pending_result:
                         await self.post(session, "complete", self.pending_result)
                         self.pending_result = None
-                    response = await self.post(session, "poll", {"guildIds": [str(guild.id) for guild in self.bot.guilds[:100]]})
+                    response = await self.post(session, "poll", {"guildIds": [str(guild.id) for guild in self.bot.guilds]})
                     job = response.get("job")
                     if not job:
                         return

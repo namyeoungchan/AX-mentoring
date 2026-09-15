@@ -70,7 +70,7 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
   function expire() { db.prepare("UPDATE lms_admissions SET invite_state='failed' WHERE invite_state='running' AND lease_until<=?").run(now()) }
   function authorized(header = '') { return token.length >= 32 && timingSafeEqual(Buffer.from(digest(header)), Buffer.from(digest(`Bearer ${token}`))) }
   function poll(body) {
-    const { guildIds } = z.object({ guildIds: z.array(snowflake).max(100) }).strict().parse(body)
+    const { guildIds } = z.object({ guildIds: z.array(snowflake).max(10000) }).strict().parse(body)
     expire()
     db.exec('BEGIN IMMEDIATE')
     try {

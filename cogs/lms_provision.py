@@ -17,6 +17,14 @@ class ProvisionError(Exception):
         super().__init__(code)
 
 
+def worker_status(bot):
+    """The one Render worker reports every server it has joined."""
+    return {"bot": {"id": str(bot.user.id), "name": str(bot.user), "ready": bot.is_ready()},
+            "guilds": [{"id": str(guild.id), "name": guild.name,
+                        "manageChannels": bool(guild.me and guild.me.guild_permissions.manage_channels),
+                        "memberCount": guild.member_count} for guild in bot.guilds]}
+
+
 def validate_provision_endpoint(url: str) -> str:
     parsed = urlsplit(url)
     local_http = parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
@@ -79,11 +87,13 @@ class LMSProvision(commands.Cog):
             try:
                 self.url = validate_provision_endpoint(candidate)
                 self.worker.start()
+                self.heartbeat.start()
             except ValueError:
                 log.warning("LMS channel provisioning disabled: invalid endpoint configuration")
 
     async def cog_unload(self):
         self.worker.cancel()
+        self.heartbeat.cancel()
 
     async def post(self, session, operation, body):
         async with session.post(f"{self.url}/{operation}", json=body,
@@ -103,11 +113,7 @@ class LMSProvision(commands.Cog):
                     if self.pending_result:
                         await self.post(session, "complete", self.pending_result)
                         self.pending_result = None
-                    response = await self.post(session, "poll", {"guilds": [
-                        {"id": str(guild.id), "name": guild.name,
-                         "manageChannels": bool(guild.me and guild.me.guild_permissions.manage_channels)}
-                        for guild in self.bot.guilds[:100]
-                    ]})
+                    response = await self.post(session, "poll", worker_status(self.bot))
                     job = response.get("job")
                     if not job:
                         return
@@ -142,6 +148,21 @@ class LMSProvision(commands.Cog):
 
     @worker.before_loop
     async def before_worker(self):
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(seconds=30)
+    async def heartbeat(self):
+        # Channel creation can take minutes; status delivery must stay independent.
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
+                await self.post(session, "heartbeat", worker_status(self.bot))
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            log.warning("LMS bot status delivery failed (%s)", type(error).__name__)
+
+    @heartbeat.before_loop
+    async def before_heartbeat(self):
         await self.bot.wait_until_ready()
 
     @commands.Cog.listener()

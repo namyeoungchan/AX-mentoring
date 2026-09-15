@@ -68,7 +68,6 @@ class LearningOpsSync(commands.Cog):
         self.token = os.environ["LEARNINGOPS_SYNC_TOKEN"].strip()
         if len(self.token) < 32:
             raise ValueError("LEARNINGOPS_SYNC_TOKEN must contain at least 32 characters")
-        self.source_id = os.getenv("LEARNINGOPS_SOURCE_ID", "asan-ax").strip()
         self.interval = max(30, min(120, int(os.getenv("LEARNINGOPS_SYNC_INTERVAL", "60"))))
         self.publish.change_interval(seconds=self.interval)
         self.publish.start()
@@ -84,7 +83,7 @@ class LearningOpsSync(commands.Cog):
             guild = self.bot.get_guild(config.GUILD_ID)
             latency = self.bot.latency
             snapshot.update({
-                "sourceId": self.source_id,
+                # The API routes by the bound Discord guild. No per-workspace bot setting.
                 "name": os.getenv("LEARNINGOPS_SOURCE_NAME", "아산 AX"),
                 "capturedAt": datetime.now(timezone.utc).isoformat(),
                 "bot": {

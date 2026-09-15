@@ -106,15 +106,21 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     return remotes.get(id)
   }
   function ingest(body) {
-    const row = db.prepare('SELECT id FROM lms_workspaces WHERE source_id=?').get(typeof body?.sourceId === 'string' ? body.sourceId : '')
+    const row = body?.sourceId === undefined
+      ? db.prepare('SELECT w.id,w.source_id FROM lms_workspaces w JOIN lms_workspace_guilds g ON g.workspace_id=w.id WHERE g.guild_id=?').get(typeof body?.bot?.guildId === 'string' ? body.bot.guildId : '')
+      : db.prepare('SELECT id,source_id FROM lms_workspaces WHERE source_id=?').get(typeof body?.sourceId === 'string' ? body.sourceId : '')
     if (!row) throw new ApiError(403, '등록된 워크스페이스의 데이터 소스가 아닙니다.')
     db.exec('BEGIN IMMEDIATE')
     try {
-      const result = remote(row.id).ingest(body)
+      const result = remote(row.id).ingest({ ...body, sourceId: row.source_id })
       bindGuild(row.id, body.bot.guildId)
       db.exec('COMMIT')
       return result
     } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
+  function connection(id) {
+    const meta = metadata(id), state = provision.read(meta.guildIds)
+    return { configured: state.enabled, worker: state.worker, guilds: meta.guildIds.map(guildId => state.guilds.find(g => g.id === guildId) || { id: guildId, name: guildId, connected: false, memberCount: null, seenAt: null, manageChannels: 0 }) }
   }
   function savePlan(id, body) {
     metadata(id)
@@ -201,5 +207,5 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
   }
   function close() { for (const [id, value] of stores) if (id !== 'default') value.db.close() }
   return { list, create, metadata, requireAccess, open, snapshot, mutate, remote, ingest, savePlan, enqueue,
-    provisionRead: id => provision.read(metadata(id).guildIds), role, requireRole, invite, previewInvitation, acceptInvitation, members, revokeInvitation, teaching, teach, close }
+    provisionRead: id => provision.read(metadata(id).guildIds), connection, role, requireRole, invite, previewInvitation, acceptInvitation, members, revokeInvitation, teaching, teach, close }
 }

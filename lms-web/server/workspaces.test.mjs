@@ -101,6 +101,25 @@ test('remote delivery selects its registered workspace and rolls back conflictin
   assert.throws(() => manager.ingest(payload('unknown')), { status: 403 })
 })
 
+test('shared worker status stays common but guild data and guild-routed snapshots remain scoped', t => {
+  const { manager, provision } = fixture(t)
+  const secondId = '323456789012345678'
+  manager.savePlan('asan-ax', plan)
+  const other = manager.create({ name: '공통 봇 연결 워크스페이스', guildId: secondId })
+  provision.heartbeat({ bot: { id: '999456789012345678', name: 'Render 공통 봇', ready: true }, guilds: [
+    { id: guildId, name: '아산 AX 서버', manageChannels: true, memberCount: 30 },
+    { id: secondId, name: '추가 서버', manageChannels: true, memberCount: 10 },
+  ] })
+  assert.equal(manager.connection('asan-ax').worker.id, manager.connection(other.id).worker.id)
+  assert.deepEqual(manager.connection('asan-ax').guilds.map(g => g.id), [guildId])
+  assert.deepEqual(manager.connection(other.id).guilds.map(g => g.id), [secondId])
+  const body = payload('ignored'); delete body.sourceId
+  manager.ingest(body)
+  assert.equal(manager.remote('asan-ax').read().snapshot.bot.guildId, guildId)
+  assert.equal(manager.remote(other.id).read().snapshot, null)
+  assert.throws(() => manager.ingest({ ...body, bot: { ...body.bot, guildId: '823456789012345678' } }), { status: 403 })
+})
+
 test('verified accounts need an invitation and roles belong to individual workspaces', async t => {
   const { manager, auth, store } = fixture(t)
   manager.savePlan('asan-ax', plan)

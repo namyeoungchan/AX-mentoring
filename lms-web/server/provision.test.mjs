@@ -13,6 +13,33 @@ const input = () => ({ guildId, name: '교육 서버', autoApply: true, revision
 const guilds = [{ id: guildId, name: '교육 서버', manageChannels: true }]
 const success = job => ({ id: job.id, claim: job.claim, success: true, errorCode: null, results: job.plan.channels.map((item, i) => ({ id: item.id, discordId: String(223456789012345678n + BigInt(i)), action: 'created' })) })
 
+test('one worker processes distinct guild plans and reports departures and stale status independently of jobs', () => {
+  const db = new DatabaseSync(':memory:')
+  let clock = Date.now()
+  try {
+    const service = createProvision(db, { token, now: () => clock })
+    const secondGuild = { id: '333456789012345678', name: '다른 워크스페이스', manageChannels: true }
+    const bot = { id: '999456789012345678', name: '공통 봇', ready: true }
+    service.save(input()); service.save({ ...input(), guildId: secondGuild.id })
+    const first = service.poll({ bot, guilds: [...guilds, secondGuild] }).job
+    assert.equal(first.plan.guildId, guildId)
+    service.complete(success(first))
+    const second = service.poll({ bot, guilds: [...guilds, secondGuild] }).job
+    assert.equal(second.plan.guildId, secondGuild.id)
+    service.heartbeat({ bot, guilds })
+    assert.equal(service.read([secondGuild.id]).guilds[0].connected, false)
+    assert.equal(service.read([guildId]).guilds[0].connected, true)
+    assert.equal(service.read([guildId]).worker.id, service.read([secondGuild.id]).worker.id)
+    assert.equal(service.read([guildId]).jobs[0].guildId, guildId)
+    clock += 91000
+    assert.equal(service.read([guildId]).worker.connected, false)
+    assert.equal(service.read([guildId]).guilds[0].connected, false)
+    service.heartbeat({ bot: { ...bot, ready: false }, guilds })
+    assert.equal(service.read([guildId]).worker.connected, false)
+    assert.equal(service.poll({ bot: { ...bot, ready: false }, guilds }).job, null)
+  } finally { db.close() }
+})
+
 test('bot join queues only the matching server, claims once, and records applied channels', () => {
   const db = new DatabaseSync(':memory:')
   try {
