@@ -38,4 +38,6 @@ npm run account:reset -- 사용자아이디
 
 배포 후 **Render 웹 서비스 주소**에 접속해 최초 관리자 등록을 진행합니다. Pages만 배포해도 사용자 DB/API가 생성되지는 않습니다. Pages에서 `VITE_API_BASE_URL`이 없으면 데모 대신 서비스 미연결 화면을 표시합니다.
 
+Render의 실제 주소는 플랫폼이 제공하는 `RENDER_EXTERNAL_URL`에서 읽어 자동으로 허용합니다. 서비스 이름을 변경해도 기존 주소로 로그인할 수 있습니다. GitHub Pages·커스텀 도메인은 `ALLOWED_ORIGINS`에 명시해야 합니다. 현재 Blueprint는 `https://asanax-learningops-web.onrender.com,https://namyeoungchan.github.io`를 지정합니다. 환경변수 변경은 재배포 후 적용됩니다. 요청의 Host 또는 X-Forwarded-Host를 허용 목록으로 사용하지 않습니다.
+
 구현 점검 참고: [OWASP Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html), [OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html).

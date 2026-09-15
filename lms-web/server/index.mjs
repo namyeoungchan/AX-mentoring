@@ -10,6 +10,7 @@ import { studentLearning } from './student.mjs'
 import { createProvision } from './provision.mjs'
 import { createWorkspaces } from './workspaces.mjs'
 import { createAdmissions } from './admissions.mjs'
+import { configuredOrigins } from './origins.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -17,7 +18,7 @@ const production = process.env.NODE_ENV === 'production'
 const password = process.env.ADMIN_PASSWORD || ''
 const port = Number(process.env.API_PORT || 3001)
 const host = production ? '0.0.0.0' : '127.0.0.1'
-const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001,http://127.0.0.1:3001').split(',').map(v => v.trim()))
+const allowedOrigins = configuredOrigins({ production, allowedOrigins: process.env.ALLOWED_ORIGINS, renderExternalUrl: process.env.RENDER_EXTERNAL_URL })
 const dbPath = resolve(root, process.env.BOT_DB_PATH || '../data/mentoring.db')
 const store = createStore(dbPath)
 const renderSync = createRenderSync(store.db, { token: process.env.LEARNINGOPS_SYNC_TOKEN || '', sourceId: process.env.LEARNINGOPS_SOURCE_ID || 'asan-ax' })

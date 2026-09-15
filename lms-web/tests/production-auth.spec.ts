@@ -3,6 +3,10 @@ import { test, expect } from '@playwright/test'
 test('production: one-time administrator setup, cookie login, password rotation and logout', async ({ page, request, context }) => {
   const base = 'http://localhost:3003'
   const setupKey = 'production-setup-key-123456'
+  const preflight = await request.fetch(`${base}/api/auth/setup`, { method: 'OPTIONS', headers: { Origin: 'https://actual-service.onrender.com', 'Access-Control-Request-Method': 'POST' } })
+  expect(preflight.status()).toBe(204)
+  expect(preflight.headers()['access-control-allow-origin']).toBe('https://actual-service.onrender.com')
+  expect((await request.fetch(`${base}/api/auth/setup`, { method: 'OPTIONS', headers: { Origin: 'https://untrusted.example', 'X-Forwarded-Host': 'untrusted.example', 'Access-Control-Request-Method': 'POST' } })).status()).toBe(403)
   expect((await request.post(`${base}/api/login`, { data: { password: setupKey } })).status()).toBe(401)
   expect((await request.post(`${base}/api/auth/setup`, { headers: { Origin: 'https://untrusted.example' }, data: {} })).status()).toBe(403)
   await page.goto(`${base}/?demo=1`)

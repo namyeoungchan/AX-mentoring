@@ -23,7 +23,7 @@ services:
       - key: ADMIN_PASSWORD
         generateValue: true
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: https://asanax-learningops-web.onrender.com,https://namyeoungchan.github.io
       - key: LEARNINGOPS_SYNC_TOKEN
         sync: false
       - key: LEARNINGOPS_SOURCE_ID
