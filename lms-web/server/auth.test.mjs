@@ -12,6 +12,46 @@ const options = { adminPassword: 'test-admin-password-1234', allowLegacyAdmin: t
 const member = { username: 'student.test', name: '테스트 학생', password: 'test-password-1234', discordId: '555456789012345678' }
 const verify = (code, overrides = {}) => ({ code, discordId: member.discordId, guildId: options.guildId, ...overrides })
 
+test('signup without Discord ID binds the bot identity once and rejects duplicate accounts', async () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    const auth = createAuth(db, options)
+    const { discordId, ...input } = member
+    const first = await auth.signup(input, () => {})
+    const second = await auth.signup({ ...input, username: 'another.student' }, () => {})
+    assert.equal(first.user.discordId, '')
+    assert.equal(second.user.discordId, '')
+    assert.equal(first.user.verified, false)
+    const pending = auth.issueVerification(first.user, options.guildId)
+    assert.throws(() => auth.verify(verify(pending.code, { guildId: '777456789012345678' })), { status: 403 })
+    assert.deepEqual(auth.preview(verify(pending.code)), { username: input.username })
+    assert.equal(auth.session(first.token).discordId, '')
+    auth.verify(verify(pending.code))
+    assert.equal(auth.session(first.token).discordId, discordId)
+    assert.equal(auth.session(first.token).verified, true)
+    assert.throws(() => auth.verify(verify(pending.code)), { status: 410 })
+    const other = auth.issueVerification(second.user, options.guildId)
+    assert.throws(() => auth.verify(verify(other.code)), { status: 409 })
+    assert.equal(auth.status(other.ticket).state, 'pending')
+    auth.verify(verify(other.code, { discordId: '666456789012345678' }))
+    assert.equal(auth.session(second.token).discordId, '666456789012345678')
+  } finally { db.close() }
+})
+
+test('staff registration without Discord ID creates the account only after bot confirmation', async () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    const auth = createAuth(db, options)
+    const { discordId, ...input } = member
+    const pending = await auth.register(input)
+    await assert.rejects(auth.login({ username: input.username, password: input.password }), { status: 401 })
+    auth.verify(verify(pending.code))
+    const result = await auth.login({ username: input.username, password: input.password })
+    assert.equal(result.user.discordId, discordId)
+    assert.equal(result.user.verified, true)
+  } finally { db.close() }
+})
+
 test('first administrator needs the server key; setup is atomic, closes permanently and revokes legacy access', async () => {
   const db = new DatabaseSync(':memory:')
   try {

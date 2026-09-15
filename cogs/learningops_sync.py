@@ -79,7 +79,8 @@ class LearningOpsSync(commands.Cog):
     async def publish(self):
         try:
             # A reconnect does not create another publisher task.
-            snapshot = await read_snapshot(config.DB_PATH)
+            from storage_client import client
+            snapshot = await client.request('snapshot', {'guildId': str(config.GUILD_ID)}) if client else await read_snapshot(config.DB_PATH)
             guild = self.bot.get_guild(config.GUILD_ID)
             latency = self.bot.latency
             snapshot.update({

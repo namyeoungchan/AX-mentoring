@@ -1,8 +1,10 @@
 # AX LearningOps 웹
 
-React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다. Node.js / Express API가 워크스페이스별 SQLite 파일을 사용합니다. 기존 Python 봇 DB는 기본 워크스페이스에서 유지합니다. 기존 봇에는 선택적으로 활성화되는 Render 데이터 전송 모듈을 추가했습니다. URL과 키를 설정하지 않으면 기존 동작을 유지합니다.
+React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다. Node.js / Express API가 워크스페이스별 SQLite 파일을 사용합니다. 기존 Python 봇 DB는 연결된 워크스페이스로 이관하고, 전환 이후 봇도 웹 API로 데이터를 읽고 저장합니다. 연동 URL과 키가 없는 기존 설치는 로컬 DB를 유지합니다.
 
 워크스페이스 생성·역할별 화면·수강생 승인 절차: [WORKSPACES.md](./WORKSPACES.md), [DISCORD-LMS.md](./DISCORD-LMS.md).
+
+기존 봇 데이터 전체 이관·운영 작업·자동 게시 패널: [BOT-DATA.md](./BOT-DATA.md).
 
 ## 실행
 
@@ -26,7 +28,7 @@ npm run dev
 
 ## 기존 봇 데이터 연결
 
-`.env.example`을 `.env`로 복사한 뒤 **봇이 사용하는 실제 DB 경로**를 지정합니다. `BOT_DB_PATH`의 상대 경로 기준은 `lms-web/`입니다.
+`.env.example`을 `.env`로 복사한 뒤 웹 서비스의 영속 DB 경로를 지정합니다. 원격 봇의 기존 DB는 파일 경로 공유 대신 [전체 이관](./BOT-DATA.md)으로 연결합니다. `BOT_DB_PATH`의 상대 경로 기준은 `lms-web/`입니다.
 
 ```dotenv
 BOT_DB_PATH=../data/mentoring.db
@@ -45,9 +47,9 @@ BOT_DB_PATH=../data/mentoring.db
 
 SQLite WAL과 트랜잭션을 사용합니다. 서버가 발급한 데이터 버전이 바뀌면 저장을 `409`로 거절해 다른 웹 사용자나 봇의 변경을 덮어쓰지 않습니다. 화면의 **새로고침** 버튼으로 최근 데이터를 불러옵니다. 실시간 push 동기화는 없습니다.
 
-기존 예약/과제의 채널 패널이나 Discord 메시지는 DB 변경만으로 즉시 갱신되지 않습니다. 기존 봇의 패널 새로고침 명령을 사용해야 합니다. 웹 저장 후 자동 Discord 게시/DM 발송은 구현하지 않았습니다. 기존 봇의 예약 조회 및 승인 예약 리마인더는 공유 DB의 값을 읽습니다.
+예약·과제·참여도·비밀평가 패널은 선언된 채널에 자동 게시·고정하고 주기적으로 갱신합니다. 버튼과 기존 새로고침 명령으로도 갱신할 수 있습니다. 전환한 봇의 조회·제출·리마인더는 웹 DB를 사용합니다. 공지 초안의 자동 발송은 별도 기능입니다.
 
-SQLite 파일은 API와 봇이 같은 호스트의 로컬 볼륨에서 공유하는 구성을 기준으로 합니다. 웹과 API는 다른 서버에 둘 수 있지만 원격 호스트끼리 SQLite 파일을 네트워크 파일시스템으로 공유하는 구성은 지원 대상으로 삼지 않았습니다. 별도 웹 호스트에서는 `/api`를 관리 API로 프록시하거나 [GitHub Pages 연결 설정](./GITHUB-PAGES.md)의 별도 API 주소 방식을 사용하세요.
+웹 API가 워크스페이스별 SQLite 파일을 소유하고, 다른 호스트의 봇은 인증된 HTTPS API로 접근합니다. 원격 호스트끼리 DB 파일을 공유할 필요가 없습니다. 별도 웹 호스트에서는 `/api`를 관리 API로 프록시하거나 [GitHub Pages 연결 설정](./GITHUB-PAGES.md)의 별도 API 주소 방식을 사용하세요.
 
 ## 구현 범위
 

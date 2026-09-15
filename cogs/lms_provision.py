@@ -143,6 +143,9 @@ class LMSProvision(commands.Cog):
                     await self.post(session, "complete", self.pending_result)
                     self.pending_result = None
                     log.info("LMS channel job finished (%s)", error_code or "success")
+                    manager = self.bot.get_cog('AutoPanels')
+                    if manager and guild and error_code is None:
+                        await manager.bind_channels(guild, job['plan']['channels'], results)
             except asyncio.CancelledError:
                 raise
             except Exception as error:

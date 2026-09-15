@@ -37,7 +37,7 @@ LEARNINGOPS_PROVISION_URL=https://asanax-learningops-web.onrender.com/api/integr
 LEARNINGOPS_PROVISION_TOKEN=<웹 서비스와 같은 32자 이상 키>
 ```
 
-봇의 `DB_PATH` 파일은 Render 영속 디스크에 두세요. 관리 역할·채널 ID와 자기소개 처리 기록이 이 파일에 저장됩니다. DB를 지우면 기존 관리 대상을 식별하지 못할 수 있습니다.
+[웹 데이터 이관](./BOT-DATA.md) 후 관리 역할·채널 ID와 자기소개 기록은 웹 서비스의 영속 DB에 저장합니다. 봇의 기존 `DB_PATH` 파일은 이관 원본 백업으로 유지합니다. 아직 전환하지 않은 설치는 이 파일을 계속 사용하므로 Render 영속 디스크에 두세요.
 
 Discord Developer Portal에서 **Server Members Intent**를 켭니다. 봇에는 **역할 관리·채널 관리·채널 보기·메시지 보내기·기록 보기·링크 삽입·메시지 고정** 권한을 부여하고 봇 역할을 `LMS` 역할들보다 위에 둡니다. 닉네임 동기화에는 **별명 관리** 권한도 필요합니다. 생성된 `LMS` 역할에 서버 관리 권한을 수동 추가하지 마세요.
 

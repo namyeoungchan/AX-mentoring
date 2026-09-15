@@ -99,12 +99,18 @@ def build_roster(guild: discord.Guild) -> dict[str, list[discord.Member]]:
     for m in guild.members:
         if m.bot or _is_staff(m):
             continue
-        team = parse_team(m.display_name)
-        if team:
+        team = member_team(m)
+        if team in roster:
             roster[team].append(m)
     for team in roster:
         roster[team].sort(key=lambda mm: mm.display_name)
     return roster
+
+
+def member_team(member):
+    if config.TEAM_MEMBERS is not None:
+        return config.TEAM_MEMBERS.get(str(member.id)) or None
+    return parse_team(member.display_name)
 
 
 def _bar(done: int, total: int, width: int = 10) -> str:
@@ -190,6 +196,9 @@ def build_panel_embed(
 
 async def refresh_panel(bot: commands.Bot) -> bool:
     """저장된 패널 메시지를 최신 진행 현황으로 edit."""
+    manager = bot.get_cog('AutoPanels')
+    if manager:
+        return bool(await manager.publish('peer_eval'))
     panel = await database.get_assignment_panel(PANEL_TYPE)
     if not panel:
         return False
@@ -248,6 +257,10 @@ async def post_progress_dashboard(
     bot: commands.Bot, guild: discord.Guild, round_row: dict
 ) -> discord.TextChannel | None:
     """과제-대시보드 채널에 진행판을 게시(또는 갱신)하고 추적 정보를 저장. 채널 반환."""
+    manager = bot.get_cog('AutoPanels')
+    if manager:
+        message = await manager.publish('peer_eval')
+        return message.channel if message else None
     ch = guild.get_channel(config.ASSIGNMENT_DASHBOARD_CHANNEL_ID)
     if not ch or not isinstance(ch, discord.TextChannel):
         return None
@@ -693,7 +706,7 @@ class PeerEvalPanelView(discord.ui.View):
             )
             return
 
-        team = parse_team(member.display_name)
+        team = member_team(member)
         if not team:
             await interaction.response.send_message(
                 embed=discord.Embed(

@@ -448,6 +448,16 @@ async def get_panels() -> list[dict]:
             return [dict(r) for r in await cur.fetchall()]
 
 
+async def upsert_panel(guild_id: str, channel_id: str, message_id: str) -> None:
+    """Keep legacy refresh hooks pointed at the automatically maintained message."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("BEGIN IMMEDIATE")
+        cursor = await db.execute("UPDATE panels SET message_id=? WHERE guild_id=? AND channel_id=?", (message_id, guild_id, channel_id))
+        if not cursor.rowcount:
+            await db.execute("INSERT INTO panels(guild_id,channel_id,message_id) VALUES(?,?,?)", (guild_id, channel_id, message_id))
+        await db.commit()
+
+
 async def delete_panel(panel_id: int) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM panels WHERE id = ?", (panel_id,))

@@ -103,6 +103,10 @@ async def build_dashboard_embeds() -> list[discord.Embed]:
 
 
 async def refresh_dashboard(bot: commands.Bot) -> None:
+    manager = bot.get_cog('AutoPanels')
+    if manager:
+        await manager.publish('dashboard')
+        return
     panel = await database.get_assignment_panel("dashboard")
     if not panel:
         return
@@ -825,6 +829,17 @@ class DynamicSubmitModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
 
+        from storage_client import client
+        if client:
+            await client.refresh_settings()
+        if config.TEAM_MEMBERS is not None:
+            user_id = str(interaction.user.id)
+            team = config.TEAM_MEMBERS.get(user_id)
+            if user_id not in config.TEAM_MEMBERS or (self.assignment['type'] == 'team' and not team):
+                await interaction.followup.send('웹의 승인·과정 등록·팀 배정을 확인하세요.', ephemeral=True)
+                return
+            self.team = team if self.assignment['type'] == 'team' else '개인'
+
         field_values = {inp.label: inp.value.strip() for inp in self._field_inputs}
         link = self._link_input.value.strip()
         content_json = json.dumps(field_values, ensure_ascii=False)
@@ -885,6 +900,8 @@ class TeamSelectView(discord.ui.View):
         self.add_item(select)
 
     async def _on_team_select(self, interaction: discord.Interaction) -> None:
+        if await start_web_submission(self.bot, interaction, self.assignment):
+            return
         team = interaction.data["values"][0]  # type: ignore[index]
         await interaction.response.send_modal(
             DynamicSubmitModal(self.bot, self.assignment, team)
@@ -934,6 +951,8 @@ class AssignmentSelectView(discord.ui.View):
             )
             return
 
+        if await start_web_submission(self.bot, interaction, assignment):
+            return
         if assignment["type"] == "team":
             await interaction.response.send_message(
                 embed=discord.Embed(
@@ -951,6 +970,22 @@ class AssignmentSelectView(discord.ui.View):
 
 
 # ── Student: Submit panel (persistent) ───────────────────────────────────────
+
+def build_submit_embed():
+    return discord.Embed(title="과제 제출", description="아래 버튼으로 진행 중인 과제를 선택하고 제출 내용을 작성하세요.\n제출 결과는 웹의 제출 내역에 반영됩니다.", color=0x315C48)
+
+
+async def start_web_submission(bot, interaction, assignment):
+    if config.TEAM_MEMBERS is None:
+        return False
+    user_id = str(interaction.user.id)
+    team = config.TEAM_MEMBERS.get(user_id)
+    if user_id not in config.TEAM_MEMBERS or (assignment['type'] == 'team' and not team):
+        await interaction.response.send_message('웹의 가입 승인·과정 등록·팀 배정을 확인하세요.', ephemeral=True)
+    else:
+        await interaction.response.send_modal(DynamicSubmitModal(bot, assignment, team if assignment['type'] == 'team' else '개인'))
+    return True
+
 
 class SubmitPanelView(discord.ui.View):
     """Survives bot restarts via custom_id."""
@@ -994,6 +1029,8 @@ class SubmitPanelView(discord.ui.View):
                 )
                 return
 
+            if await start_web_submission(self.bot, interaction, assignment):
+                return
             if assignment["type"] == "team":
                 await interaction.response.send_message(
                     embed=discord.Embed(
@@ -1101,6 +1138,11 @@ class Assignment(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
+        manager = self.bot.get_cog('AutoPanels')
+        if manager:
+            message = await manager.publish('submit')
+            await interaction.followup.send('제출 패널을 갱신하고 고정했습니다.' if message else '웹의 제출 채널 설정을 확인하세요.', ephemeral=True)
+            return
         ch = interaction.guild.get_channel(config.ASSIGNMENT_SUBMIT_CHANNEL_ID)  # type: ignore[union-attr]
         if not ch or not isinstance(ch, discord.TextChannel):
             await interaction.followup.send("과제제출 채널을 찾을 수 없습니다.", ephemeral=True)
@@ -1142,6 +1184,11 @@ class Assignment(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
+        manager = self.bot.get_cog('AutoPanels')
+        if manager:
+            message = await manager.publish('dashboard')
+            await interaction.followup.send('과제 대시보드를 갱신하고 고정했습니다.' if message else '웹의 대시보드 채널 설정을 확인하세요.', ephemeral=True)
+            return
         ch = interaction.guild.get_channel(config.ASSIGNMENT_DASHBOARD_CHANNEL_ID)  # type: ignore[union-attr]
         if not ch or not isinstance(ch, discord.TextChannel):
             await interaction.followup.send("과제 대시보드 채널을 찾을 수 없습니다.", ephemeral=True)

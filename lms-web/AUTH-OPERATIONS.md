@@ -41,3 +41,9 @@ npm run account:reset -- 사용자아이디
 Render의 실제 주소는 플랫폼이 제공하는 `RENDER_EXTERNAL_URL`에서 읽어 자동으로 허용합니다. 서비스 이름을 변경해도 기존 주소로 로그인할 수 있습니다. GitHub Pages·커스텀 도메인은 `ALLOWED_ORIGINS`에 명시해야 합니다. 현재 Blueprint는 `https://asanax-learningops-web.onrender.com,https://namyeoungchan.github.io`를 지정합니다. 환경변수 변경은 재배포 후 적용됩니다. 요청의 Host 또는 X-Forwarded-Host를 허용 목록으로 사용하지 않습니다.
 
 구현 점검 참고: [OWASP Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html), [OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html).
+
+## 로그아웃과 Discord 계정 연결
+
+관리자·강사·수강생 화면 상단의 **로그아웃**은 현재 서버 세션을 폐기하고 로그인 화면으로 이동합니다. 새로고침해도 로그인 상태가 복원되지 않습니다. 서버에 연결하지 못하면 실패를 표시하고 다시 시도할 수 있습니다.
+
+강사·수강생은 회원가입 시 Discord ID를 입력하지 않습니다. 웹의 일회용 코드를 Discord 봇에서 확인하면 해당 Discord 계정이 자동 연결됩니다. 이미 다른 LMS 계정에 연결된 Discord 계정과 중복 연결은 거절합니다. 기존에 연결한 계정은 유지합니다.

@@ -1,0 +1,22 @@
+[
+  {"id":"add_mentor","label":"멘토 등록","fields":[["discord_id","Discord 사용자 ID","text"],["name","이름","text"],["bio","소개","textarea"]]},
+  {"id":"add_slot","label":"예약 시간 등록","fields":[["mentor_id","멘토 번호","number"],["start_time","시작 일시","datetime-local"],["end_time","종료 일시","datetime-local"],["label","예약 시간 이름","text"]]},
+  {"id":"deactivate_slot","label":"예약 시간 비활성화","fields":[["slot_id","예약 시간 번호","number"]]},
+  {"id":"set_slot_template","label":"예약 시간 규칙 설정","fields":[["mentor_id","멘토 번호","number"],["start_hour","시작 시","number"],["start_minute","시작 분","number"],["end_hour","종료 시","number"],["end_minute","종료 분","number"],["interval_minutes","간격(분)","number"]]},
+  {"id":"generate_slots_for_range","label":"기간별 예약 시간 생성","fields":[["mentor_id","멘토 번호","number"],["date_from","시작 날짜","date"],["date_to","종료 날짜","date"]]},
+  {"id":"block_date","label":"휴무 날짜 등록","fields":[["mentor_id","멘토 번호","number"],["date","휴무 날짜","date"]]},
+  {"id":"unblock_date","label":"휴무 날짜 해제","fields":[["mentor_id","멘토 번호","number"],["date","해제 날짜","date"]]},
+  {"id":"set_blocked_weekdays","label":"휴무 요일 설정","help":"월요일 0부터 일요일 6까지, 쉼표로 구분합니다. 비워두면 모두 해제합니다.","fields":[["mentor_id","멘토 번호","number"],["weekdays","휴무 요일","numbers"]]},
+  {"id":"approve_booking","label":"예약 승인","fields":[["slot_id","예약 시간 번호","number"]]},
+  {"id":"reject_booking","label":"예약 반려","fields":[["slot_id","예약 시간 번호","number"],["reason","반려 사유","textarea"]]},
+  {"id":"admin_cancel_booking","label":"예약 취소","fields":[["slot_id","예약 시간 번호","number"]]},
+  {"id":"create_assignment","label":"과제 등록","fields":[["week","주차","number"],["title","과제명","text"],["description","설명","textarea"],["due_date","마감 날짜","date"],["type_","제출 방식","assignment-type"],["fields","제출 항목(줄마다 하나, 최대 4개)","lines"]]},
+  {"id":"update_assignment","label":"과제 수정","fields":[["assignment_id","과제 번호","number"],["week","주차","number"],["title","과제명","text"],["description","설명","textarea"],["due_date","마감 날짜","date"],["type_","제출 방식","assignment-type"],["fields","제출 항목(줄마다 하나, 최대 4개)","lines"]]},
+  {"id":"deactivate_assignment","label":"과제 마감","fields":[["assignment_id","과제 번호","number"]]},
+  {"id":"delete_assignment","label":"과제 삭제","help":"선택한 과제와 연결된 제출물도 삭제됩니다.","fields":[["assignment_id","과제 번호","number"]]},
+  {"id":"create_peer_round","label":"비밀평가 시작","help":"기존 진행 중인 평가는 마감하고 새 회차를 시작합니다.","fields":[["title","평가 제목","text"]]},
+  {"id":"close_peer_round","label":"비밀평가 마감","fields":[["round_id","평가 회차 번호","number"]]},
+  {"id":"complete_onboarding","label":"기존 온보딩 완료 처리","help":"가입 승인과 Discord 본인 인증은 별도로 확인해야 합니다.","fields":[["user_id","Discord 사용자 ID","text"]]},
+  {"id":"clear_slots","label":"미예약 시간 정리","help":"이미 예약이 있는 시간은 유지합니다.","fields":[["mentor_id","멘토 번호","number"]]},
+  {"id":"remove_mentor","label":"멘토 삭제","help":"해당 멘토의 예약 시간과 연결된 예약도 삭제됩니다.","fields":[["mentor_id","멘토 번호","number"]]}
+]

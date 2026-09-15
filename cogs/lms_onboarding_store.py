@@ -1,5 +1,6 @@
 import json
 import aiosqlite
+from storage_codec import pack_runtime, unpack_runtime
 
 
 class OnboardingStore:
@@ -7,22 +8,35 @@ class OnboardingStore:
         self.path = path
 
     async def initialize(self):
+        from storage_client import client
+        if client:
+            return
         async with aiosqlite.connect(self.path) as db:
             await db.execute("CREATE TABLE IF NOT EXISTS lms_managed_onboarding(guild_id TEXT NOT NULL,kind TEXT NOT NULL,record_key TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(guild_id,kind,record_key))")
             await db.commit()
 
     async def get(self, guild_id, kind, key):
+        from storage_client import client
+        if client:
+            return unpack_runtime(kind, await client.request('runtime', {'guildId': str(guild_id), 'kind': kind, 'key': str(key), 'operation': 'get'}))
         async with aiosqlite.connect(self.path) as db:
             async with db.execute("SELECT data FROM lms_managed_onboarding WHERE guild_id=? AND kind=? AND record_key=?", (str(guild_id), kind, str(key))) as rows:
                 row = await rows.fetchone()
                 return json.loads(row[0]) if row else None
 
     async def put(self, guild_id, kind, key, value):
+        from storage_client import client
+        if client:
+            return await client.request('runtime', {'guildId': str(guild_id), 'kind': kind, 'key': str(key), 'operation': 'put', 'value': pack_runtime(kind, value)})
         async with aiosqlite.connect(self.path) as db:
             await db.execute("INSERT INTO lms_managed_onboarding VALUES(?,?,?,?) ON CONFLICT(guild_id,kind,record_key) DO UPDATE SET data=excluded.data", (str(guild_id), kind, str(key), json.dumps(value)))
             await db.commit()
 
     async def all(self, guild_id, kind):
+        from storage_client import client
+        if client:
+            values = await client.request('runtime', {'guildId': str(guild_id), 'kind': kind, 'operation': 'all'})
+            return {key: unpack_runtime(kind, value) for key, value in values.items()}
         async with aiosqlite.connect(self.path) as db:
             async with db.execute("SELECT record_key,data FROM lms_managed_onboarding WHERE guild_id=? AND kind=?", (str(guild_id), kind)) as rows:
                 return {key: json.loads(data) for key, data in await rows.fetchall()}

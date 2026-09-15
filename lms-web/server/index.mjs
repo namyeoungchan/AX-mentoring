@@ -12,6 +12,7 @@ import { createWorkspaces } from './workspaces.mjs'
 import { createAdmissions } from './admissions.mjs'
 import { configuredOrigins } from './origins.mjs'
 import { createOnboarding } from './onboarding.mjs'
+import { createBotStorage } from './bot-storage.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -29,11 +30,13 @@ const provision = createProvision(store.db, { token: process.env.LEARNINGOPS_PRO
 const workspaces = createWorkspaces({ store, dbPath, provision, syncToken: process.env.LEARNINGOPS_SYNC_TOKEN || '', sourceId: process.env.LEARNINGOPS_SOURCE_ID || 'asan-ax', authGuildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '' })
 const admissions = createAdmissions(store.db, workspaces, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
 const onboarding = createOnboarding(store.db, workspaces, provision)
+const botStorage = createBotStorage(store.db, workspaces, onboarding)
 const app = express()
 app.disable('x-powered-by')
 const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0)
 if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 5) throw new Error('TRUST_PROXY_HOPS must be an integer between 0 and 5')
 if (proxyHops) app.set('trust proxy', proxyHops)
+app.use('/api/integrations/discord/storage/bootstrap', (req, res, next) => provision.authorized(req.get('authorization')) ? next() : res.status(401).json({ error: '봇 인증에 실패했습니다.' }), express.json({ limit: '70mb' }))
 app.use(express.json({ limit: '10mb' }))
 app.use('/api', (req, res, next) => {
   res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' })
@@ -111,6 +114,16 @@ app.post('/api/integrations/discord/onboarding/:operation', (req, res) => {
   if (req.params.operation === 'progress') return res.json(onboarding.progress(req.body))
   return res.status(404).json({ error: '지원하지 않는 작업입니다.' })
 })
+app.post('/api/integrations/discord/storage/:operation', async (req, res) => {
+  if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
+  if (req.params.operation === 'status') return res.json(botStorage.status(req.body?.guildId))
+  if (req.params.operation === 'snapshot') return res.json(botStorage.snapshot(req.body?.guildId))
+  if (req.params.operation === 'bootstrap') return res.json(botStorage.bootstrap(req.body))
+  if (req.params.operation === 'call') return res.json(await botStorage.call(req.body))
+  if (req.params.operation === 'runtime') return res.json(botStorage.runtime(req.body))
+  if (req.params.operation === 'bind-panels') return res.json(botStorage.bindPanels(req.body))
+  return res.status(404).json({ error: '지원하지 않는 작업입니다.' })
+})
 app.post('/api/login', (req, res) => {
   auth.limit('admin-ip', req.ip, 20, 60000)
   setLogin(res, auth.adminLogin(req.body?.password))
@@ -174,6 +187,11 @@ app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res
 app.patch('/api/workspaces/:workspaceId/teaching', (req, res) => res.json(workspaces.teach(req.workspaceId, req.body, req.account)))
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
 app.get('/api/workspaces/:workspaceId/members', (req, res) => res.json(workspaces.members(req.workspaceId, req.account)))
+app.get('/api/workspaces/:workspaceId/bot-data', (req, res) => res.json(botStorage.state(req.workspaceId)))
+app.get('/api/workspaces/:workspaceId/bot-data/table/:table', (req, res) => res.json(botStorage.table(req.workspaceId, req.params.table, req.query.page)))
+app.get('/api/workspaces/:workspaceId/bot-data/archive/:checksum', (req, res) => res.json({ archive: botStorage.archive(req.workspaceId, req.params.checksum) }))
+app.post('/api/workspaces/:workspaceId/bot-data/settings', (req, res) => res.json(botStorage.settings(req.workspaceId, req.body)))
+app.post('/api/workspaces/:workspaceId/bot-data/operation', async (req, res) => res.json(await botStorage.call(req.body, req.account.username, req.workspaceId)))
 app.get('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.read(req.workspaceId)))
 app.post('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.save(req.workspaceId, req.body)))
 app.post('/api/workspaces/:workspaceId/invitations', (req, res) => res.status(201).json(workspaces.invite(req.workspaceId, req.body, req.account)))

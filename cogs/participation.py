@@ -145,6 +145,9 @@ async def refresh_participation_panel(bot: commands.Bot, days: int | None = None
     저장된 패널 메시지를 최신 통계로 edit.
     days=None이면 현재 패널에 표시된 기간을 유지.
     """
+    manager = bot.get_cog('AutoPanels')
+    if manager:
+        return bool(await manager.publish('participation', days=days))
     panel = await database.get_assignment_panel(PANEL_TYPE)
     if not panel:
         return False
@@ -261,6 +264,13 @@ class Participation(commands.Cog):
         guild = interaction.guild
         if not guild:
             await interaction.response.send_message("서버에서만 사용할 수 있습니다.", ephemeral=True)
+            return
+
+        manager = self.bot.get_cog('AutoPanels')
+        if manager:
+            await interaction.response.defer(ephemeral=True)
+            message = await manager.publish('participation')
+            await interaction.followup.send('참여도 대시보드를 갱신하고 고정했습니다.' if message else '웹의 대시보드 채널 설정을 확인하세요.', ephemeral=True)
             return
 
         ch = guild.get_channel(config.ASSIGNMENT_DASHBOARD_CHANNEL_ID)

@@ -30,6 +30,7 @@ COGS = [
     "cogs.lms_auth",
     "cogs.lms_provision",
     "cogs.lms_admissions",
+    "cogs.auto_panels",
 ]
 
 
@@ -46,6 +47,8 @@ class AsanAXBot(commands.Bot):
             os.makedirs(db_dir, exist_ok=True)
         await database.init_db()
         log.info("Database initialised at %s", config.DB_PATH)
+        from storage_client import connect_web_storage
+        await connect_web_storage()
 
         for cog in COGS:
             await self.load_extension(cog)

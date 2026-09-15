@@ -29,7 +29,7 @@ test('channel template saves, bot join applies, failures are visible and retry s
   expect(job.plan.channels).toHaveLength(9)
   expect((await request.post('/api/integrations/discord/provision/complete', { headers, data: { id: job.id, claim: job.claim, success: false, errorCode: 'forbidden', results: [] } })).status()).toBe(200)
   await page.locator('.operations-toolbar').getByRole('button', { name: '새로고침' }).click()
-  await expect(page.getByText('봇의 채널 관리 권한을 확인하세요.', { exact: true })).toBeVisible()
+  await expect(page.getByText('봇의 채널 관리·채널 보기·메시지 보내기·기록 보기·링크 삽입·메시지 고정 권한을 확인하세요.', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '적용 요청', exact: true }).click()
   const claimed = await (await request.post('/api/integrations/discord/provision/poll', { headers, data: { guilds: [{ ...poll.guilds[0], manageChannels: true }] } })).json()
   const results = claimed.job.plan.channels.map((item: { id: string }, i: number) => ({ id: item.id, discordId: String(688456789012345678n + BigInt(i)), action: i < 2 ? 'reused' : 'created' }))

@@ -117,6 +117,15 @@ class MentorAddModal(discord.ui.Modal, title="멘토 등록"):
 
 async def refresh_all_panels(bot: commands.Bot) -> None:
     """Update all posted panels with the latest mentor/slot data."""
+    manager = bot.get_cog('AutoPanels')
+    if manager:
+        primary = await manager.publish('mentoring')
+        for panel in await database.get_panels():
+            guild = bot.get_guild(int(panel['guild_id']))
+            channel = guild.get_channel(int(panel['channel_id'])) if guild else None
+            if isinstance(channel, discord.TextChannel) and (not primary or channel.id != primary.channel.id):
+                await manager.publish('mentoring', channel=channel)
+        return
     panels = await database.get_panels()
     mentors = await database.get_mentors()
     panel_embed = await build_panel_embed(mentors)
@@ -159,6 +168,12 @@ class Admin(commands.Cog):
     @admin_group.command(name="panel-post", description="이 채널에 멘토링 예약 패널을 게시합니다.")
     @is_admin()
     async def panel_post(self, interaction: discord.Interaction) -> None:
+        manager = self.bot.get_cog('AutoPanels')
+        if manager:
+            await interaction.response.defer(ephemeral=True)
+            message = await manager.publish('mentoring', channel=interaction.channel)
+            await interaction.followup.send('멘토링 패널을 갱신하고 고정했습니다.' if message else '웹의 멘토링 채널 설정을 확인하세요.', ephemeral=True)
+            return
         mentors = await database.get_mentors()
         panel_embed = await build_panel_embed(mentors)
         view = MentorPanelView(mentors)

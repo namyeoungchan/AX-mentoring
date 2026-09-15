@@ -8,10 +8,10 @@ const hash = value => createHash('sha256').update(value).digest('hex')
 const snowflake = z.string().regex(/^\d{17,20}$/, 'Discord ID는 17~20자리 숫자여야 합니다.')
 const username = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_.-]{3,31}$/, '아이디는 영문 소문자·숫자·._- 4~32자로 입력하세요.')
 const password = z.string().min(15, '비밀번호는 15자 이상 입력하세요.').max(128)
-const registration = z.object({ username, name: z.string().trim().min(1).max(50), password, discordId: snowflake }).strict()
+const registration = z.object({ username, name: z.string().trim().min(1).max(50), password, discordId: snowflake.optional() }).strict()
 const ticketSchema = z.string().regex(/^[a-f0-9]{64}$/)
 const verification = z.object({ code: z.string().trim().toUpperCase().transform(v => v.replaceAll('-', '')).pipe(z.string().regex(/^[A-F0-9]{16}$/)), discordId: snowflake, guildId: snowflake }).strict()
-const publicUser = row => ({ id: row.id, username: row.username, name: row.name, discordId: row.platform_role === 'admin' ? '' : row.discord_id, role: row.platform_role || 'student', verified: row.verified_at !== null })
+const publicUser = row => ({ id: row.id, username: row.username, name: row.name, discordId: /^\d{17,20}$/.test(row.discord_id) ? row.discord_id : '', role: row.platform_role || 'student', verified: row.verified_at !== null })
 const admin = { id: 'admin', username: 'admin', name: '관리자', discordId: '', role: 'admin' }
 const safeEqual = (a, b) => timingSafeEqual(Buffer.from(hash(a)), Buffer.from(hash(b)))
 const hashOptions = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 }
@@ -103,6 +103,7 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
   async function register(body) {
     requireEnabled()
     const input = registration.parse(body)
+    input.discordId ||= `pending:${randomUUID()}`
     available(input.username, input.discordId)
     const passwordHash = await hashPassword(input.password)
     available(input.username, input.discordId)
@@ -116,6 +117,7 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
   }
   async function signup(body, onCreated) {
     const input = registration.parse(body)
+    input.discordId ||= `pending:${randomUUID()}`
     available(input.username, input.discordId)
     const passwordHash = await hashPassword(input.password)
     const id = randomUUID()
@@ -165,16 +167,21 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     if (botToken.length < 32 || !guildAllowed(input.guildId)) throw new ApiError(403, '인증이 허용된 Discord 서버가 아닙니다.')
     const row = db.prepare('SELECT * FROM lms_registrations WHERE code_hash=?').get(hash(input.code))
     if (!row || row.verified_at !== null || row.expires_at <= now()) throw new ApiError(410, '사용했거나 만료된 인증 코드입니다. 웹에서 코드를 확인해 주세요.')
-    if (row.discord_id !== input.discordId || row.guild_id !== input.guildId) throw new ApiError(403, '가입 시 입력한 Discord 계정과 일치하지 않습니다.')
-    if (!row.user_id) available(row.username, row.discord_id)
-    return row
+    const stored = row.user_id ? db.prepare('SELECT * FROM lms_users WHERE id=?').get(row.user_id) : null
+    if (row.user_id && !stored) throw new ApiError(410, '가입 요청을 찾을 수 없습니다.')
+    const identity = stored?.discord_id || row.discord_id
+    if ((!identity.startsWith('pending:') && identity !== input.discordId) || row.guild_id !== input.guildId) throw new ApiError(403, '연결된 Discord 계정 또는 인증 서버를 확인하세요.')
+    const owner = db.prepare('SELECT id FROM lms_users WHERE discord_id=?').get(input.discordId)
+    if (owner && owner.id !== row.user_id) throw new ApiError(409, '이미 다른 LMS 계정에 연결된 Discord 계정입니다.')
+    if (!row.user_id) available(row.username, input.discordId)
+    return { ...row, discord_id: input.discordId }
   }
   function preview(body) { const row = verificationRequest(body); return { username: row.username } }
   function verify(body) {
     db.exec('BEGIN IMMEDIATE')
     try {
       const row = verificationRequest(body)
-      if (row.user_id) db.prepare('UPDATE lms_users SET verified_at=?,guild_id=? WHERE id=?').run(now(), row.guild_id, row.user_id)
+      if (row.user_id) db.prepare('UPDATE lms_users SET verified_at=?,guild_id=?,discord_id=? WHERE id=?').run(now(), row.guild_id, row.discord_id, row.user_id)
       else db.prepare('INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,verified_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), row.username, row.name, row.password_hash, row.discord_id, row.guild_id, now(), now())
       db.prepare('UPDATE lms_registrations SET verified_at=?,password_hash=? WHERE ticket_hash=?').run(now(), '', row.ticket_hash)
       db.exec('COMMIT')

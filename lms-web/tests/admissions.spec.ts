@@ -52,7 +52,6 @@ test('workspace administrator invites an instructor; student signs up, instructo
     await student.getByLabel('가입할 워크스페이스').selectOption(workspace.id)
     await student.getByLabel('이름', { exact: true }).fill('승인 대기 학생')
     await student.getByLabel('아이디', { exact: true }).fill('admission.learner')
-    await student.getByLabel('Discord 사용자 ID', { exact: true }).fill('488456789012345672')
     await student.getByLabel('비밀번호', { exact: true }).fill('test-learner-password-1234')
     await student.getByLabel('비밀번호 확인', { exact: true }).fill('test-learner-password-1234')
     await student.getByRole('button', { name: '가입 및 승인 요청' }).click()

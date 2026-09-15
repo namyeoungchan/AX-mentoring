@@ -18,10 +18,11 @@ export function useWorkspace() {
   const [learning, setLearning] = useState<Learning | null>(null)
   const [saving, setSaving] = useState(false)
   const locked = useRef(false)
+  const loggingOut = useRef(false)
   const generation = useRef(0)
   const controller = useRef<AbortController | null>(null)
   const refresh = useCallback(async (requestedId?: string) => {
-    if (locked.current) return
+    if (locked.current || loggingOut.current) return
     const version = ++generation.current
     controller.current?.abort()
     const nextController = new AbortController(); controller.current = nextController
@@ -97,10 +98,16 @@ export function useWorkspace() {
     catch (e) { setError((e as Error).message) }
   }
   async function logout() {
+    if (loggingOut.current) return
+    loggingOut.current = true
+    cancelPending(); setLoading(false)
     try { await request('logout', { method: 'POST', body: '{}' }) }
-    catch (e) { if ((e as Error & { status?: number }).status !== 401) { setError((e as Error).message); return } }
+    catch (e) { if ((e as Error & { status?: number }).status !== 401) { setError('로그아웃하지 못했습니다. 연결을 확인하고 다시 시도하세요.'); loggingOut.current = false; return } }
     controller.current?.abort(); generation.current++
     setSessionToken(''); setData(emptyWorkspace); setLearning(null); setAccount(null); setWorkspaces([]); setError(''); setAuthRequired(true)
+    active.current = ''; setActiveId(''); rememberWorkspace(''); setLoading(false)
+    const url = new URL(location.href); url.hash = 'login'; history.replaceState(null, '', url)
+    loggingOut.current = false
   }
   function enterDemo() { const url = new URL(location.href); url.searchParams.set('demo', '1'); url.hash = 'dashboard'; location.assign(url.href) }
   function leaveDemo() { const url = new URL(location.href); url.searchParams.delete('demo'); url.hash = 'login'; location.assign(url.href) }
