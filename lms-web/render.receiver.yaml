@@ -1,7 +1,7 @@
 # Optional separate web receiver. Do not replace the existing worker's render.yaml.
 services:
   - type: web
-    name: asanax-learningops-web
+    name: ax-lms
     runtime: docker
     plan: starter
     dockerfilePath: ./lms-web/Dockerfile
