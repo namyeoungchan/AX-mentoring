@@ -26,3 +26,9 @@ services:
         sync: false
       - key: LEARNINGOPS_SOURCE_ID
         value: asan-ax
+      - key: LEARNINGOPS_AUTH_TOKEN
+        sync: false
+      - key: LEARNINGOPS_AUTH_GUILD_ID
+        sync: false
+      - key: LEARNINGOPS_PROVISION_TOKEN
+        sync: false

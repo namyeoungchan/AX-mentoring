@@ -4,6 +4,7 @@ test('Render worker data arrives without admin login and displays read-only in t
   expect((await request.get('/api/integrations/render')).status()).toBe(401)
   expect((await request.post('/api/integrations/render/snapshot', { data: {} })).status()).toBe(401)
   await page.goto('/#asan')
+  await page.getByRole('button', { name: '관리자 로그인', exact: true }).click()
   await page.getByLabel('관리자 비밀번호').fill('test-only-password-1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   await expect(page.getByRole('heading', { name: '아산 AX 운영 현황', exact: true })).toBeVisible()

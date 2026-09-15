@@ -1,0 +1,107 @@
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
+import { z } from 'zod'
+import { ApiError } from './store.mjs'
+
+const digest = value => createHash('sha256').update(value).digest('hex')
+const snowflake = z.string().regex(/^\d{17,20}$/)
+const channel = z.object({ id: z.string().min(1).max(80), name: z.string().trim().min(1).max(80), type: z.enum(['category', 'text', 'voice']), parentId: z.string().max(80).default('') }).strict().transform(item => ({ ...item, name: item.type === 'text' ? item.name.toLowerCase() : item.name }))
+const planSchema = z.object({ guildId: snowflake, name: z.string().trim().min(1).max(80), autoApply: z.boolean(), channels: z.array(channel).min(1).max(30), revision: z.string().max(64) }).strict().superRefine((plan, ctx) => {
+  const ids = new Set()
+  const names = new Set()
+  for (const item of plan.channels) {
+    if (ids.has(item.id)) ctx.addIssue({ code: 'custom', message: '채널 식별자가 중복됐습니다.' })
+    ids.add(item.id)
+    if (item.type === 'text' && !/^[\p{L}\p{N}_-]+$/u.test(item.name)) ctx.addIssue({ code: 'custom', message: '텍스트 채널명은 문자·숫자·밑줄·하이픈으로 입력하세요.' })
+    if (item.type === 'category' && item.parentId) ctx.addIssue({ code: 'custom', message: '카테고리는 다른 카테고리 안에 넣을 수 없습니다.' })
+    if (item.parentId && !plan.channels.some(parent => parent.id === item.parentId && parent.type === 'category')) ctx.addIssue({ code: 'custom', message: '채널의 상위 카테고리를 확인하세요.' })
+    const key = `${item.type}:${item.parentId}:${item.name}`
+    if (names.has(key)) ctx.addIssue({ code: 'custom', message: '같은 카테고리 안에 동일한 이름과 유형의 채널이 있습니다.' })
+    names.add(key)
+  }
+})
+const outcome = z.object({ id: z.string().max(80), discordId: snowflake, action: z.enum(['created', 'reused']) }).strict()
+
+export function createProvision(db, { token = '', now = Date.now } = {}) {
+  const enabled = token.length >= 32
+  db.exec(`CREATE TABLE IF NOT EXISTS lms_discord_plans (
+      guild_id TEXT PRIMARY KEY, data TEXT NOT NULL CHECK(json_valid(data)), revision TEXT NOT NULL, updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS lms_discord_guilds (
+      guild_id TEXT PRIMARY KEY, name TEXT NOT NULL, manage_channels INTEGER NOT NULL, seen_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS lms_discord_jobs (
+      id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, revision TEXT NOT NULL, plan TEXT NOT NULL CHECK(json_valid(plan)),
+      state TEXT NOT NULL CHECK(state IN ('queued','running','succeeded','failed')),
+      created_at INTEGER NOT NULL, completed_at INTEGER, lease_until INTEGER, claim_hash TEXT,
+      error_code TEXT, results TEXT NOT NULL DEFAULT '[]'
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS lms_discord_active_job ON lms_discord_jobs(guild_id) WHERE state IN ('queued','running');`)
+  function authorized(header = '') { return enabled && timingSafeEqual(Buffer.from(digest(header)), Buffer.from(digest(`Bearer ${token}`))) }
+  function expire() { db.prepare("UPDATE lms_discord_jobs SET state='failed',error_code='timeout',completed_at=? WHERE state='running' AND lease_until<=?").run(now(), now()) }
+  function plan(guildId) { const row = db.prepare('SELECT * FROM lms_discord_plans WHERE guild_id=?').get(guildId); return row ? { ...JSON.parse(row.data), revision: row.revision } : null }
+  function active(guildId) { return db.prepare("SELECT id FROM lms_discord_jobs WHERE guild_id=? AND state IN ('queued','running')").get(guildId) }
+  function save(body) {
+    const input = planSchema.parse(body)
+    expire()
+    if (active(input.guildId)) throw new ApiError(409, '적용 작업이 진행 중입니다. 완료 후 설정을 변경하세요.')
+    const current = plan(input.guildId)
+    if ((current?.revision || '') !== input.revision) throw new ApiError(409, '다른 작업으로 설정이 변경됐습니다. 저장된 설정을 다시 불러오세요.')
+    const { revision: _revision, ...value } = input
+    const data = JSON.stringify(value)
+    const revision = digest(data)
+    db.prepare('INSERT INTO lms_discord_plans VALUES(?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET data=excluded.data,revision=excluded.revision,updated_at=excluded.updated_at').run(value.guildId, data, revision, now())
+    return { ...value, revision }
+  }
+  function enqueue(guildId, revision) {
+    if (!enabled) throw new ApiError(503, 'Discord 채널 설정 연결이 준비되지 않았습니다.')
+    expire()
+    const current = plan(snowflake.parse(guildId))
+    if (!current || current.revision !== revision) throw new ApiError(409, '최신 설정을 저장한 후 적용하세요.')
+    if (active(guildId)) throw new ApiError(409, '이미 대기 중이거나 실행 중인 적용 작업이 있습니다.')
+    const id = randomUUID()
+    db.prepare("INSERT INTO lms_discord_jobs(id,guild_id,revision,plan,state,created_at) VALUES(?,?,?,?,'queued',?)").run(id, guildId, revision, JSON.stringify(current), now())
+    return { id, state: 'queued' }
+  }
+  function read() {
+    expire()
+    return { enabled,
+      plans: db.prepare('SELECT guild_id FROM lms_discord_plans ORDER BY updated_at DESC').all().map(row => plan(row.guild_id)),
+      guilds: db.prepare('SELECT guild_id AS id,name,manage_channels AS manageChannels,seen_at AS seenAt FROM lms_discord_guilds').all().map(row => ({ ...row, connected: row.seenAt > now() - 90000 })),
+      jobs: db.prepare('SELECT id,guild_id AS guildId,state,created_at AS createdAt,completed_at AS completedAt,error_code AS errorCode,results FROM lms_discord_jobs ORDER BY created_at DESC,rowid DESC LIMIT 50').all().map(row => ({ ...row, results: JSON.parse(row.results) })),
+    }
+  }
+  function poll(body) {
+    const { guilds } = z.object({ guilds: z.array(z.object({ id: snowflake, name: z.string().min(1).max(100), manageChannels: z.boolean() }).strict()).max(100) }).strict().parse(body)
+    if (new Set(guilds.map(g => g.id)).size !== guilds.length) throw new ApiError(422, '중복된 서버입니다.')
+    expire()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      for (const guild of guilds) {
+        db.prepare('INSERT INTO lms_discord_guilds VALUES(?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET name=excluded.name,manage_channels=excluded.manage_channels,seen_at=excluded.seen_at').run(guild.id, guild.name, Number(guild.manageChannels), now())
+        const desired = plan(guild.id)
+        const attempted = desired && db.prepare('SELECT id FROM lms_discord_jobs WHERE guild_id=? AND revision=?').get(guild.id, desired.revision)
+        if (desired?.autoApply && !attempted && !active(guild.id)) enqueue(guild.id, desired.revision)
+      }
+      const available = db.prepare("SELECT * FROM lms_discord_jobs WHERE state='queued' ORDER BY created_at").all().find(job => guilds.some(guild => guild.id === job.guild_id))
+      let result = null
+      if (available) {
+        const claim = randomBytes(32).toString('hex')
+        db.prepare("UPDATE lms_discord_jobs SET state='running',lease_until=?,claim_hash=? WHERE id=?").run(now() + 300000, digest(claim), available.id)
+        result = { id: available.id, claim, plan: JSON.parse(available.plan) }
+      }
+      db.exec('COMMIT')
+      return { job: result }
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
+  function complete(body) {
+    const input = z.object({ id: z.string().uuid(), claim: z.string().regex(/^[a-f0-9]{64}$/), success: z.boolean(), errorCode: z.enum(['forbidden', 'missing_guild', 'conflict', 'timeout', 'api_error']).nullable(), results: z.array(outcome).max(30) }).strict().parse(body)
+    expire()
+    const job = db.prepare('SELECT * FROM lms_discord_jobs WHERE id=?').get(input.id)
+    if (!job || job.state !== 'running' || !timingSafeEqual(Buffer.from(job.claim_hash), Buffer.from(digest(input.claim)))) throw new ApiError(409, '유효하지 않거나 종료된 작업입니다.')
+    const items = JSON.parse(job.plan).channels
+    if (new Set(input.results.map(row => row.id)).size !== input.results.length || input.results.some(row => !items.some(item => item.id === row.id)) || (input.success && (input.results.length !== items.length || input.errorCode !== null)) || (!input.success && !input.errorCode)) throw new ApiError(422, '적용 결과가 설정과 일치하지 않습니다.')
+    db.prepare('UPDATE lms_discord_jobs SET state=?,completed_at=?,error_code=?,results=?,claim_hash=NULL WHERE id=?').run(input.success ? 'succeeded' : 'failed', now(), input.errorCode, JSON.stringify(input.results), input.id)
+    return { ok: true }
+  }
+  return { enabled, authorized, save, enqueue, read, poll, complete }
+}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { initialData, learners, type Workspace } from './data'
 import { apiRequest as request, demoMode, setSessionToken } from './api'
+import type { Account, Learning } from './StudentHome'
 
 const key = 'asanax-campus-demo-v1'
 const kinds = ['courses', 'learners', 'teams', 'mentors', 'attendance', 'scores', 'notices', 'servers', 'assignments', 'sessions'] as const
@@ -16,13 +17,25 @@ export function useWorkspace() {
   const [data, setData] = useState<Workspace>(restore)
   const [loading, setLoading] = useState(!demoMode)
   const [error, setError] = useState('')
-  const [authRequired, setAuthRequired] = useState(false)
+  const [authRequired, setAuthRequired] = useState(!(demoMode && new URLSearchParams(location.search).get('demo') === '1'))
+  const [account, setAccount] = useState<Account | null>(null)
+  const [learning, setLearning] = useState<Learning | null>(null)
   const [saving, setSaving] = useState(false)
   const locked = useRef(false)
   const refresh = useCallback(async () => {
     if (demoMode) return
-    try { const result = await request('workspace'); setData(result); setError(''); setAuthRequired(false) }
-    catch (e) { const failure = e as Error & { status?: number }; setError(failure.message); setAuthRequired(failure.status === 401) }
+    try {
+      const { user } = await request('auth/me')
+      setAccount(user)
+      if (user.role === 'admin') { setData(await request('workspace')); setLearning(null) }
+      else { setData(empty); setLearning(await request('me/learning')) }
+      setError(''); setAuthRequired(false)
+    }
+    catch (e) {
+      const failure = e as Error & { status?: number }
+      setError(failure.status === 401 ? '' : failure.message)
+      if (failure.status === 401) { setSessionToken(''); setAccount(null); setLearning(null); setData(empty); setAuthRequired(true) }
+    }
     finally { setLoading(false) }
   }, [])
   // eslint-disable-next-line react/set-state-in-effect -- Initial asynchronous API fetch, not derived local state.
@@ -45,7 +58,16 @@ export function useWorkspace() {
     } catch (e) { const failure = e as Error & { status?: number }; setError(failure.message); if (failure.status === 401) setAuthRequired(true); return false }
     finally { locked.current = false; setSaving(false) }
   }
-  async function login(password: string) { try { const result = await request('login', { method: 'POST', body: JSON.stringify({ password }) }); setSessionToken(result.token || ''); await refresh() } catch (e) { setError((e as Error).message) } }
-  async function logout() { await request('logout', { method: 'POST', body: '{}' }); setSessionToken(''); setData(empty); setAuthRequired(true) }
-  return { data, update, loading, saving, error, authRequired, refresh, login, logout }
+  async function login(username: string, password: string, admin = false) {
+    try { const result = await request(admin ? 'login' : 'auth/login', { method: 'POST', body: JSON.stringify(admin ? { password } : { username, password }) }); setSessionToken(result.token || ''); await refresh() }
+    catch (e) { setError((e as Error).message) }
+  }
+  async function logout() {
+    try { await request('logout', { method: 'POST', body: '{}' }) }
+    catch (e) { if ((e as Error & { status?: number }).status !== 401) { setError((e as Error).message); return } }
+    setSessionToken(''); setData(empty); setLearning(null); setAccount(null); setError(''); setAuthRequired(true)
+  }
+  function enterDemo() { const url = new URL(location.href); url.searchParams.set('demo', '1'); url.hash = 'dashboard'; location.assign(url.href) }
+  function leaveDemo() { const url = new URL(location.href); url.searchParams.delete('demo'); url.hash = 'login'; location.assign(url.href) }
+  return { data, update, loading, saving, error, authRequired, account, learning, refresh, login, logout, enterDemo, leaveDemo }
 }

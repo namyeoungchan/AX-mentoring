@@ -1,0 +1,42 @@
+import { test, expect } from '@playwright/test'
+
+test('channel template saves, bot join applies, failures are visible and retry succeeds', async ({ page, request }) => {
+  const guildId = '788456789012345678'
+  const headers = { Authorization: 'Bearer test-only-provision-token-12345678901234567890' }
+  await page.goto('/#discord')
+  await page.getByRole('button', { name: '관리자 로그인', exact: true }).click()
+  await page.getByLabel('관리자 비밀번호', { exact: true }).fill('test-only-password-1234')
+  await page.getByRole('button', { name: '로그인', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Discord 채널 설정', exact: true })).toBeVisible()
+  await page.getByLabel('설정 이름', { exact: true }).fill('테스트 교육 서버')
+  await page.getByLabel('Discord 서버 ID', { exact: true }).fill(guildId)
+  await page.getByLabel('채널 2 이름', { exact: true }).fill('invalid channel name')
+  await page.getByRole('button', { name: '저장하고 자동 적용' }).click()
+  await expect(page.getByRole('alert')).toContainText('텍스트 채널명')
+  await page.getByLabel('채널 2 이름', { exact: true }).fill('학습공지')
+  await page.getByRole('button', { name: '저장하고 자동 적용' }).click()
+  await expect(page.getByRole('status')).toContainText('설정을 저장했습니다.')
+  await page.reload()
+  await page.getByLabel('저장된 구성', { exact: true }).selectOption(guildId)
+  await expect(page.getByLabel('채널 2 이름', { exact: true })).toHaveValue('학습공지')
+  const poll = { guilds: [{ id: guildId, name: '테스트 교육 서버', manageChannels: false }] }
+  expect((await request.post('/api/integrations/discord/provision/poll', { data: poll })).status()).toBe(401)
+  expect((await request.post('/api/integrations/discord/provision/poll', { headers: { Authorization: 'Bearer test-only-auth-token-12345678901234567890' }, data: poll })).status()).toBe(401)
+  const { job } = await (await request.post('/api/integrations/discord/provision/poll', { headers, data: poll })).json()
+  expect(job.plan.channels).toHaveLength(9)
+  expect((await request.post('/api/integrations/discord/provision/complete', { headers, data: { id: job.id, claim: job.claim, success: false, errorCode: 'forbidden', results: [] } })).status()).toBe(200)
+  await page.locator('.operations-toolbar').getByRole('button', { name: '새로고침' }).click()
+  await expect(page.getByText('봇의 채널 관리 권한을 확인하세요.', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '적용 요청', exact: true }).click()
+  const claimed = await (await request.post('/api/integrations/discord/provision/poll', { headers, data: { guilds: [{ ...poll.guilds[0], manageChannels: true }] } })).json()
+  const results = claimed.job.plan.channels.map((item: { id: string }, i: number) => ({ id: item.id, discordId: String(688456789012345678n + BigInt(i)), action: i < 2 ? 'reused' : 'created' }))
+  expect((await request.post('/api/integrations/discord/provision/complete', { headers, data: { id: claimed.job.id, claim: claimed.job.claim, success: true, errorCode: null, results } })).status()).toBe(200)
+  await page.locator('.operations-toolbar').getByRole('button', { name: '새로고침' }).click()
+  await expect(page.getByText('적용 완료', { exact: true })).toBeVisible()
+  await expect(page.getByText('생성 7 · 재사용 2', { exact: true })).toBeVisible()
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 950 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+    await page.screenshot({ path: `test-results/discord-setup-${width}.png`, fullPage: true, animations: 'disabled' })
+  }
+})

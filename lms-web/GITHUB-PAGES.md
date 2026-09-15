@@ -9,7 +9,7 @@ Pages에는 React 정적 파일만 배포합니다. Python 봇, Express API, SQL
 3. **Actions → Deploy LearningOps to GitHub Pages → Run workflow**를 실행합니다. 이후 웹 코드가 `main`에 push되면 자동 배포합니다.
 4. 배포 성공 후 주소: `https://namyeoungchan.github.io/asanAX-mentoring/#dashboard`
 
-`VITE_API_BASE_URL` Repository Variable이 비어 있으면 **데모 모드**로 빌드합니다. 변경은 브라우저에만 저장하며 실제 아산 AX 봇의 데이터나 연결 상태로 표시하지 않습니다.
+`VITE_API_BASE_URL` Repository Variable이 비어 있으면 **데모 모드**로 빌드합니다. 첫 화면은 로그인·회원가입 미리보기이며 **데모 둘러보기**로 운영 화면을 볼 수 있습니다. 변경은 브라우저에만 저장하며 실제 가입 인증과 Discord 채널 생성은 실행하지 않습니다.
 
 ## 실제 데이터 연결
 
@@ -19,7 +19,7 @@ Pages에는 React 정적 파일만 배포합니다. Python 봇, Express API, SQL
 4. Pages workflow를 다시 실행하고 웹에서 관리자 비밀번호로 로그인합니다.
 5. Render 봇과 API에 동기화 URL/키를 설정한 뒤 **아산 AX 운영 현황**에서 실제 수신 시각과 연결 상태를 확인합니다. Pages 배포만으로 Render 봇 연결이 완료되지는 않습니다.
 
-다른 도메인의 로그인은 메모리의 임시 Bearer 세션을 사용합니다. 제3자 쿠키가 필요하지 않으며 페이지를 새로고침하거나 API 서버가 재시작되면 다시 로그인합니다. 같은 도메인에서는 기존 HttpOnly 쿠키를 사용합니다. 관리 API의 수정 데이터와 Render 봇의 조회용 스냅샷은 별도입니다. Pages에서 수정한 내용을 원격 봇으로 보내는 기능은 아직 없습니다.
+다른 도메인의 로그인은 메모리의 임시 Bearer 세션을 사용합니다. 제3자 쿠키가 필요하지 않으며 페이지를 새로고침하면 다시 로그인합니다. 같은 도메인에서는 HttpOnly 쿠키를 사용하며 세션은 DB에 8시간 보관됩니다. 관리 데이터와 Render 조회용 스냅샷은 별도입니다. 가입 인증·채널 구성의 봇 연동은 [DISCORD-LMS.md](./DISCORD-LMS.md)를 참고하세요. 기존 과제·멘토링 수정 내용을 원격 봇으로 전송하는 기능은 아직 없습니다.
 
 ## 환경변수 구분
 

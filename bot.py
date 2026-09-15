@@ -26,6 +26,8 @@ COGS = [
     "cogs.assignment",
     "cogs.participation",
     "cogs.peer_eval",
+    "cogs.lms_auth",
+    "cogs.lms_provision",
 ]
 
 

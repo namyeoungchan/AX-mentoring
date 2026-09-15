@@ -16,7 +16,7 @@ export async function apiRequest(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
   if (init.body) headers.set('Content-Type', 'application/json')
   if (external && sessionToken) headers.set('Authorization', `Bearer ${sessionToken}`)
-  const response = await fetch(`${apiBaseUrl}/api/${path}`, { ...init, headers, credentials: external ? 'omit' : 'same-origin' })
+  const response = await fetch(`${apiBaseUrl}/api/${path}`, { ...init, signal: init.signal || AbortSignal.timeout(15000), headers, credentials: external ? 'omit' : 'same-origin' })
   const body = await response.json().catch(() => ({ error: 'API에 연결하지 못했습니다. API 서버 주소와 실행 상태를 확인하세요.' }))
   if (!response.ok) throw Object.assign(new Error(body.error || '요청에 실패했습니다.'), { status: response.status })
   return body

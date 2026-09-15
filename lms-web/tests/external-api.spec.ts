@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test('external API login, mutation and logout work without cookies', async ({ page, context }) => {
   await page.goto('http://127.0.0.1:5176/#dashboard')
+  await page.getByRole('button', { name: '관리자 로그인', exact: true }).click()
   await expect(page.getByRole('heading', { name: '관리자 로그인' })).toBeVisible()
   await page.getByLabel('관리자 비밀번호').fill('test-only-password-1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
@@ -19,7 +20,7 @@ test('external API login, mutation and logout work without cookies', async ({ pa
   await page.goto('http://127.0.0.1:5176/#asan')
   await expect(page.getByText('데이터 수신 대기', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '로그아웃' }).click()
-  await expect(page.getByRole('heading', { name: '관리자 로그인' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'LMS 로그인' })).toBeVisible()
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([])
 })
 

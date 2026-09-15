@@ -8,7 +8,7 @@ test('Pages subpath loads demo assets and hash routes without an API', async ({ 
   page.on('requestfailed', request => failedResources.push(request.url()))
   page.on('response', response => { if (response.status() >= 400) failedResources.push(response.url()) })
   page.on('request', request => { if (new URL(request.url()).pathname.includes('/api/')) apiRequests.push(request.url()) })
-  await page.goto('/asanAX-mentoring/#dashboard')
+  await page.goto('/asanAX-mentoring/?demo=1#dashboard')
   await expect(page.getByRole('heading', { name: '운영 대시보드' })).toBeVisible()
   expect(await page.locator('link[rel="icon"]').getAttribute('href')).toBe('/asanAX-mentoring/favicon.svg')
   await page.getByRole('button', { name: '새 과정 만들기' }).click()
@@ -23,7 +23,7 @@ test('Pages subpath loads demo assets and hash routes without an API', async ({ 
   await page.reload()
   await page.getByRole('navigation').getByRole('button', { name: '학습 과정', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Pages 테스트 과정' })).toBeVisible()
-  await page.goto('/asanAX-mentoring/#asan')
+  await page.goto('/asanAX-mentoring/?demo=1#asan')
   await expect(page.getByText('데모 · 운영 API 미연결', { exact: true })).toBeVisible()
   await expect(page.getByText('현재 상태 확인 불가', { exact: true })).toBeVisible()
   for (const width of [1440, 390]) {
@@ -33,5 +33,19 @@ test('Pages subpath loads demo assets and hash routes without an API', async ({ 
   }
   expect(errors).toEqual([])
   expect(failedResources).toEqual([])
+  expect(apiRequests).toEqual([])
+})
+
+test('Pages opens login and signup previews with explicit demo entry', async ({ page }) => {
+  const apiRequests: string[] = []
+  page.on('request', request => { if (new URL(request.url()).pathname.includes('/api/')) apiRequests.push(request.url()) })
+  await page.goto('/asanAX-mentoring/')
+  await expect(page.getByRole('heading', { name: 'LMS 로그인' })).toBeVisible()
+  await expect(page.locator('form').getByRole('button', { name: '로그인', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '회원가입', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'LMS 회원가입' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '인증 코드 받기' })).toBeDisabled()
+  await page.getByRole('button', { name: '데모 둘러보기' }).click()
+  await expect(page.getByRole('heading', { name: '운영 대시보드' })).toBeVisible()
   expect(apiRequests).toEqual([])
 })

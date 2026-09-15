@@ -2,10 +2,12 @@ import express from 'express'
 import { config } from 'dotenv'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { randomBytes, timingSafeEqual, createHash } from 'node:crypto'
 import { ZodError } from 'zod'
 import { createStore } from './store.mjs'
 import { createRenderSync } from './render-sync.mjs'
+import { createAuth } from './auth.mjs'
+import { studentLearning } from './student.mjs'
+import { createProvision } from './provision.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -17,10 +19,13 @@ const host = production ? '0.0.0.0' : '127.0.0.1'
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001,http://127.0.0.1:3001').split(',').map(v => v.trim()))
 const store = createStore(resolve(root, process.env.BOT_DB_PATH || '../data/mentoring.db'))
 const renderSync = createRenderSync(store.db, { token: process.env.LEARNINGOPS_SYNC_TOKEN || '', sourceId: process.env.LEARNINGOPS_SOURCE_ID || 'asan-ax' })
-const sessions = new Map()
-const attempts = new Map()
+const auth = createAuth(store.db, { adminPassword: password, botToken: process.env.LEARNINGOPS_AUTH_TOKEN || '', guildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '' })
+const provision = createProvision(store.db, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
 const app = express()
 app.disable('x-powered-by')
+const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0)
+if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 5) throw new Error('TRUST_PROXY_HOPS must be an integer between 0 and 5')
+if (proxyHops) app.set('trust proxy', proxyHops)
 app.use(express.json({ limit: '10mb' }))
 app.use('/api', (req, res, next) => {
   res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' })
@@ -37,39 +42,71 @@ app.use('/api', (req, res, next) => {
   if (!['GET', 'HEAD'].includes(req.method) && !req.is('application/json')) return res.status(415).json({ error: 'JSON 요청만 지원합니다.' })
   next()
 })
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', database: 'connected', auth: password ? 'password' : 'local-development' }))
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', database: 'connected', auth: 'required' }))
 app.post('/api/integrations/render/snapshot', (req, res) => {
   if (!renderSync.authorized(req.get('authorization'))) return res.status(401).json({ error: '동기화 인증에 실패했습니다.' })
   res.json(renderSync.ingest(req.body))
 })
+function setLogin(res, result) {
+  return res.cookie('learningops_session', result.token, { httpOnly: true, sameSite: 'strict', secure: production, maxAge: 8 * 60 * 60 * 1000, path: '/api' }).json({ ok: true, ...result })
+}
+app.get('/api/auth/config', (_req, res) => res.json({ registrationEnabled: auth.enabled }))
+app.post('/api/auth/register', async (req, res) => {
+  auth.limit('registration-ip', req.ip, 10, 3600000)
+  res.status(201).json(await auth.register(req.body))
+})
+app.post('/api/auth/registration/status', (req, res) => {
+  auth.limit('status-ip', req.ip, 120, 60000)
+  res.json(auth.status(req.body?.ticket))
+})
+app.post('/api/auth/registration/renew', (req, res) => {
+  auth.limit('renew-ip', req.ip, 10, 60000)
+  res.json(auth.renew(req.body?.ticket))
+})
+app.post('/api/integrations/discord/:operation', (req, res) => {
+  if (!auth.botAuthorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
+  auth.limit('discord-verify', String(req.body?.discordId || ''), 10, 60000)
+  if (req.params.operation === 'preview') return res.json(auth.preview(req.body))
+  if (req.params.operation === 'verify') return res.json(auth.verify(req.body))
+  return res.status(404).json({ error: '지원하지 않는 인증 작업입니다.' })
+})
+app.post('/api/auth/login', async (req, res) => {
+  auth.limit('member-ip', req.ip, 30, 15 * 60000)
+  setLogin(res, await auth.login(req.body))
+})
+app.post('/api/integrations/discord/provision/:operation', (req, res) => {
+  if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '채널 설정 봇 인증에 실패했습니다.' })
+  if (req.params.operation === 'poll') return res.json(provision.poll(req.body))
+  if (req.params.operation === 'complete') return res.json(provision.complete(req.body))
+  return res.status(404).json({ error: '지원하지 않는 작업입니다.' })
+})
 app.post('/api/login', (req, res) => {
-  const now = Date.now()
-  const failures = attempts.get(req.ip) || { count: 0, until: now + 60000 }
-  if (failures.until < now) { failures.count = 0; failures.until = now + 60000 }
-  if (failures.count >= 10) return res.status(429).json({ error: '잠시 후 다시 시도하세요.' })
-  const digest = v => createHash('sha256').update(v).digest()
-  if (typeof req.body?.password !== 'string' || !password || !timingSafeEqual(digest(req.body.password), digest(password))) {
-    failures.count++; attempts.set(req.ip, failures)
-    return res.status(401).json({ error: '관리자 비밀번호가 일치하지 않습니다.' })
-  }
-  attempts.delete(req.ip)
-  const token = randomBytes(32).toString('hex')
-  sessions.set(token, now + 8 * 60 * 60 * 1000)
-  res.cookie('learningops_session', token, { httpOnly: true, sameSite: 'strict', secure: production, maxAge: 8 * 60 * 60 * 1000, path: '/api' }).json({ ok: true, token })
+  auth.limit('admin-ip', req.ip, 20, 60000)
+  setLogin(res, auth.adminLogin(req.body?.password))
 })
 const sessionToken = req => req.get('authorization')?.startsWith('Bearer ') ? req.get('authorization').slice(7) : req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith('learningops_session='))?.slice('learningops_session='.length)
 app.use('/api', (req, res, next) => {
-  if (!password && !production) return next()
-  const token = sessionToken(req)
-  if (!token || (sessions.get(token) || 0) < Date.now()) return res.status(401).json({ error: '관리자 로그인이 필요합니다.' })
+  req.account = auth.session(sessionToken(req))
+  if (!req.account) return res.status(401).json({ error: '로그인이 필요합니다.' })
   next()
 })
-app.post('/api/logout', (req, res) => {
-  const token = sessionToken(req)
-  sessions.delete(token); res.clearCookie('learningops_session', { path: '/api' }).json({ ok: true })
+app.get('/api/auth/me', (req, res) => res.json({ user: req.account }))
+app.get('/api/me/learning', (req, res) => {
+  if (req.account.role !== 'student') return res.status(403).json({ error: '수강생 계정으로 로그인하세요.' })
+  res.json(studentLearning(store.db, req.account))
 })
-app.get('/api/workspace', (_req, res) => res.json({ ...store.snapshot(), authEnabled: Boolean(password) }))
-app.patch('/api/workspace', (req, res) => res.json({ ...store.mutate(req.body), authEnabled: Boolean(password) }))
+app.post('/api/logout', (req, res) => {
+  auth.logout(sessionToken(req)); res.clearCookie('learningops_session', { path: '/api' }).json({ ok: true })
+})
+app.use('/api', (req, res, next) => {
+  if (req.account.role !== 'admin') return res.status(403).json({ error: '관리자 권한이 필요합니다.' })
+  next()
+})
+app.get('/api/workspace', (_req, res) => res.json({ ...store.snapshot(), authEnabled: true }))
+app.get('/api/discord/provision', (_req, res) => res.json(provision.read()))
+app.post('/api/discord/provision/plans', (req, res) => res.json(provision.save(req.body)))
+app.post('/api/discord/provision/jobs', (req, res) => res.status(202).json(provision.enqueue(req.body?.guildId, req.body?.revision)))
+app.patch('/api/workspace', (req, res) => res.json({ ...store.mutate(req.body, req.account.username), authEnabled: true }))
 app.get('/api/audit', (_req, res) => res.json(store.db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 500').all()))
 app.get('/api/integrations/render', (_req, res) => res.json(renderSync.read()))
 app.use('/api', (_req, res) => res.status(404).json({ error: '지원하지 않는 API입니다.' }))
@@ -81,6 +118,7 @@ app.use((error, _req, res, _next) => {
   console.error('API operation failed:', error.code || error.name)
   res.status(500).json({ error: '저장하지 못했습니다. 서버 로그와 데이터베이스 연결을 확인하세요.' })
 })
-const cleanup = setInterval(() => { const now = Date.now(); for (const [key, expiry] of sessions) if (expiry < now) sessions.delete(key); for (const [key, value] of attempts) if (value.until < now) attempts.delete(key) }, 60000).unref()
-const server = app.listen(port, host, () => console.log(`LearningOps API: http://${host}:${port} (${password ? 'password auth' : 'local development'})`))
+auth.cleanup()
+const cleanup = setInterval(() => auth.cleanup(), 60000).unref()
+const server = app.listen(port, host, () => console.log(`LearningOps API: http://${host}:${port} (authentication required)`))
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => server.close(() => { clearInterval(cleanup); store.db.close(); process.exit(0) }))

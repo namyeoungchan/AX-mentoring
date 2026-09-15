@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 
 async function login(page: Page) {
   await page.goto('/')
+  await page.getByRole('button', { name: '관리자 로그인', exact: true }).click()
   await expect(page.getByRole('heading', { name: '관리자 로그인' })).toBeVisible()
   await page.getByLabel('관리자 비밀번호').fill('test-only-password-1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
