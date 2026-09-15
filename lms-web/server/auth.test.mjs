@@ -8,9 +8,84 @@ import { createAuth } from './auth.mjs'
 import { createStore } from './store.mjs'
 import { studentLearning } from './student.mjs'
 
-const options = { adminPassword: 'test-admin-password-1234', botToken: 'test-discord-auth-token-123456789012345', guildId: '123456789012345678' }
+const options = { adminPassword: 'test-admin-password-1234', allowLegacyAdmin: true, botToken: 'test-discord-auth-token-123456789012345', guildId: '123456789012345678' }
 const member = { username: 'student.test', name: '테스트 학생', password: 'test-password-1234', discordId: '555456789012345678' }
 const verify = (code, overrides = {}) => ({ code, discordId: member.discordId, guildId: options.guildId, ...overrides })
+
+test('first administrator needs the server key; setup is atomic, closes permanently and revokes legacy access', async () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    const auth = createAuth(db, options)
+    const old = auth.adminLogin(options.adminPassword)
+    const input = { username: 'owner.test', name: '운영 관리자', password: 'owner-password-123456', setupKey: options.adminPassword }
+    await assert.rejects(auth.setup({ ...input, setupKey: 'incorrect-key-12345678' }), { status: 401 })
+    const results = await Promise.allSettled([auth.setup(input), auth.setup({ ...input, username: 'second.owner' })])
+    assert.equal(results.filter(result => result.status === 'fulfilled').length, 1)
+    const result = results.find(result => result.status === 'fulfilled').value
+    assert.equal(result.user.role, 'admin')
+    assert.equal(auth.session(result.token).id, result.user.id)
+    assert.equal(auth.session(old.token), null)
+    assert.throws(() => auth.adminLogin(options.adminPassword), { status: 401 })
+    assert.equal(auth.setupEnabled(), false)
+    await assert.rejects(auth.setup(input), { status: 409 })
+    const restarted = createAuth(db)
+    assert.equal(restarted.setupEnabled(), false)
+    assert.equal(restarted.session(result.token).role, 'admin')
+    assert.equal((await restarted.login({ username: result.user.username, password: input.password })).user.role, 'admin')
+    const serialized = JSON.stringify(db.prepare('SELECT * FROM lms_users').all())
+    assert.ok(!serialized.includes(input.password))
+    assert.ok(!serialized.includes(input.setupKey))
+  } finally { db.close() }
+})
+
+test('public signup cannot choose a platform role or promote an existing username', async () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    const auth = createAuth(db, options)
+    await assert.rejects(auth.signup({ ...member, platform_role: 'admin' }, () => {}))
+    const student = await auth.signup(member, () => {})
+    await assert.rejects(auth.setup({ username: member.username, name: member.name, password: member.password, setupKey: options.adminPassword }), { status: 409 })
+    assert.equal(auth.session(student.token).role, 'student')
+    const disabled = createAuth(db, { ...options, allowLegacyAdmin: false })
+    assert.throws(() => disabled.adminLogin(options.adminPassword), { status: 401 })
+  } finally { db.close() }
+})
+
+test('password changes reauthenticate, rotate the current session and revoke all old sessions across restarts', async () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    const auth = createAuth(db, options)
+    const first = await auth.signup(member, () => {})
+    const second = await auth.login({ username: member.username, password: member.password })
+    const newPassword = 'replacement-password-123456'
+    await assert.rejects(auth.changePassword(first.user, { currentPassword: 'incorrect', newPassword }), { status: 401 })
+    assert.ok(auth.session(second.token))
+    await assert.rejects(auth.changePassword(first.user, { currentPassword: member.password, newPassword: member.password }), { status: 422 })
+    const changed = await auth.changePassword(first.user, { currentPassword: member.password, newPassword })
+    assert.equal(auth.session(first.token), null)
+    assert.equal(auth.session(second.token), null)
+    assert.equal(auth.session(changed.token).id, first.user.id)
+    await assert.rejects(auth.login({ username: member.username, password: member.password }), { status: 401 })
+    const restarted = createAuth(db, options)
+    assert.equal((await restarted.login({ username: member.username, password: newPassword })).user.id, first.user.id)
+    assert.equal(restarted.session(changed.token).id, first.user.id)
+  } finally { db.close() }
+})
+
+test('server-console recovery preserves roles and revokes sessions only for the target account', async () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    const auth = createAuth(db, options)
+    const owner = await auth.setup({ username: 'owner.test', name: '운영자', password: member.password, setupKey: options.adminPassword })
+    const student = await auth.signup(member, () => {})
+    const newPassword = 'recovered-password-123456'
+    await auth.resetPassword({ username: owner.user.username, newPassword })
+    assert.equal(auth.session(owner.token), null)
+    assert.ok(auth.session(student.token))
+    assert.equal((await auth.login({ username: owner.user.username, password: newPassword })).user.role, 'admin')
+    await assert.rejects(auth.resetPassword({ username: 'missing.user', newPassword }), { status: 404 })
+  } finally { db.close() }
+})
 
 test('Discord verification is required, single use, and secrets are hashed at rest', async () => {
   const db = new DatabaseSync(':memory:')

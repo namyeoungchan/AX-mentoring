@@ -7,11 +7,11 @@ const derive = promisify(scrypt)
 const hash = value => createHash('sha256').update(value).digest('hex')
 const snowflake = z.string().regex(/^\d{17,20}$/, 'Discord ID는 17~20자리 숫자여야 합니다.')
 const username = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_.-]{3,31}$/, '아이디는 영문 소문자·숫자·._- 4~32자로 입력하세요.')
-const password = z.string().min(12, '비밀번호는 12자 이상 입력하세요.').max(128)
+const password = z.string().min(15, '비밀번호는 15자 이상 입력하세요.').max(128)
 const registration = z.object({ username, name: z.string().trim().min(1).max(50), password, discordId: snowflake }).strict()
 const ticketSchema = z.string().regex(/^[a-f0-9]{64}$/)
 const verification = z.object({ code: z.string().trim().toUpperCase().transform(v => v.replaceAll('-', '')).pipe(z.string().regex(/^[A-F0-9]{16}$/)), discordId: snowflake, guildId: snowflake }).strict()
-const publicUser = row => ({ id: row.id, username: row.username, name: row.name, discordId: row.discord_id, role: 'student', verified: row.verified_at !== null })
+const publicUser = row => ({ id: row.id, username: row.username, name: row.name, discordId: row.platform_role === 'admin' ? '' : row.discord_id, role: row.platform_role || 'student', verified: row.verified_at !== null })
 const admin = { id: 'admin', username: 'admin', name: '관리자', discordId: '', role: 'admin' }
 const safeEqual = (a, b) => timingSafeEqual(Buffer.from(hash(a)), Buffer.from(hash(b)))
 const hashOptions = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 }
@@ -32,7 +32,7 @@ async function checkPassword(value, stored) {
   return timingSafeEqual(await passwordKey(value, salt), Buffer.from(key, 'hex'))
 }
 
-export function createAuth(db, { adminPassword = '', botToken = '', guildId = '', now = Date.now, guildAllowed = id => id === guildId } = {}) {
+export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, botToken = '', guildId = '', now = Date.now, guildAllowed = id => id === guildId } = {}) {
   const enabled = botToken.length >= 32 && /^\d{17,20}$/.test(guildId)
   db.exec(`
     CREATE TABLE IF NOT EXISTS lms_users (
@@ -59,6 +59,29 @@ export function createAuth(db, { adminPassword = '', botToken = '', guildId = ''
     db.exec('ALTER TABLE lms_users ADD COLUMN verified_at INTEGER; UPDATE lms_users SET verified_at=created_at')
   }
   if (!db.prepare('PRAGMA table_info(lms_registrations)').all().some(row => row.name === 'user_id')) db.exec('ALTER TABLE lms_registrations ADD COLUMN user_id TEXT')
+  if (!db.prepare('PRAGMA table_info(lms_users)').all().some(row => row.name === 'platform_role')) db.exec("ALTER TABLE lms_users ADD COLUMN platform_role TEXT NOT NULL DEFAULT 'student' CHECK(platform_role IN ('admin','student'))")
+
+  function hasAdmin() { return Boolean(db.prepare("SELECT 1 FROM lms_users WHERE platform_role='admin'").get()) }
+  function setupEnabled() { return adminPassword.length >= 16 && !hasAdmin() }
+  function legacyEnabled() { return allowLegacyAdmin && !hasAdmin() }
+  async function setup(body) {
+    const input = z.object({ username, name: z.string().trim().min(1).max(50), password, setupKey: z.string().min(16).max(256) }).strict().parse(body)
+    if (!setupEnabled()) throw new ApiError(409, '최초 관리자 등록이 종료되었거나 설정 키가 없습니다.')
+    if (!safeEqual(input.setupKey, adminPassword)) throw new ApiError(401, '관리자 설정 키를 확인하세요.')
+    const passwordHash = await hashPassword(input.password)
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      if (!setupEnabled()) throw new ApiError(409, '이미 관리자가 등록되었습니다.')
+      const id = randomUUID()
+      // A reserved non-snowflake identity keeps the existing UNIQUE constraint without claiming Discord ownership.
+      available(input.username, `platform:${id}`)
+      db.prepare("INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,verified_at,platform_role) VALUES(?,?,?,?,?,'',?,?,'admin')").run(id, input.username, input.name, passwordHash, `platform:${id}`, now(), now())
+      db.prepare('DELETE FROM lms_auth_sessions WHERE admin_version IS NOT NULL').run()
+      const result = issueSession(publicUser(db.prepare('SELECT * FROM lms_users WHERE id=?').get(id)))
+      db.exec('COMMIT')
+      return result
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
 
   function limit(scope, identity, maximum, windowMs) {
     const key = hash(`${scope}:${identity}`)
@@ -160,7 +183,7 @@ export function createAuth(db, { adminPassword = '', botToken = '', guildId = ''
   }
   function issueSession(user) {
     const token = randomBytes(32).toString('hex')
-    db.prepare('INSERT INTO lms_auth_sessions(token_hash,user_id,admin_version,expires_at) VALUES(?,?,?,?)').run(hash(token), user.role === 'student' ? user.id : null, user.role === 'admin' ? hash(adminPassword) : null, now() + 8 * 3600000)
+    db.prepare('INSERT INTO lms_auth_sessions(token_hash,user_id,admin_version,expires_at) VALUES(?,?,?,?)').run(hash(token), user.id === 'admin' ? null : user.id, user.id === 'admin' ? hash(adminPassword) : null, now() + 8 * 3600000)
     return { token, user }
   }
   async function login(body) {
@@ -168,26 +191,63 @@ export function createAuth(db, { adminPassword = '', botToken = '', guildId = ''
     limit('member-name', input.username, 10, 15 * 60000)
     const row = db.prepare('SELECT * FROM lms_users WHERE username=?').get(input.username)
     const matches = await checkPassword(input.password, row?.password_hash || dummyHash)
-    if (!matches || !row) throw new ApiError(401, '아이디 또는 비밀번호를 확인하세요. 가입 후 Discord 인증을 완료해야 로그인할 수 있습니다.')
-    return issueSession(publicUser(row))
+    if (!matches || !row) throw new ApiError(401, '아이디 또는 비밀번호를 확인하세요.')
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      const current = db.prepare('SELECT * FROM lms_users WHERE id=?').get(row.id)
+      if (current?.password_hash !== row.password_hash) throw new ApiError(401, '아이디 또는 비밀번호를 확인하세요.')
+      const result = issueSession(publicUser(current))
+      db.exec('COMMIT')
+      return result
+    } catch (error) { db.exec('ROLLBACK'); throw error }
   }
   function adminLogin(value) {
-    if (typeof value !== 'string' || value.length > 128 || !adminPassword || !safeEqual(value, adminPassword)) throw new ApiError(401, '관리자 비밀번호가 일치하지 않습니다.')
+    if (!legacyEnabled() || typeof value !== 'string' || value.length > 128 || !adminPassword || !safeEqual(value, adminPassword)) throw new ApiError(401, '아이디와 비밀번호로 로그인하세요.')
     return issueSession(admin)
   }
   function session(token) {
     if (!token || !/^[a-f0-9]{64}$/.test(token)) return null
     const row = db.prepare('SELECT * FROM lms_auth_sessions WHERE token_hash=? AND expires_at>?').get(hash(token), now())
     if (!row) return null
-    if (row.admin_version) return adminPassword && safeEqual(row.admin_version, hash(adminPassword)) ? admin : null
+    if (row.admin_version) return legacyEnabled() && adminPassword && safeEqual(row.admin_version, hash(adminPassword)) ? admin : null
     const user = db.prepare('SELECT * FROM lms_users WHERE id=?').get(row.user_id)
     return user ? publicUser(user) : null
   }
   function logout(token) { if (typeof token === 'string') db.prepare('DELETE FROM lms_auth_sessions WHERE token_hash=?').run(hash(token)) }
+  async function changePassword(user, body) {
+    const input = z.object({ currentPassword: z.string().min(1).max(128), newPassword: password }).strict().parse(body)
+    limit('password-change', user.id, 5, 15 * 60000)
+    const row = db.prepare('SELECT * FROM lms_users WHERE id=?').get(user.id)
+    if (!row || !await checkPassword(input.currentPassword, row.password_hash)) throw new ApiError(401, '현재 비밀번호를 확인하세요.')
+    if (input.currentPassword === input.newPassword) throw new ApiError(422, '기존과 다른 비밀번호를 입력하세요.')
+    const nextHash = await hashPassword(input.newPassword)
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      if (!db.prepare('UPDATE lms_users SET password_hash=? WHERE id=? AND password_hash=?').run(nextHash, user.id, row.password_hash).changes) throw new ApiError(409, '계정 정보가 변경되었습니다. 다시 로그인하세요.')
+      db.prepare('DELETE FROM lms_auth_sessions WHERE user_id=?').run(user.id)
+      const result = issueSession(publicUser(row))
+      db.exec('COMMIT')
+      return result
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
+  // Server-console recovery only. Never expose this operation through a public route.
+  async function resetPassword(body) {
+    const input = z.object({ username, newPassword: password }).strict().parse(body)
+    const nextHash = await hashPassword(input.newPassword)
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      const row = db.prepare('SELECT id FROM lms_users WHERE username=?').get(input.username)
+      if (!row) throw new ApiError(404, '계정을 찾을 수 없습니다.')
+      db.prepare('UPDATE lms_users SET password_hash=? WHERE id=?').run(nextHash, row.id)
+      db.prepare('DELETE FROM lms_auth_sessions WHERE user_id=?').run(row.id)
+      db.exec('COMMIT')
+      return { ok: true }
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
   function cleanup() {
     db.prepare('DELETE FROM lms_auth_sessions WHERE expires_at<=?').run(now())
     db.prepare('DELETE FROM lms_auth_limits WHERE expires_at<=?').run(now())
     db.prepare('DELETE FROM lms_registrations WHERE created_at<=?').run(now() - 24 * 3600000)
   }
-  return { enabled, register, signup, issueVerification, status, renew, botAuthorized, preview, verify, login, adminLogin, session, logout, limit, cleanup }
+  return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, register, signup, issueVerification, status, renew, botAuthorized, preview, verify, login, adminLogin, session, logout, limit, cleanup }
 }

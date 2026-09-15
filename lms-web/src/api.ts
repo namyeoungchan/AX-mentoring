@@ -1,6 +1,7 @@
 // These are public build settings. Never add bot tokens or synchronization keys.
 export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
-export const demoMode = import.meta.env.VITE_APP_MODE === 'demo' || new URLSearchParams(location.search).get('demo') === '1'
+export const demoMode = import.meta.env.VITE_APP_MODE === 'demo' || (import.meta.env.DEV && new URLSearchParams(location.search).get('demo') === '1')
+export const serviceUnavailable = import.meta.env.VITE_APP_MODE === 'unconfigured'
 let sessionToken = ''
 
 export function setSessionToken(value: string) { sessionToken = value }
@@ -11,6 +12,7 @@ export function workspaceRequest(workspaceId: string, path: string, init: Reques
 }
 
 export async function apiRequest(path: string, init: RequestInit = {}) {
+  if (serviceUnavailable) throw new Error('로그인 서비스가 아직 연결되지 않았습니다. 연결 후 이용할 수 있습니다.')
   let external = false
   if (apiBaseUrl) {
     const url = new URL(apiBaseUrl)

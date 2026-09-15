@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ArrowRight, BookOpen, Check, Copy, Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react'
-import { apiRequest, demoMode, setSessionToken } from './api'
+import { apiRequest, demoMode, serviceUnavailable, setSessionToken } from './api'
 
-type Mode = 'login' | 'signup' | 'admin'
+type Mode = 'login' | 'signup' | 'admin' | 'setup'
 type Challenge = { ticket: string; code: string; expiresAt: number; state: 'pending' | 'verified' | 'expired' }
 export default function AuthScreen({ login, error, enterDemo, registered, staffInvitation = false }: { registered: () => Promise<void>; staffInvitation?: boolean; login: (username: string, password: string, admin?: boolean) => Promise<void>; error: string; enterDemo: () => void }) {
   const [mode, setMode] = useState<Mode>(location.hash === '#signup' ? 'signup' : 'login')
@@ -10,6 +10,8 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
   const [failure, setFailure] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [configured, setConfigured] = useState(false)
+  const [setupEnabled, setSetupEnabled] = useState(false)
+  const [legacyEnabled, setLegacyEnabled] = useState(false)
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([])
   const [checking, setChecking] = useState(!demoMode)
   const [challenge, setChallenge] = useState<Challenge | null>(null)
@@ -19,8 +21,8 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
   useEffect(() => {
     if (demoMode) return
     const controller = new AbortController()
-    apiRequest('auth/config', { signal: controller.signal }).then(result => { setConfigured(staffInvitation ? result.registrationEnabled : result.studentRegistrationEnabled); setWorkspaces(result.workspaces || []) }).catch(() => {
-      if (!controller.signal.aborted) setFailure('서비스에 연결하지 못했습니다. 잠시 후 새로고침해 주세요.')
+    apiRequest('auth/config', { signal: controller.signal }).then(result => { setSetupEnabled(result.setupEnabled); setLegacyEnabled(result.legacyAdminEnabled); setConfigured(staffInvitation ? result.registrationEnabled : result.studentRegistrationEnabled); setWorkspaces(result.workspaces || []) }).catch(() => {
+      if (!controller.signal.aborted) setFailure(serviceUnavailable ? '로그인 서비스가 아직 연결되지 않았습니다.' : '서비스에 연결하지 못했습니다. 잠시 후 새로고침해 주세요.')
     }).finally(() => { if (!controller.signal.aborted) setChecking(false) })
     return () => controller.abort()
   }, [staffInvitation])
@@ -49,10 +51,13 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
     const fields = new FormData(form)
     const value = (key: string) => String(fields.get(key) || '')
     setFailure('')
-    if (mode === 'signup' && value('password') !== value('confirmPassword')) { setFailure('비밀번호가 일치하지 않습니다.'); return }
+    if ((mode === 'signup' || mode === 'setup') && value('password') !== value('confirmPassword')) { setFailure('비밀번호가 일치하지 않습니다.'); return }
     setBusy(true)
     try {
-      if (mode === 'signup') {
+      if (mode === 'setup') {
+        const result = await apiRequest('auth/setup', { method: 'POST', body: JSON.stringify({ username: value('username'), name: value('name'), password: value('password'), setupKey: value('setupKey') }) })
+        setSessionToken(result.token || ''); await registered()
+      } else if (mode === 'signup') {
         const result = await apiRequest(staffInvitation ? 'auth/register' : 'auth/student/register', { method: 'POST', body: JSON.stringify({ username: value('username'), name: value('name'), discordId: value('discordId'), password: value('password'), ...(!staffInvitation ? { workspaceId: value('workspaceId') } : {}) }) })
         if (staffInvitation) { form.reset(); setClock(Date.now()); setChallenge({ ...result, state: 'pending' }) } else { setSessionToken(result.token || ''); await registered() }
       } else await login(value('username'), value('password'), mode === 'admin')
@@ -88,22 +93,25 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
           <button className="auth-back" onClick={() => changeMode('login')}>로그인으로 돌아가기</button>
         </> : <>
           {mode !== 'admin' && <div className="auth-tabs" aria-label="계정 메뉴"><button className={mode === 'login' ? 'selected' : ''} aria-pressed={mode === 'login'} onClick={() => changeMode('login')}>로그인</button><button className={mode === 'signup' ? 'selected' : ''} aria-pressed={mode === 'signup'} onClick={() => changeMode('signup')}>회원가입</button></div>}
-          <h2>{mode === 'signup' ? 'LMS 회원가입' : mode === 'admin' ? '관리자 로그인' : 'LMS 로그인'}</h2><p className="auth-description">{mode === 'signup' ? (staffInvitation ? '계정을 만들고 Discord에서 가입을 인증하세요.' : '가입할 워크스페이스를 선택하고 승인을 요청하세요.') : mode === 'admin' ? '운영자 전용 계정으로 접속합니다.' : '가입한 계정으로 로그인하세요.'}</p>
+          <h2>{mode === 'signup' ? 'LMS 회원가입' : mode === 'setup' ? '최초 관리자 등록' : mode === 'admin' ? '관리자 로그인' : 'LMS 로그인'}</h2><p className="auth-description">{mode === 'signup' ? (staffInvitation ? '계정을 만들고 Discord에서 가입을 인증하세요.' : '가입할 워크스페이스를 선택하고 승인을 요청하세요.') : mode === 'setup' ? '설정 키로 최초 운영 계정을 등록하세요.' : mode === 'admin' ? '개발 환경의 기존 관리자 로그인입니다.' : '가입한 계정으로 로그인하세요.'}</p>
           {demoMode && <p className="auth-demo-note">현재 데모 사이트입니다. 실제 로그인과 가입 인증은 서비스 연결 후 사용할 수 있습니다.</p>}
           {!demoMode && mode === 'signup' && !configured && <p className="auth-demo-note">{checking ? '가입 가능 여부 확인 중…' : 'Discord 가입 인증을 준비 중입니다. 운영자에게 문의해 주세요.'}</p>}
           <form onSubmit={submit} key={mode}>
             <fieldset disabled={busy}>
               {mode === 'signup' && !staffInvitation && <label>가입할 워크스페이스<select name="workspaceId" required defaultValue=""><option value="" disabled>워크스페이스 선택</option>{workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>}
-              {mode === 'signup' && <label>이름<input name="name" autoComplete="name" required maxLength={50} placeholder="이름" /></label>}
+              {(mode === 'signup' || mode === 'setup') && <label>이름<input name="name" autoComplete="name" required maxLength={50} placeholder="이름" /></label>}
               {mode !== 'admin' && <label>아이디<input name="username" autoComplete="username" required minLength={4} maxLength={32} pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{3,31}" placeholder="영문·숫자 4~32자" autoCapitalize="none" spellCheck={false} /></label>}
               {mode === 'signup' && <label>Discord 사용자 ID<input name="discordId" aria-label="Discord 사용자 ID" inputMode="numeric" required pattern="[0-9]{17,20}" placeholder="17~20자리 숫자" /><small>Discord 설정 → 고급 → 개발자 모드 활성화 후, 내 프로필에서 사용자 ID를 복사하세요.</small></label>}
-              <label>{mode === 'admin' ? '관리자 비밀번호' : '비밀번호'}<span className="auth-password"><input name="password" aria-label={mode === 'admin' ? '관리자 비밀번호' : '비밀번호'} type={showPassword ? 'text' : 'password'} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required minLength={mode === 'signup' ? 12 : 1} maxLength={128} placeholder={mode === 'signup' ? '12자 이상' : '비밀번호 입력'} /><button type="button" aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>
-              {mode === 'signup' && <label>비밀번호 확인<input name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required minLength={12} maxLength={128} placeholder="비밀번호 다시 입력" /></label>}
+              <label>{mode === 'admin' ? '관리자 비밀번호' : '비밀번호'}<span className="auth-password"><input name="password" aria-label={mode === 'admin' ? '관리자 비밀번호' : '비밀번호'} type={showPassword ? 'text' : 'password'} autoComplete={(mode === 'signup' || mode === 'setup') ? 'new-password' : 'current-password'} required minLength={(mode === 'signup' || mode === 'setup') ? 15 : 1} maxLength={128} placeholder={(mode === 'signup' || mode === 'setup') ? '15자 이상' : '비밀번호 입력'} /><button type="button" aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>
+              {(mode === 'signup' || mode === 'setup') && <label>비밀번호 확인<input name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required minLength={15} maxLength={128} placeholder="비밀번호 다시 입력" /></label>}
+              {mode === 'setup' && <label>관리자 설정 키<input name="setupKey" aria-label="관리자 설정 키" type="password" required minLength={16} maxLength={256} autoComplete="off" /><small>API 서버의 ADMIN_PASSWORD 값입니다. 최초 등록에만 사용됩니다.</small></label>}
               {(failure || error) && <p className="auth-error" role="alert">{failure || error}</p>}
-              <button className="button primary auth-submit" type="submit" disabled={demoMode || busy || (mode === 'signup' && !configured)}>{busy ? '처리 중…' : mode === 'signup' ? (staffInvitation ? '인증 코드 받기' : '가입 및 승인 요청') : '로그인'}<ArrowRight size={16} /></button>
+              <button className="button primary auth-submit" type="submit" disabled={demoMode || busy || (mode === 'signup' && !configured)}>{busy ? '처리 중…' : mode === 'setup' ? '관리자 계정 만들기' : mode === 'signup' ? (staffInvitation ? '인증 코드 받기' : '가입 및 승인 요청') : '로그인'}<ArrowRight size={16} /></button>
             </fieldset>
           </form>
-          {mode === 'admin' ? <button className="auth-back" onClick={() => changeMode('login')}>수강생 로그인으로 돌아가기</button> : <button className="auth-back" onClick={() => changeMode('admin')}><KeyRound size={13} />관리자 로그인</button>}
+          {mode === 'admin' ? <button className="auth-back" onClick={() => changeMode('login')}>수강생 로그인으로 돌아가기</button> : legacyEnabled && <button className="auth-back" onClick={() => changeMode('admin')}><KeyRound size={13} />관리자 로그인</button>}
+          {!demoMode && setupEnabled && mode !== 'setup' && <button className="auth-back" onClick={() => changeMode('setup')}><KeyRound size={13} />최초 관리자 등록</button>}
+          {!demoMode && mode === 'login' && <p className="auth-description">비밀번호를 잊었다면 운영자에게 계정 복구를 요청하세요.</p>}
           {demoMode && <button className="button secondary auth-submit" onClick={enterDemo}>데모 둘러보기 <ArrowRight size={15} /></button>}
         </>}
       </section>

@@ -1,0 +1,40 @@
+import { useState, type FormEvent } from 'react'
+import { KeyRound } from 'lucide-react'
+import { ModalShell } from './components'
+import { apiRequest, setSessionToken } from './api'
+
+export default function AccountSettings() {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy) return
+    const form = event.currentTarget, data = new FormData(form)
+    const newPassword = String(data.get('newPassword'))
+    setError('')
+    if (newPassword !== data.get('confirmPassword')) { setError('비밀번호가 일치하지 않습니다.'); return }
+    setBusy(true)
+    try {
+      const result = await apiRequest('auth/password', { method: 'POST', body: JSON.stringify({ currentPassword: data.get('currentPassword'), newPassword }) })
+      setSessionToken(result.token || ''); form.reset(); setDone(true)
+    } catch (failure) { setError((failure as Error).message) }
+    finally { setBusy(false) }
+  }
+  return <>
+    <button className="text-button" onClick={() => { setOpen(true); setError(''); setDone(false) }}><KeyRound size={14} />비밀번호 변경</button>
+    {open && <ModalShell title="비밀번호 변경" close={() => { if (!busy) setOpen(false) }}>
+      {done ? <div className="modal-form"><p role="status">비밀번호를 변경했습니다. 다른 기기의 로그인은 해제되었습니다.</p><button className="button primary" onClick={() => setOpen(false)}>닫기</button></div> : <form className="modal-form" onSubmit={submit}>
+        <fieldset disabled={busy}>
+          <label>현재 비밀번호<input name="currentPassword" type="password" autoComplete="current-password" required maxLength={128} /></label>
+          <label>새 비밀번호<input name="newPassword" type="password" autoComplete="new-password" required minLength={15} maxLength={128} placeholder="15자 이상" /></label>
+          <label>새 비밀번호 확인<input name="confirmPassword" type="password" autoComplete="new-password" required minLength={15} maxLength={128} /></label>
+          {error && <p role="alert" className="error-text">{error}</p>}
+          <p>변경하면 다른 기기의 로그인이 해제됩니다.</p>
+          <button className="button primary" type="submit">{busy ? '변경 중…' : '변경하기'}</button>
+        </fieldset>
+      </form>}
+    </ModalShell>}
+  </>
+}

@@ -6,7 +6,7 @@ React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다
 
 ## 실행
 
-계정 로그인·Discord 가입 인증·봇 초대 시 채널 자동 구성은 [DISCORD-LMS.md](./DISCORD-LMS.md)를 참고하세요. 개발 환경에서도 로그인이 필요하며 `npm run bot:setup`으로 로컬 관리자 비밀번호를 준비할 수 있습니다.
+최초 관리자 등록·비밀번호 변경·복구는 [AUTH-OPERATIONS.md](./AUTH-OPERATIONS.md), Discord 가입 인증·봇 초대 시 채널 자동 구성은 [DISCORD-LMS.md](./DISCORD-LMS.md)를 참고하세요. 개발 환경에서도 로그인이 필요하며 `npm run bot:setup`으로 최초 관리자 설정 키를 준비할 수 있습니다.
 
 Node.js 24 이상이 필요합니다.
 
@@ -18,7 +18,7 @@ npm run dev
 
 - 웹: http://127.0.0.1:5173
 - API: http://127.0.0.1:3001/api/health
-- 샘플 화면: http://127.0.0.1:5173/?demo=1
+- 샘플 화면은 별도 `VITE_APP_MODE=demo` 빌드에서만 제공합니다. 운영 빌드는 `?demo=1`로 전환되지 않습니다.
 
 기본 모드는 API 연결입니다. 초기 DB가 비어 있으면 화면에도 0건으로 표시합니다. 샘플 모드는 실제 DB를 변경하지 않고 브라우저에 저장합니다.
 
@@ -66,7 +66,7 @@ SQLite 파일은 API와 봇이 같은 호스트의 로컬 볼륨에서 공유하
 | 파일 | S3 미연결 상태 및 요구 구성 안내 화면 | S3 Private Bucket, 권한 검사, 업로드/다운로드, 만료 URL |
 | 서버 | 배포 환경 메타데이터 등록 및 조회 | 원격 에이전트, 실제 봇 배포·시작·중지 |
 | 내보내기 | 과정·수강생·팀·멘토·출결·성적·공지 CSV | 문서 기준 XLSX 양식 및 가져오기 |
-| 인증·권한 | 아이디·비밀번호 로그인, Discord 봇 가입 인증, 전체/워크스페이스 관리자·강사·수강생 권한, 초대 및 가입 승인, 본인 학습 조회 | Discord OAuth, 세부 담당 과정 권한, 비밀번호 초기화 |
+| 인증·권한 | 개인 계정 로그인·비밀번호 변경·서버 계정 복구, Discord 봇 가입 인증, 전체/워크스페이스 관리자·강사·수강생 권한, 초대 및 가입 승인, 본인 학습 조회 | Discord OAuth, 세부 담당 과정 권한, 자동 계정 복구 |
 | Discord 채널 | 서버별 카테고리·텍스트·음성 구성, 봇 연결 시 생성·재사용, 적용 이력 | 역할별 권한 구성, 채널 삭제·이동, 운영 패널 자동 게시 |
 | 이력 | API 변경 전후 값, 작업자·유형·대상·일시 | 실제 Discord/S3 연동 실패 및 재시도 기록 |
 
@@ -76,11 +76,11 @@ SQLite 파일은 API와 봇이 같은 호스트의 로컬 볼륨에서 공유하
 
 GitHub Pages에서 화면을 테스트하거나 별도 API를 연결하려면 [GITHUB-PAGES.md](./GITHUB-PAGES.md)를 참고하세요.
 
-개발 모드는 API가 `127.0.0.1`에만 바인딩되며 로그인이 필요합니다. 관리자 비밀번호가 비어 있으면 관리자 로그인은 사용할 수 없습니다. 운영에서는 다음 값을 설정하세요.
+개발 모드는 API가 `127.0.0.1`에만 바인딩되며 로그인이 필요합니다. 최초 등록에는 관리자 설정 키가 필요합니다. 등록 이후 개인 아이디·비밀번호로 로그인합니다. 운영에서는 다음 값을 설정하세요.
 
 ```dotenv
 NODE_ENV=production
-ADMIN_PASSWORD=<16자 이상의 비밀번호>
+ADMIN_PASSWORD=<16자 이상의 최초 관리자 설정 키>
 ALLOWED_ORIGINS=https://lms.example.com
 BOT_DB_PATH=/absolute/path/mentoring.db
 ```
@@ -90,7 +90,7 @@ npm run build
 npm start
 ```
 
-API가 `dist/`도 함께 제공합니다. 운영 도메인의 HTTPS reverse proxy를 포트 3001로 연결하세요. 같은 도메인에서는 Secure / HttpOnly / SameSite=Strict 쿠키를 사용합니다. Pages처럼 다른 도메인에서는 메모리에만 보관하는 Bearer 세션을 사용하며 새로고침하면 다시 로그인합니다. 세션은 DB에 8시간 보관하고 관리자 비밀번호 변경 시 기존 관리자 세션을 무효화합니다. 비밀번호나 봇 토큰을 `VITE_*` 환경변수에 넣지 않습니다.
+API가 `dist/`도 함께 제공합니다. 운영 도메인의 HTTPS reverse proxy를 포트 3001로 연결하세요. 같은 도메인에서는 Secure / HttpOnly / SameSite=Strict 쿠키를 사용합니다. Pages처럼 다른 도메인에서는 메모리에만 보관하는 Bearer 세션을 사용하며 새로고침하면 다시 로그인합니다. 세션은 DB에 8시간 보관하고 계정 비밀번호 변경 시 해당 계정의 기존 세션을 무효화합니다. 비밀번호나 봇 토큰을 `VITE_*` 환경변수에 넣지 않습니다.
 
 Docker 구성도 포함되어 있습니다. 프로젝트 루트가 build context입니다.
 

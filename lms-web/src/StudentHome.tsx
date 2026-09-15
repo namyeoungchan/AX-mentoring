@@ -1,3 +1,4 @@
+import AccountSettings from './AccountSettings'
 import { AdmissionStatus } from './Admissions'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import type { WorkspaceMetadata } from './demoWorkspaces'
@@ -13,7 +14,7 @@ export type Learning = {
   assignments: { id: number; title: string; dueDate: string; active: number }[];
 }
 export default function StudentHome({ user, learning, error, refresh, logout, workspaces, activeId, selectWorkspace }: { workspaces: WorkspaceMetadata[]; activeId: string; selectWorkspace: (id: string) => Promise<void>; user: Account; learning: Learning | null; error: string; refresh: () => Promise<void>; logout: () => Promise<void> }) {
-  return <div className="student-page"><header className="student-header"><span className="auth-brand"><span><BookOpen size={21} /></span>AX <b>LearningOps</b></span><button className="button secondary" onClick={() => void logout()}><LogOut size={15} />로그아웃</button></header>
+  return <div className="student-page"><header className="student-header"><span className="auth-brand"><span><BookOpen size={21} /></span>AX <b>LearningOps</b></span><AccountSettings /><button className="button secondary" onClick={() => void logout()}><LogOut size={15} />로그아웃</button></header>
     <main className="student-main"><WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} /><div className="page-heading"><div><span className="eyebrow">MY LEARNING</span><h1>나의 학습</h1><p>{user.name} · {user.username}</p></div><button className="button secondary" onClick={() => void refresh()}><RefreshCw size={15} />새로고침</button></div>
       <div className="student-identity"><Badge>{user.verified === false ? 'Discord 참여 대기' : 'Discord 인증 완료'}</Badge><span>Discord ID {user.discordId}</span><span>수강생</span></div>
       {error && <p className="inline-note error-note" role="alert">{error}</p>}

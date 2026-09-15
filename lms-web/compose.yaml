@@ -8,7 +8,7 @@ services:
       - "127.0.0.1:3001:3001"
     environment:
       NODE_ENV: production
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD with at least 16 characters}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set your HTTPS origin}
       BOT_DB_PATH: /app/data/mentoring.db
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}

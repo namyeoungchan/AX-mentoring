@@ -15,14 +15,14 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
 const production = process.env.NODE_ENV === 'production'
 const password = process.env.ADMIN_PASSWORD || ''
-if (production && password.length < 16) throw new Error('운영 모드에서는 16자 이상의 ADMIN_PASSWORD가 필요합니다.')
 const port = Number(process.env.API_PORT || 3001)
 const host = production ? '0.0.0.0' : '127.0.0.1'
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001,http://127.0.0.1:3001').split(',').map(v => v.trim()))
 const dbPath = resolve(root, process.env.BOT_DB_PATH || '../data/mentoring.db')
 const store = createStore(dbPath)
 const renderSync = createRenderSync(store.db, { token: process.env.LEARNINGOPS_SYNC_TOKEN || '', sourceId: process.env.LEARNINGOPS_SOURCE_ID || 'asan-ax' })
-const auth = createAuth(store.db, { adminPassword: password, botToken: process.env.LEARNINGOPS_AUTH_TOKEN || '', guildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '', guildAllowed: id => id === process.env.LEARNINGOPS_AUTH_GUILD_ID || Boolean(store.db.prepare('SELECT 1 FROM lms_workspace_guilds WHERE guild_id=?').get(id)) })
+const auth = createAuth(store.db, { adminPassword: password, allowLegacyAdmin: !production && process.env.ALLOW_LEGACY_ADMIN === 'true', botToken: process.env.LEARNINGOPS_AUTH_TOKEN || '', guildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '', guildAllowed: id => id === process.env.LEARNINGOPS_AUTH_GUILD_ID || Boolean(store.db.prepare('SELECT 1 FROM lms_workspace_guilds WHERE guild_id=?').get(id)) })
+if (production && !store.db.prepare("SELECT 1 FROM lms_users WHERE platform_role='admin'").get() && !auth.setupEnabled()) throw new Error('최초 관리자 등록을 위해 16자 이상의 ADMIN_PASSWORD 설정 키가 필요합니다.')
 const provision = createProvision(store.db, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
 const workspaces = createWorkspaces({ store, dbPath, provision, syncToken: process.env.LEARNINGOPS_SYNC_TOKEN || '', sourceId: process.env.LEARNINGOPS_SOURCE_ID || 'asan-ax', authGuildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '' })
 const admissions = createAdmissions(store.db, workspaces, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
@@ -55,7 +55,11 @@ app.post('/api/integrations/render/snapshot', (req, res) => {
 function setLogin(res, result) {
   return res.cookie('learningops_session', result.token, { httpOnly: true, sameSite: 'strict', secure: production, maxAge: 8 * 60 * 60 * 1000, path: '/api' }).json({ ok: true, ...result })
 }
-app.get('/api/auth/config', (_req, res) => res.json({ registrationEnabled: auth.enabled, studentRegistrationEnabled: true, workspaces: admissions.catalogue() }))
+app.get('/api/auth/config', (_req, res) => res.json({ setupEnabled: auth.setupEnabled(), legacyAdminEnabled: auth.legacyEnabled(), registrationEnabled: auth.enabled, studentRegistrationEnabled: true, workspaces: admissions.catalogue() }))
+app.post('/api/auth/setup', async (req, res) => {
+  auth.limit('setup-ip', req.ip, 5, 15 * 60000)
+  setLogin(res.status(201), await auth.setup(req.body))
+})
 app.post('/api/auth/student/register', async (req, res) => {
   auth.limit('registration-ip', req.ip, 10, 3600000)
   const { workspaceId, ...input } = req.body || {}
@@ -114,6 +118,7 @@ app.use('/api', (req, res, next) => {
   next()
 })
 app.get('/api/auth/me', (req, res) => res.json({ user: req.account }))
+app.post('/api/auth/password', async (req, res) => setLogin(res, await auth.changePassword(req.account, req.body)))
 app.get('/api/me/admissions', (req, res) => res.json({ applications: admissions.own(req.account) }))
 app.post('/api/me/admissions', (req, res) => res.status(201).json(admissions.apply(req.body?.workspaceId, req.account)))
 app.post('/api/me/admissions/:id/renew', (req, res) => {

@@ -443,7 +443,10 @@ tbody tr:last-child td { border-bottom: none; }
 .auth-expiry { font-size: 11px; margin-bottom: 20px; color: #7d8776; }
 .auth-renew { display: block; margin: 17px auto 0; }
 .auth-footer { color: #97a091; font-size: 10px; padding: 20px; text-align: center; letter-spacing: 1px; }
-.student-header { background: #fdfefb; }
+.student-header { background: #fdfefb; flex-wrap: wrap; }
+.student-header > .auth-brand { margin-right: auto; }
+.student-header > button { flex-shrink: 0; }
+.demo-indicator { flex-wrap: wrap; }
 .student-main { max-width: 1140px; padding: 38px 28px 65px; margin: auto; display: grid; gap: 24px; }
 .student-main .page-heading { margin: 0; }
 .student-identity { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; color: #819080; font-size: 11px; }

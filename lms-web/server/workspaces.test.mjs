@@ -63,10 +63,10 @@ test('workspace stores isolate records, revisions, references and audit history 
 test('legacy membership migration runs once; later registrations do not inherit guild access on restart', t => {
   const { manager, store, options } = fixture(t, ({ store, sync }) => {
     sync.ingest(payload('asan-ax'))
-    store.db.prepare('INSERT INTO lms_users VALUES(?,?,?,?,?,?,?,?)').run('legacy-user', 'legacy.user', '기존 수강생', 'test-hash', '855456789012345678', guildId, 1, 1)
+    store.db.prepare('INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,verified_at) VALUES(?,?,?,?,?,?,?,?)').run('legacy-user', 'legacy.user', '기존 수강생', 'test-hash', '855456789012345678', guildId, 1, 1)
   })
   assert.equal(manager.role('asan-ax', { id: 'legacy-user', role: 'student' }), 'student')
-  store.db.prepare('INSERT INTO lms_users VALUES(?,?,?,?,?,?,?,?)').run('later-user', 'later.user', '신규 계정', 'test-hash', '955456789012345678', guildId, 2, 2)
+  store.db.prepare('INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,verified_at) VALUES(?,?,?,?,?,?,?,?)').run('later-user', 'later.user', '신규 계정', 'test-hash', '955456789012345678', guildId, 2, 2)
   const reopened = createWorkspaces(options)
   try {
     assert.equal(reopened.role('asan-ax', { id: 'legacy-user', role: 'student' }), 'student')
