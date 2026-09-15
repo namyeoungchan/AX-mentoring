@@ -21,6 +21,7 @@ COGS = [
     "cogs.admin",
     "cogs.mentor",
     "cogs.reminder",
+    "cogs.lms_onboarding",
     "cogs.onboarding",
     "cogs.qa",
     "cogs.assignment",

@@ -1,5 +1,6 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch, AsyncMock
 
 import discord
 from cogs.lms_provision import apply_channels, ProvisionError, validate_provision_endpoint, worker_status
@@ -31,6 +32,11 @@ class Guild:
 
 
 class ProvisionTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        guide_patch = patch("cogs.lms_provision.ensure_guide", new_callable=AsyncMock)
+        self.guide = guide_patch.start()
+        self.addCleanup(guide_patch.stop)
+
     def test_shared_worker_reports_all_guilds_instead_of_only_the_first_hundred(self):
         bot = SimpleNamespace(user=SimpleNamespace(id=999456789012345678), is_ready=lambda: True,
                               guilds=[SimpleNamespace(id=123456789012345678 + i, name=f"서버 {i}",

@@ -77,6 +77,16 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = '�
         if (['learners', 'teams', 'attendance', 'scores', 'notices'].includes(kind)) requireRecord('courses', value.courseId)
         if (kind === 'learners' && value.team && !rows('teams').some(t => t.name === value.team && t.courseId === value.courseId)) throw new ApiError(422, '해당 과정에 등록된 팀을 선택하세요.')
         if (kind === 'teams' && value.mentorId && !db.prepare('SELECT id FROM mentors WHERE id=?').get(value.mentorId)) throw new ApiError(422, '등록된 멘토를 선택하세요.')
+        if (kind === 'teams') {
+          if (rows('teams').some(team => team.id !== value.id && team.courseId === value.courseId && team.name === value.name)) throw new ApiError(409, '같은 과정에 같은 팀 이름이 있습니다.')
+          const assigned = before ? rows('learners').filter(learner => learner.courseId === before.courseId && learner.team === before.name) : []
+          if (assigned.length && before.courseId !== value.courseId) throw new ApiError(422, '팀원이 있는 팀은 다른 과정으로 이동할 수 없습니다.')
+          if (before && before.name !== value.name) for (const learner of assigned) {
+            const next = { ...learner, team: value.name }
+            put('learners', next)
+            db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(actor, 'learners.team-rename', learner.id, JSON.stringify(learner), JSON.stringify(next))
+          }
+        }
         if (kind === 'attendance' || kind === 'scores') {
           const student = requireRecord('learners', value.studentId)
           if (student.courseId !== value.courseId) throw new ApiError(422, '수강생의 소속 과정이 일치하지 않습니다.')

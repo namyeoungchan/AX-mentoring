@@ -531,3 +531,11 @@ tbody tr:last-child td { border-bottom: none; }
 .admission-apply label { display: grid; gap: 8px; flex: 1; min-width: 190px; }
 .admission-apply select, .auth-card select { padding: 12px; width: 100%; border: 1px solid #dae1d9; border-radius: 8px; background: white; }
 @media (max-width: 600px) { .invitation-banner { margin: 12px; padding: 20px; } .membership-invite > form, .admission-card > form { padding: 0 16px 20px; } }
+
+.onboarding-grid { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:20px; }
+.onboarding-check { display:flex !important; flex-direction:row !important; align-items:center; gap:9px; }
+.onboarding-check input { width:auto !important; min-height:0; }
+.onboarding-courses { display:grid; gap:10px; padding-block:12px; }
+.discord-guide-field { grid-column:1 / -1; }
+.onboarding-grid ol { padding-left:20px; line-height:2; }
+@media(max-width:850px) { .onboarding-grid { grid-template-columns:minmax(0,1fr); } }

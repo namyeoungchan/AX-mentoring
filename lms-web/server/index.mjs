@@ -11,6 +11,7 @@ import { createProvision } from './provision.mjs'
 import { createWorkspaces } from './workspaces.mjs'
 import { createAdmissions } from './admissions.mjs'
 import { configuredOrigins } from './origins.mjs'
+import { createOnboarding } from './onboarding.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -27,6 +28,7 @@ if (production && !store.db.prepare("SELECT 1 FROM lms_users WHERE platform_role
 const provision = createProvision(store.db, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
 const workspaces = createWorkspaces({ store, dbPath, provision, syncToken: process.env.LEARNINGOPS_SYNC_TOKEN || '', sourceId: process.env.LEARNINGOPS_SOURCE_ID || 'asan-ax', authGuildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '' })
 const admissions = createAdmissions(store.db, workspaces, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
+const onboarding = createOnboarding(store.db, workspaces, provision)
 const app = express()
 app.disable('x-powered-by')
 const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0)
@@ -102,6 +104,13 @@ app.post('/api/integrations/discord/provision/:operation', (req, res) => {
   if (req.params.operation === 'complete') return res.json(provision.complete(req.body))
   return res.status(404).json({ error: '지원하지 않는 작업입니다.' })
 })
+app.post('/api/integrations/discord/onboarding/:operation', (req, res) => {
+  if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
+  if (req.params.operation === 'poll') return res.json(onboarding.poll(req.body))
+  if (req.params.operation === 'report') return res.json(onboarding.report(req.body))
+  if (req.params.operation === 'progress') return res.json(onboarding.progress(req.body))
+  return res.status(404).json({ error: '지원하지 않는 작업입니다.' })
+})
 app.post('/api/login', (req, res) => {
   auth.limit('admin-ip', req.ip, 20, 60000)
   setLogin(res, auth.adminLogin(req.body?.password))
@@ -165,6 +174,8 @@ app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res
 app.patch('/api/workspaces/:workspaceId/teaching', (req, res) => res.json(workspaces.teach(req.workspaceId, req.body, req.account)))
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
 app.get('/api/workspaces/:workspaceId/members', (req, res) => res.json(workspaces.members(req.workspaceId, req.account)))
+app.get('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.read(req.workspaceId)))
+app.post('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.save(req.workspaceId, req.body)))
 app.post('/api/workspaces/:workspaceId/invitations', (req, res) => res.status(201).json(workspaces.invite(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/invitations/:invitationId/revoke', (req, res) => res.json(workspaces.revokeInvitation(req.workspaceId, req.params.invitationId, req.account)))
 app.get('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(workspaces.snapshot(req.workspaceId)))

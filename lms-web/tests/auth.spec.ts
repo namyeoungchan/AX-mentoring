@@ -45,7 +45,7 @@ test('staff signup, Discord identity proof, instructor invitation and API role i
   expect(membership.workspaces.map((w: { id: string }) => w.id)).toEqual(['asan-ax'])
   expect((await page.request.get('/api/workspaces/default/me/learning')).status()).toBe(403)
   expect((await page.request.get('/api/workspaces/asan-ax/me/learning')).status()).toBe(403)
-  for (const path of ['workspace', 'audit', 'integrations/render', 'discord/provision']) expect((await page.request.get(`/api/workspaces/asan-ax/${path}`)).status()).toBe(403)
+  for (const path of ['workspace', 'audit', 'integrations/render', 'discord/provision', 'discord/onboarding']) expect((await page.request.get(`/api/workspaces/asan-ax/${path}`)).status()).toBe(403)
   expect((await page.request.post('/api/workspaces', { data: { name: '권한 없는 생성' } })).status()).toBe(403)
   const own = await (await page.request.get('/api/auth/me')).json()
   expect(own.user.role).toBe('student')

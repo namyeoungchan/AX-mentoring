@@ -4,7 +4,7 @@ import { ApiError } from './store.mjs'
 
 const digest = value => createHash('sha256').update(value).digest('hex')
 const snowflake = z.string().regex(/^\d{17,20}$/)
-const channel = z.object({ id: z.string().min(1).max(80), name: z.string().trim().min(1).max(80), type: z.enum(['category', 'text', 'voice']), parentId: z.string().max(80).default('') }).strict().transform(item => ({ ...item, name: item.type === 'text' ? item.name.toLowerCase() : item.name }))
+const channel = z.object({ id: z.string().min(1).max(80), name: z.string().trim().min(1).max(80), type: z.enum(['category', 'text', 'voice']), parentId: z.string().max(80).default(''), guide: z.string().trim().max(1500).optional() }).strict().transform(item => ({ ...item, name: item.type === 'text' ? item.name.toLowerCase() : item.name }))
 function validateLayout(plan, ctx) {
   const ids = new Set()
   const names = new Set()

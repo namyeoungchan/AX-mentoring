@@ -1,16 +1,17 @@
+import channelGuides from '../shared/channel-guides.json'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ChevronDown, Hash, Plus, RefreshCw, Save, Send, Trash2, Volume2 } from 'lucide-react'
 import { workspaceRequest, demoMode } from './api'
 import { Badge, CardHeading } from './components'
 import defaultLayout from '../shared/discord-defaults.json'
 
-type Channel = { id: string; name: string; type: 'category' | 'text' | 'voice'; parentId: string }
+type Channel = { id: string; name: string; type: 'category' | 'text' | 'voice'; parentId: string; guide?: string }
 type Plan = { guildId: string; name: string; autoApply: boolean; channels: Channel[]; revision: string }
 type Template = { name: string; channels: Channel[]; revision: string }
 type State = { template: Template | null; boundGuildIds: string[]; enabled: boolean; plans: Plan[]; guilds: { id: string; name: string; connected: boolean; manageChannels: number; seenAt: number }[]; jobs: { id: string; guildId: string; state: string; errorCode: string | null; createdAt: number; results: { id: string; discordId: string; action: string }[] }[] }
 const initial = (): Plan => ({ guildId: '', name: defaultLayout.name, autoApply: true, channels: structuredClone(defaultLayout.channels) as Channel[], revision: '' })
 const jobNames: Record<string, string> = { queued: '봇 연결 대기', running: '적용 중', succeeded: '적용 완료', failed: '적용 실패' }
-const errorNames: Record<string, string> = { forbidden: '봇의 채널 관리 권한을 확인하세요.', missing_guild: '봇이 서버에 참여하고 있는지 확인하세요.', conflict: '중복된 채널 이름을 확인하세요.', timeout: '작업 시간이 초과됐습니다. 생성된 채널을 확인한 후 다시 요청하세요.', api_error: 'Discord 연결 오류입니다. 잠시 후 다시 요청하세요.' }
+const errorNames: Record<string, string> = { forbidden: '봇의 채널 관리·채널 보기·메시지 보내기·기록 보기·링크 삽입·메시지 고정 권한을 확인하세요.', missing_guild: '봇이 서버에 참여하고 있는지 확인하세요.', conflict: '중복된 채널 이름을 확인하세요.', timeout: '작업 시간이 초과됐습니다. 생성된 채널을 확인한 후 다시 요청하세요.', api_error: 'Discord 연결 오류입니다. 잠시 후 다시 요청하세요.' }
 
 export default function DiscordSetup({ workspaceId }: { workspaceId: string }) {
   const [state, setState] = useState<State>({ template: null, boundGuildIds: [], enabled: false, plans: [], guilds: [], jobs: [] })
@@ -85,6 +86,7 @@ export default function DiscordSetup({ workspaceId }: { workspaceId: string }) {
           <input aria-label={`채널 ${index + 1} 이름`} value={row.name} maxLength={80} onChange={event => update(row.id, { name: event.target.value })} />
           <select aria-label={`채널 ${index + 1} 카테고리`} value={row.parentId} disabled={row.type === 'category'} onChange={event => update(row.id, { parentId: event.target.value })}><option value="">최상위</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
           <button className="icon-button" aria-label={`채널 ${index + 1} 제거`} onClick={() => setDraft({ ...draft, channels: draft.channels.filter(item => item.id !== row.id).map(item => item.parentId === row.id ? { ...item, parentId: '' } : item) })}><Trash2 size={16} /></button>
+          {row.type === 'text' && <label className="discord-guide-field">고정 안내문<textarea aria-label={`채널 ${index + 1} 고정 안내문`} value={row.guide ?? (channelGuides as Record<string, string>)[row.id] ?? `${row.name} 이용 안내\n이 채널의 주제에 맞는 내용을 작성하세요. 질문에는 필요한 배경과 시도한 방법을 함께 적어 주세요.`} maxLength={1500} rows={3} onChange={event => update(row.id, { guide: event.target.value })} /></label>}
         </div>)}</div>
         <button className="button secondary" disabled={draft.channels.length >= 30} onClick={() => setDraft({ ...draft, channels: [...draft.channels, { id: crypto.randomUUID(), type: 'text', name: '새-채널', parentId: '' }] })}><Plus size={15} />채널 추가</button>
         <div className="discord-save-actions"><button className="button primary" disabled={demoMode || busy} onClick={() => void save()}><Save size={15} />{!draft.guildId ? '기본 구성 저장' : draft.autoApply ? '저장하고 자동 적용' : '설정 저장'}</button><button className="button secondary" disabled={demoMode || !state.enabled || !draft.guildId || dirty || busy} onClick={() => void apply()}><Send size={15} />적용 요청</button></div>

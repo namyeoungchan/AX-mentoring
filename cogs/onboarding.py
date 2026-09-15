@@ -17,6 +17,11 @@ log = logging.getLogger("asanAX.onboarding")
 TEAMS = list(config.TEAM_CHANNELS.keys())  # 단일 출처: config.TEAM_CHANNELS
 
 
+async def web_managed(bot, guild_id):
+    manager = bot.get_cog("LMSOnboarding")
+    return bool(manager and await manager.owns_guild(guild_id))
+
+
 # ── Embeds ─────────────────────────────────────────────────────────────────────
 
 def _welcome_embed(member: discord.Member) -> discord.Embed:
@@ -92,6 +97,9 @@ class IntroModal(discord.ui.Modal, title="자기소개 작성"):
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
+        if not interaction.guild or await web_managed(self.bot, interaction.guild.id):
+            await interaction.followup.send("시작하기 채널의 새 온보딩 버튼을 사용하세요. 팀은 웹에서 배정합니다.", ephemeral=True)
+            return
         await _process_intro(
             bot=self.bot,
             member=interaction.user,  # type: ignore[arg-type]
@@ -149,6 +157,9 @@ class OnboardingView(discord.ui.View):
     async def write_intro(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
+        if not interaction.guild or interaction.guild.id != config.GUILD_ID or await web_managed(self.bot, interaction.guild.id):
+            await interaction.response.send_message("시작하기 채널의 온보딩 버튼을 사용하세요. 팀은 웹에서 배정합니다.", ephemeral=True)
+            return
         record = await database.get_onboarding(str(interaction.user.id))
         if record and record["intro_done"]:
             await interaction.response.send_message(
@@ -258,6 +269,8 @@ class Onboarding(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
         guild = member.guild
+        if member.bot or guild.id != config.GUILD_ID or await web_managed(self.bot, guild.id):
+            return
 
         # 1. Assign 수강생 role
         student_role = guild.get_role(config.STUDENT_ROLE_ID)
@@ -283,6 +296,8 @@ class Onboarding(commands.Cog):
         if message.author.bot:
             return
         if not message.guild:
+            return
+        if message.guild.id != config.GUILD_ID or await web_managed(self.bot, message.guild.id):
             return
         if message.channel.id != config.INTRO_CHANNEL_ID:
             return

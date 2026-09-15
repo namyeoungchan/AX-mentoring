@@ -8,7 +8,7 @@
     { "id": "assignments", "name": "과제제출", "type": "text", "parentId": "learning" },
     { "id": "mentoring", "name": "멘토링예약", "type": "text", "parentId": "learning" },
     { "id": "teams", "name": "팀 활동", "type": "category", "parentId": "" },
-    { "id": "team-text", "name": "팀1-채팅", "type": "text", "parentId": "teams" },
-    { "id": "team-voice", "name": "팀1 음성", "type": "voice", "parentId": "teams" }
+    { "id": "start", "name": "시작하기", "type": "text", "parentId": "info" },
+    { "id": "intro", "name": "자기소개", "type": "text", "parentId": "info" }
   ]
 }

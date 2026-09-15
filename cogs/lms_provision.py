@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 import aiohttp
 import discord
 from discord.ext import commands, tasks
+from cogs.lms_guides import ensure_guide, guide_text
 
 log = logging.getLogger("asanAX.lms_provision")
 
@@ -73,6 +74,8 @@ async def apply_channels(guild, items: list[dict], results: list[dict]) -> None:
         if item["type"] == "category":
             parents[item["id"]] = target
         results.append({"id": item["id"], "discordId": str(target.id), "action": action})
+        if item["type"] == "text":
+            await ensure_guide(target, guide_text(item))
 
 
 class LMSProvision(commands.Cog):
@@ -83,6 +86,8 @@ class LMSProvision(commands.Cog):
         self.lock = asyncio.Lock()
         self.pending_result = None
         candidate = os.getenv("LEARNINGOPS_PROVISION_URL", "").strip()
+        if not candidate or len(self.token) < 32:
+            log.warning("LMS provisioning disabled: set LEARNINGOPS_PROVISION_URL and a token of at least 32 characters on the bot service")
         if candidate and len(self.token) >= 32:
             try:
                 self.url = validate_provision_endpoint(candidate)
@@ -102,6 +107,7 @@ class LMSProvision(commands.Cog):
                 return await response.json()
             if operation == "complete" and response.status == 409:
                 return {"expired": True}
+            log.warning("LMS provisioning %s rejected (HTTP %s)", operation, response.status)
             raise ProvisionError("api_error")
 
     async def run_once(self):
