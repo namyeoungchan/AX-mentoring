@@ -5,7 +5,7 @@ import { ApiError } from './store.mjs'
 const digest = value => createHash('sha256').update(value).digest('hex')
 const snowflake = z.string().regex(/^\d{17,20}$/)
 const channel = z.object({ id: z.string().min(1).max(80), name: z.string().trim().min(1).max(80), type: z.enum(['category', 'text', 'voice']), parentId: z.string().max(80).default('') }).strict().transform(item => ({ ...item, name: item.type === 'text' ? item.name.toLowerCase() : item.name }))
-const planSchema = z.object({ guildId: snowflake, name: z.string().trim().min(1).max(80), autoApply: z.boolean(), channels: z.array(channel).min(1).max(30), revision: z.string().max(64) }).strict().superRefine((plan, ctx) => {
+function validateLayout(plan, ctx) {
   const ids = new Set()
   const names = new Set()
   for (const item of plan.channels) {
@@ -18,7 +18,10 @@ const planSchema = z.object({ guildId: snowflake, name: z.string().trim().min(1)
     if (names.has(key)) ctx.addIssue({ code: 'custom', message: '같은 카테고리 안에 동일한 이름과 유형의 채널이 있습니다.' })
     names.add(key)
   }
-})
+}
+const layout = { name: z.string().trim().min(1).max(80), channels: z.array(channel).min(1).max(30), revision: z.string().max(64) }
+export const templateSchema = z.object(layout).strict().superRefine(validateLayout)
+const planSchema = z.object({ ...layout, guildId: snowflake, autoApply: z.boolean() }).strict().superRefine(validateLayout)
 const outcome = z.object({ id: z.string().max(80), discordId: snowflake, action: z.enum(['created', 'reused']) }).strict()
 const heartbeatSchema = z.object({
   bot: z.object({ id: snowflake, name: z.string().min(1).max(100), ready: z.boolean() }).strict().optional(),
@@ -58,8 +61,8 @@ export function createProvision(db, { token = '', now = Date.now } = {}) {
     db.prepare('INSERT INTO lms_discord_plans VALUES(?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET data=excluded.data,revision=excluded.revision,updated_at=excluded.updated_at').run(value.guildId, data, revision, now())
     return { ...value, revision }
   }
-  function enqueue(guildId, revision) {
-    if (!enabled) throw new ApiError(503, 'Discord 채널 설정 연결이 준비되지 않았습니다.')
+  function enqueue(guildId, revision, allowOffline = false) {
+    if (!enabled && !allowOffline) throw new ApiError(503, 'Discord 채널 설정 연결이 준비되지 않았습니다.')
     expire()
     const current = plan(snowflake.parse(guildId))
     if (!current || current.revision !== revision) throw new ApiError(409, '최신 설정을 저장한 후 적용하세요.')
@@ -67,6 +70,12 @@ export function createProvision(db, { token = '', now = Date.now } = {}) {
     const id = randomUUID()
     db.prepare("INSERT INTO lms_discord_jobs(id,guild_id,revision,plan,state,created_at) VALUES(?,?,?,?,'queued',?)").run(id, guildId, revision, JSON.stringify(current), now())
     return { id, state: 'queued' }
+  }
+  function install(guildId, template) {
+    const current = plan(guildId)
+    if (current) return { created: false, plan: current, job: db.prepare('SELECT id,state FROM lms_discord_jobs WHERE guild_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1').get(guildId) || null }
+    const saved = save({ guildId, name: template.name, channels: template.channels, autoApply: true, revision: '' })
+    return { created: true, plan: saved, job: enqueue(guildId, saved.revision, true) }
   }
   function read(guildIds = null) {
     expire()
@@ -126,5 +135,5 @@ export function createProvision(db, { token = '', now = Date.now } = {}) {
     db.prepare('UPDATE lms_discord_jobs SET state=?,completed_at=?,error_code=?,results=?,claim_hash=NULL WHERE id=?').run(input.success ? 'succeeded' : 'failed', now(), input.errorCode, JSON.stringify(input.results), input.id)
     return { ok: true }
   }
-  return { enabled, authorized, save, enqueue, read, poll, complete, heartbeat }
+  return { enabled, authorized, save, enqueue, install, read, poll, complete, heartbeat }
 }

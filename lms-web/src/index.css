@@ -508,6 +508,9 @@ tbody tr:last-child td { border-bottom: none; }
 .student-main > .workspace-switcher { max-width: 300px; margin-bottom: 24px; }
 .membership-invite, .membership-history, .admission-card { margin-bottom: 22px; }
 .shared-bot-status { margin-bottom: 22px; }
+.discord-server-registration { margin-bottom: 24px; }
+.discord-server-registration > form { padding: 0 24px 12px; }
+.discord-server-registration > .discord-hint { padding: 0 24px 20px; overflow-wrap: anywhere; }
 .membership-invite > form, .admission-card > form { padding: 0 24px 24px; }
 .invitation-link { margin: 0 24px 24px; display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
 .invitation-link label { flex: 1; min-width: 180px; }

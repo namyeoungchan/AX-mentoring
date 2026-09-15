@@ -3,6 +3,8 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { ApiError, createStore } from './store.mjs'
 import { createRenderSync } from './render-sync.mjs'
+import { templateSchema } from './provision.mjs'
+import defaultLayout from '../shared/discord-defaults.json' with { type: 'json' }
 
 const creation = z.object({ name: z.string().trim().min(1).max(60).transform(value => value.normalize('NFKC')), description: z.string().trim().max(300).default(''), guildId: z.union([z.string().regex(/^\d{17,20}$/), z.literal('')]).default('') }).strict()
 
@@ -27,7 +29,8 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
       username TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','instructor','student')),
       created_by TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, accepted_at INTEGER, revoked_at INTEGER
     );
-    CREATE TABLE IF NOT EXISTS lms_workspace_migrations (name TEXT PRIMARY KEY);`)
+    CREATE TABLE IF NOT EXISTS lms_workspace_migrations (name TEXT PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS lms_discord_templates (workspace_id TEXT PRIMARY KEY REFERENCES lms_workspaces(id), data TEXT NOT NULL CHECK(json_valid(data)), revision TEXT NOT NULL, updated_at INTEGER NOT NULL);`)
   const migrateMembers = !db.prepare("SELECT 1 FROM lms_workspace_migrations WHERE name='members-v1'").get()
   db.exec('BEGIN IMMEDIATE')
   try {
@@ -88,7 +91,7 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     try {
       if (db.prepare('SELECT id FROM lms_workspaces WHERE lower(name)=lower(?)').get(input.name)) throw new ApiError(409, '같은 이름의 워크스페이스가 있습니다.')
       db.prepare('INSERT INTO lms_workspaces VALUES(?,?,?,?,?)').run(id, input.name, input.description, id, Date.now())
-      if (input.guildId) bindGuild(id, input.guildId)
+      if (input.guildId) { bindGuild(id, input.guildId); provision.install(input.guildId, template(id)) }
       open(id)
       db.exec('COMMIT')
       return metadata(id)
@@ -130,6 +133,41 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
       const result = provision.save(body)
       db.exec('COMMIT')
       return result
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
+  function template(id) {
+    metadata(id)
+    let row = db.prepare('SELECT data,revision FROM lms_discord_templates WHERE workspace_id=?').get(id)
+    if (!row) {
+      const legacy = db.prepare('SELECT p.data FROM lms_discord_plans p JOIN lms_workspace_guilds g ON p.guild_id=g.guild_id WHERE g.workspace_id=? ORDER BY p.updated_at DESC LIMIT 1').get(id)
+      const source = legacy ? JSON.parse(legacy.data) : defaultLayout
+      const data = JSON.stringify({ name: source.name, channels: source.channels })
+      const revision = createHash('sha256').update(`${id}:${data}`).digest('hex')
+      db.prepare('INSERT OR IGNORE INTO lms_discord_templates VALUES(?,?,?,?)').run(id, data, revision, now())
+      row = db.prepare('SELECT data,revision FROM lms_discord_templates WHERE workspace_id=?').get(id)
+    }
+    return { ...JSON.parse(row.data), revision: row.revision }
+  }
+  function saveTemplate(id, body) {
+    const input = templateSchema.parse(body)
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      if (template(id).revision !== input.revision) throw new ApiError(409, '기본 구성이 변경됐습니다. 다시 불러온 후 저장하세요.')
+      const data = JSON.stringify({ name: input.name, channels: input.channels })
+      const revision = createHash('sha256').update(`${id}:${data}`).digest('hex')
+      db.prepare('UPDATE lms_discord_templates SET data=?,revision=?,updated_at=? WHERE workspace_id=?').run(data, revision, now(), id)
+      db.exec('COMMIT'); return { ...JSON.parse(data), revision }
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
+  function addServer(id, body) {
+    const input = z.object({ guildId: z.string().regex(/^\d{17,20}$/), templateRevision: z.string().length(64) }).strict().parse(body)
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      const saved = template(id)
+      if (input.templateRevision !== saved.revision) throw new ApiError(409, '기본 구성이 변경됐습니다. 다시 불러온 후 서버를 추가하세요.')
+      bindGuild(id, input.guildId)
+      const result = provision.install(input.guildId, saved)
+      db.exec('COMMIT'); return result
     } catch (error) { db.exec('ROLLBACK'); throw error }
   }
   function enqueue(id, body) {
@@ -207,5 +245,5 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
   }
   function close() { for (const [id, value] of stores) if (id !== 'default') value.db.close() }
   return { list, create, metadata, requireAccess, open, snapshot, mutate, remote, ingest, savePlan, enqueue,
-    provisionRead: id => provision.read(metadata(id).guildIds), connection, role, requireRole, invite, previewInvitation, acceptInvitation, members, revokeInvitation, teaching, teach, close }
+    provisionRead: id => ({ ...provision.read(metadata(id).guildIds), template: template(id), boundGuildIds: metadata(id).guildIds }), template, saveTemplate, addServer, connection, role, requireRole, invite, previewInvitation, acceptInvitation, members, revokeInvitation, teaching, teach, close }
 }

@@ -166,6 +166,11 @@ app.patch('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(works
 app.get('/api/workspaces/:workspaceId/audit', (req, res) => res.json(workspaces.open(req.workspaceId).db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 500').all()))
 app.get('/api/workspaces/:workspaceId/integrations/render', (req, res) => res.json({ ...workspaces.remote(req.workspaceId).read(), connection: workspaces.connection(req.workspaceId) }))
 app.get('/api/workspaces/:workspaceId/discord/provision', (req, res) => res.json(workspaces.provisionRead(req.workspaceId)))
+app.post('/api/workspaces/:workspaceId/discord/provision/template', (req, res) => res.json(workspaces.saveTemplate(req.workspaceId, req.body)))
+app.post('/api/workspaces/:workspaceId/discord/provision/servers', (req, res) => {
+  const result = workspaces.addServer(req.workspaceId, req.body)
+  res.status(result.created ? 201 : 200).json(result)
+})
 app.post('/api/workspaces/:workspaceId/discord/provision/plans', (req, res) => res.json(workspaces.savePlan(req.workspaceId, req.body)))
 app.post('/api/workspaces/:workspaceId/discord/provision/jobs', (req, res) => res.status(202).json(workspaces.enqueue(req.workspaceId, req.body)))
 // Legacy endpoints retain the original workspace for existing clients.

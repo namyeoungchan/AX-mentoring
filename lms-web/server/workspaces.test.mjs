@@ -120,6 +120,47 @@ test('shared worker status stays common but guild data and guild-routed snapshot
   assert.throws(() => manager.ingest({ ...body, bot: { ...body.bot, guildId: '823456789012345678' } }), { status: 403 })
 })
 
+test('saved workspace defaults are frozen into automatic jobs when a server ID is added', t => {
+  const { manager, provision } = fixture(t)
+  const base = manager.template('default')
+  const saved = manager.saveTemplate('default', { ...base, name: '신규 교육 기본 구성', channels: [{ id: 'category', type: 'category', name: '강의', parentId: '' }, { id: 'notice', type: 'text', name: '수업공지', parentId: 'category' }] })
+  const result = manager.addServer('default', { guildId, templateRevision: saved.revision })
+  assert.equal(result.created, true); assert.equal(result.job.state, 'queued')
+  assert.deepEqual(result.plan.channels, saved.channels)
+  const repeated = manager.addServer('default', { guildId, templateRevision: saved.revision })
+  assert.equal(repeated.created, false); assert.equal(repeated.job.id, result.job.id)
+  const edited = manager.saveTemplate('default', { ...saved, name: '다음 서버의 구성' })
+  assert.equal(manager.provisionRead('default').plans[0].name, saved.name)
+  assert.throws(() => manager.addServer('default', { guildId: '323456789012345678', templateRevision: saved.revision }), { status: 409 })
+  assert.deepEqual(manager.metadata('default').guildIds, [guildId])
+  assert.equal(provision.poll({ guilds: [] }).job, null)
+  const job = provision.poll({ guilds: [{ id: guildId, name: '교육 서버', manageChannels: true }] }).job
+  assert.equal(job.id, result.job.id); assert.deepEqual(job.plan.channels, saved.channels)
+  const second = manager.addServer('default', { guildId: '323456789012345678', templateRevision: edited.revision })
+  assert.equal(second.plan.name, '다음 서버의 구성')
+  assert.throws(() => manager.addServer('asan-ax', { guildId, templateRevision: manager.template('asan-ax').revision }), { status: 409 })
+  assert.deepEqual(manager.provisionRead('asan-ax').plans, [])
+})
+
+test('workspace creation with a server ID queues the default layout even before the worker is configured', t => {
+  const { manager } = fixture(t)
+  const created = manager.create({ name: '생성 시 서버 구축', guildId })
+  const state = manager.provisionRead(created.id)
+  assert.equal(state.plans[0].channels.length, 9)
+  assert.equal(state.jobs.length, 1); assert.equal(state.jobs[0].state, 'queued')
+})
+
+test('templates validate layout and revisions and preserve the last valid definition', t => {
+  const { manager } = fixture(t)
+  const original = manager.template('default')
+  assert.throws(() => manager.saveTemplate('default', { ...original, channels: [{ id: 'bad', name: 'invalid name', type: 'text', parentId: '' }] }))
+  assert.deepEqual(manager.template('default'), original)
+  assert.throws(() => manager.saveTemplate('asan-ax', original), { status: 409 })
+  const updated = manager.saveTemplate('default', { ...original, name: '새 기본 구성' })
+  assert.throws(() => manager.saveTemplate('default', original), { status: 409 })
+  assert.deepEqual(manager.template('default'), updated)
+})
+
 test('verified accounts need an invitation and roles belong to individual workspaces', async t => {
   const { manager, auth, store } = fixture(t)
   manager.savePlan('asan-ax', plan)

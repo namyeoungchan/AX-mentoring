@@ -1,0 +1,14 @@
+{
+  "name": "AX 교육 서버",
+  "channels": [
+    { "id": "info", "name": "운영 안내", "type": "category", "parentId": "" },
+    { "id": "notice", "name": "공지사항", "type": "text", "parentId": "info" },
+    { "id": "questions", "name": "질문답변", "type": "text", "parentId": "info" },
+    { "id": "learning", "name": "학습 활동", "type": "category", "parentId": "" },
+    { "id": "assignments", "name": "과제제출", "type": "text", "parentId": "learning" },
+    { "id": "mentoring", "name": "멘토링예약", "type": "text", "parentId": "learning" },
+    { "id": "teams", "name": "팀 활동", "type": "category", "parentId": "" },
+    { "id": "team-text", "name": "팀1-채팅", "type": "text", "parentId": "teams" },
+    { "id": "team-voice", "name": "팀1 음성", "type": "voice", "parentId": "teams" }
+  ]
+}

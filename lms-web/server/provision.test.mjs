@@ -13,6 +13,20 @@ const input = () => ({ guildId, name: '교육 서버', autoApply: true, revision
 const guilds = [{ id: guildId, name: '교육 서버', manageChannels: true }]
 const success = job => ({ id: job.id, claim: job.claim, success: true, errorCode: null, results: job.plan.channels.map((item, i) => ({ id: item.id, discordId: String(223456789012345678n + BigInt(i)), action: 'created' })) })
 
+test('server registration can wait for worker configuration without losing or duplicating the queued layout', () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    const offline = createProvision(db)
+    const queued = offline.install(guildId, input())
+    assert.equal(queued.job.state, 'queued')
+    assert.equal(offline.authorized(`Bearer ${token}`), false)
+    const online = createProvision(db, { token })
+    assert.equal(online.poll({ guilds }).job.id, queued.job.id)
+    assert.equal(online.install(guildId, input()).created, false)
+    assert.equal(online.read().jobs.length, 1)
+  } finally { db.close() }
+})
+
 test('one worker processes distinct guild plans and reports departures and stale status independently of jobs', () => {
   const db = new DatabaseSync(':memory:')
   let clock = Date.now()
