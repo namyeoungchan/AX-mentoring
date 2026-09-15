@@ -1,0 +1,56 @@
+name: Deploy LearningOps to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lms-web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: learningops-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lms-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: lms-web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - name: Build public frontend only
+        run: npm run build
+        env:
+          PAGES_BASE_PATH: /${{ github.event.repository.name }}/
+          # Only public configuration is allowed in the frontend bundle.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_APP_MODE: ${{ vars.VITE_API_BASE_URL != '' && 'api' || 'demo' }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: lms-web/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - uses: actions/deploy-pages@v4
+        id: deployment

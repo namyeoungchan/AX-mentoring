@@ -61,6 +61,13 @@ class AsanAXBot(commands.Bot):
         self.add_view(MentorPanelView(mentors))
         log.info("Persistent panel view registered")
 
+        # Optional outbound sync; a configuration error must not stop the bot.
+        if os.getenv("LEARNINGOPS_SYNC_URL") and os.getenv("LEARNINGOPS_SYNC_TOKEN"):
+            try:
+                await self.load_extension("cogs.learningops_sync")
+            except Exception:
+                log.error("LearningOps sync could not start; check LEARNINGOPS_* settings")
+
     async def on_ready(self) -> None:
         log.info("Logged in as %s (ID: %s)", self.user, self.user.id)  # type: ignore[union-attr]
 

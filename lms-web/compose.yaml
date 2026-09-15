@@ -1,0 +1,20 @@
+services:
+  learningops:
+    build:
+      context: ..
+      dockerfile: lms-web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      NODE_ENV: production
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD with at least 16 characters}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set your HTTPS origin}
+      BOT_DB_PATH: /app/data/mentoring.db
+    volumes:
+      - ../data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

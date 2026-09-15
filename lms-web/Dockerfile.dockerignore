@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.env
+.git
+.idea
+data
+lms-web/test-results
+lms-web/playwright-report
+**/__pycache__
+**/.venv

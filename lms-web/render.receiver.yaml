@@ -1,0 +1,28 @@
+# Optional separate web receiver. Do not replace the existing worker's render.yaml.
+services:
+  - type: web
+    name: asanax-learningops-web
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./lms-web/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    disk:
+      name: learningops-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: "10000"
+      - key: BOT_DB_PATH
+        value: /app/data/mentoring.db
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: LEARNINGOPS_SYNC_TOKEN
+        sync: false
+      - key: LEARNINGOPS_SOURCE_ID
+        value: asan-ax
