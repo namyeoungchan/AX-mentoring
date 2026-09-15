@@ -8,6 +8,8 @@ import { createRenderSync } from './render-sync.mjs'
 import { createAuth } from './auth.mjs'
 import { studentLearning } from './student.mjs'
 import { createProvision } from './provision.mjs'
+import { createWorkspaces } from './workspaces.mjs'
+import { createAdmissions } from './admissions.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -17,10 +19,13 @@ if (production && password.length < 16) throw new Error('운영 모드에서는 
 const port = Number(process.env.API_PORT || 3001)
 const host = production ? '0.0.0.0' : '127.0.0.1'
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001,http://127.0.0.1:3001').split(',').map(v => v.trim()))
-const store = createStore(resolve(root, process.env.BOT_DB_PATH || '../data/mentoring.db'))
+const dbPath = resolve(root, process.env.BOT_DB_PATH || '../data/mentoring.db')
+const store = createStore(dbPath)
 const renderSync = createRenderSync(store.db, { token: process.env.LEARNINGOPS_SYNC_TOKEN || '', sourceId: process.env.LEARNINGOPS_SOURCE_ID || 'asan-ax' })
-const auth = createAuth(store.db, { adminPassword: password, botToken: process.env.LEARNINGOPS_AUTH_TOKEN || '', guildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '' })
+const auth = createAuth(store.db, { adminPassword: password, botToken: process.env.LEARNINGOPS_AUTH_TOKEN || '', guildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '', guildAllowed: id => id === process.env.LEARNINGOPS_AUTH_GUILD_ID || Boolean(store.db.prepare('SELECT 1 FROM lms_workspace_guilds WHERE guild_id=?').get(id)) })
 const provision = createProvision(store.db, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
+const workspaces = createWorkspaces({ store, dbPath, provision, syncToken: process.env.LEARNINGOPS_SYNC_TOKEN || '', sourceId: process.env.LEARNINGOPS_SOURCE_ID || 'asan-ax', authGuildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '' })
+const admissions = createAdmissions(store.db, workspaces, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
 const app = express()
 app.disable('x-powered-by')
 const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0)
@@ -45,12 +50,23 @@ app.use('/api', (req, res, next) => {
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', database: 'connected', auth: 'required' }))
 app.post('/api/integrations/render/snapshot', (req, res) => {
   if (!renderSync.authorized(req.get('authorization'))) return res.status(401).json({ error: '동기화 인증에 실패했습니다.' })
-  res.json(renderSync.ingest(req.body))
+  res.json(workspaces.ingest(req.body))
 })
 function setLogin(res, result) {
   return res.cookie('learningops_session', result.token, { httpOnly: true, sameSite: 'strict', secure: production, maxAge: 8 * 60 * 60 * 1000, path: '/api' }).json({ ok: true, ...result })
 }
-app.get('/api/auth/config', (_req, res) => res.json({ registrationEnabled: auth.enabled }))
+app.get('/api/auth/config', (_req, res) => res.json({ registrationEnabled: auth.enabled, studentRegistrationEnabled: true, workspaces: admissions.catalogue() }))
+app.post('/api/auth/student/register', async (req, res) => {
+  auth.limit('registration-ip', req.ip, 10, 3600000)
+  const { workspaceId, ...input } = req.body || {}
+  workspaces.metadata(typeof workspaceId === 'string' ? workspaceId : '')
+  const result = await auth.signup(input, user => admissions.apply(workspaceId, user))
+  setLogin(res.status(201), result)
+})
+app.post('/api/invitations/preview', (req, res) => {
+  auth.limit('invitation-preview', req.ip, 60, 60000)
+  res.json(workspaces.previewInvitation(req.body?.token))
+})
 app.post('/api/auth/register', async (req, res) => {
   auth.limit('registration-ip', req.ip, 10, 3600000)
   res.status(201).json(await auth.register(req.body))
@@ -67,7 +83,7 @@ app.post('/api/integrations/discord/:operation', (req, res) => {
   if (!auth.botAuthorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
   auth.limit('discord-verify', String(req.body?.discordId || ''), 10, 60000)
   if (req.params.operation === 'preview') return res.json(auth.preview(req.body))
-  if (req.params.operation === 'verify') return res.json(auth.verify(req.body))
+  if (req.params.operation === 'verify') { const result = auth.verify(req.body); admissions.activate(req.body.discordId, req.body.guildId); return res.json(result) }
   return res.status(404).json({ error: '지원하지 않는 인증 작업입니다.' })
 })
 app.post('/api/auth/login', async (req, res) => {
@@ -84,6 +100,12 @@ app.post('/api/login', (req, res) => {
   auth.limit('admin-ip', req.ip, 20, 60000)
   setLogin(res, auth.adminLogin(req.body?.password))
 })
+app.post('/api/integrations/discord/admissions/:operation', (req, res) => {
+  if (!admissions.authorized(req.get('authorization'))) return res.status(401).json({ error: '초대 발급 봇 인증에 실패했습니다.' })
+  if (req.params.operation === 'poll') return res.json(admissions.poll(req.body))
+  if (req.params.operation === 'complete') return res.json(admissions.complete(req.body))
+  return res.status(404).json({ error: '지원하지 않는 작업입니다.' })
+})
 const sessionToken = req => req.get('authorization')?.startsWith('Bearer ') ? req.get('authorization').slice(7) : req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith('learningops_session='))?.slice('learningops_session='.length)
 app.use('/api', (req, res, next) => {
   req.account = auth.session(sessionToken(req))
@@ -91,22 +113,67 @@ app.use('/api', (req, res, next) => {
   next()
 })
 app.get('/api/auth/me', (req, res) => res.json({ user: req.account }))
+app.get('/api/me/admissions', (req, res) => res.json({ applications: admissions.own(req.account) }))
+app.post('/api/me/admissions', (req, res) => res.status(201).json(admissions.apply(req.body?.workspaceId, req.account)))
+app.post('/api/me/admissions/:id/renew', (req, res) => {
+  auth.limit('admission-renew', req.account.id, 5, 3600000)
+  res.json(admissions.renew(req.params.id, req.account))
+})
+app.post('/api/me/admissions/:id/verification', (req, res) => {
+  const application = admissions.approved(req.params.id, req.account)
+  res.json(auth.issueVerification(req.account, application.guild_id))
+})
+app.post('/api/invitations/accept', (req, res) => res.json(workspaces.acceptInvitation(req.body?.token, req.account)))
 app.get('/api/me/learning', (req, res) => {
   if (req.account.role !== 'student') return res.status(403).json({ error: '수강생 계정으로 로그인하세요.' })
-  res.json(studentLearning(store.db, req.account))
+  const workspace = workspaces.list(req.account)[0]
+  if (!workspace) return res.status(403).json({ error: '소속된 워크스페이스가 없습니다.' })
+  res.json(studentLearning(workspaces.open(workspace.id).db, req.account))
 })
 app.post('/api/logout', (req, res) => {
   auth.logout(sessionToken(req)); res.clearCookie('learningops_session', { path: '/api' }).json({ ok: true })
 })
-app.use('/api', (req, res, next) => {
+const requireAdmin = (req, res, next) => {
   if (req.account.role !== 'admin') return res.status(403).json({ error: '관리자 권한이 필요합니다.' })
   next()
+}
+app.get('/api/workspaces', (req, res) => res.json({ workspaces: workspaces.list(req.account) }))
+app.post('/api/workspaces', requireAdmin, (req, res) => res.status(201).json(workspaces.create(req.body)))
+app.use('/api/workspaces/:workspaceId', (req, _res, next) => {
+  req.workspaceId = req.params.workspaceId
+  req.workspace = workspaces.requireAccess(req.workspaceId, req.account)
+  next()
 })
-app.get('/api/workspace', (_req, res) => res.json({ ...store.snapshot(), authEnabled: true }))
-app.get('/api/discord/provision', (_req, res) => res.json(provision.read()))
-app.post('/api/discord/provision/plans', (req, res) => res.json(provision.save(req.body)))
-app.post('/api/discord/provision/jobs', (req, res) => res.status(202).json(provision.enqueue(req.body?.guildId, req.body?.revision)))
-app.patch('/api/workspace', (req, res) => res.json({ ...store.mutate(req.body, req.account.username), authEnabled: true }))
+app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace))
+app.get('/api/workspaces/:workspaceId/me/learning', (req, res) => {
+  workspaces.requireRole(req.workspaceId, req.account, ['student'])
+  res.json(studentLearning(workspaces.open(req.workspaceId).db, req.account))
+})
+app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
+  workspaces.requireRole(req.workspaceId, req.account, ['instructor'])
+  res.json(workspaces.teaching(req.workspaceId))
+})
+app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admissions.reviewList(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res.json(admissions.review(req.workspaceId, req.params.id, req.body, req.account)))
+app.patch('/api/workspaces/:workspaceId/teaching', (req, res) => res.json(workspaces.teach(req.workspaceId, req.body, req.account)))
+app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
+app.get('/api/workspaces/:workspaceId/members', (req, res) => res.json(workspaces.members(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/invitations', (req, res) => res.status(201).json(workspaces.invite(req.workspaceId, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/invitations/:invitationId/revoke', (req, res) => res.json(workspaces.revokeInvitation(req.workspaceId, req.params.invitationId, req.account)))
+app.get('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(workspaces.snapshot(req.workspaceId)))
+app.patch('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(workspaces.mutate(req.workspaceId, req.body, req.account.username)))
+app.get('/api/workspaces/:workspaceId/audit', (req, res) => res.json(workspaces.open(req.workspaceId).db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 500').all()))
+app.get('/api/workspaces/:workspaceId/integrations/render', (req, res) => res.json(workspaces.remote(req.workspaceId).read()))
+app.get('/api/workspaces/:workspaceId/discord/provision', (req, res) => res.json(workspaces.provisionRead(req.workspaceId)))
+app.post('/api/workspaces/:workspaceId/discord/provision/plans', (req, res) => res.json(workspaces.savePlan(req.workspaceId, req.body)))
+app.post('/api/workspaces/:workspaceId/discord/provision/jobs', (req, res) => res.status(202).json(workspaces.enqueue(req.workspaceId, req.body)))
+// Legacy endpoints retain the original workspace for existing clients.
+app.use('/api', requireAdmin)
+app.get('/api/workspace', (_req, res) => res.json(workspaces.snapshot('default')))
+app.get('/api/discord/provision', (_req, res) => res.json(workspaces.provisionRead('default')))
+app.post('/api/discord/provision/plans', (req, res) => res.json(workspaces.savePlan('default', req.body)))
+app.post('/api/discord/provision/jobs', (req, res) => res.status(202).json(workspaces.enqueue('default', req.body)))
+app.patch('/api/workspace', (req, res) => res.json(workspaces.mutate('default', req.body, req.account.username)))
 app.get('/api/audit', (_req, res) => res.json(store.db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 500').all()))
 app.get('/api/integrations/render', (_req, res) => res.json(renderSync.read()))
 app.use('/api', (_req, res) => res.status(404).json({ error: '지원하지 않는 API입니다.' }))
@@ -121,4 +188,4 @@ app.use((error, _req, res, _next) => {
 auth.cleanup()
 const cleanup = setInterval(() => auth.cleanup(), 60000).unref()
 const server = app.listen(port, host, () => console.log(`LearningOps API: http://${host}:${port} (authentication required)`))
-for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => server.close(() => { clearInterval(cleanup); store.db.close(); process.exit(0) }))
+for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => server.close(() => { clearInterval(cleanup); workspaces.close(); store.db.close(); process.exit(0) }))

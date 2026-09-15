@@ -62,12 +62,14 @@ export function createProvision(db, { token = '', now = Date.now } = {}) {
     db.prepare("INSERT INTO lms_discord_jobs(id,guild_id,revision,plan,state,created_at) VALUES(?,?,?,?,'queued',?)").run(id, guildId, revision, JSON.stringify(current), now())
     return { id, state: 'queued' }
   }
-  function read() {
+  function read(guildIds = null) {
     expire()
+    const filter = guildIds === null ? '' : ' WHERE guild_id IN (SELECT value FROM json_each(?))'
+    const args = guildIds === null ? [] : [JSON.stringify(guildIds)]
     return { enabled,
-      plans: db.prepare('SELECT guild_id FROM lms_discord_plans ORDER BY updated_at DESC').all().map(row => plan(row.guild_id)),
-      guilds: db.prepare('SELECT guild_id AS id,name,manage_channels AS manageChannels,seen_at AS seenAt FROM lms_discord_guilds').all().map(row => ({ ...row, connected: row.seenAt > now() - 90000 })),
-      jobs: db.prepare('SELECT id,guild_id AS guildId,state,created_at AS createdAt,completed_at AS completedAt,error_code AS errorCode,results FROM lms_discord_jobs ORDER BY created_at DESC,rowid DESC LIMIT 50').all().map(row => ({ ...row, results: JSON.parse(row.results) })),
+      plans: db.prepare(`SELECT guild_id FROM lms_discord_plans${filter} ORDER BY updated_at DESC`).all(...args).map(row => plan(row.guild_id)),
+      guilds: db.prepare(`SELECT guild_id AS id,name,manage_channels AS manageChannels,seen_at AS seenAt FROM lms_discord_guilds${filter}`).all(...args).map(row => ({ ...row, connected: row.seenAt > now() - 90000 })),
+      jobs: db.prepare(`SELECT id,guild_id AS guildId,state,created_at AS createdAt,completed_at AS completedAt,error_code AS errorCode,results FROM lms_discord_jobs${filter} ORDER BY created_at DESC,rowid DESC LIMIT 50`).all(...args).map(row => ({ ...row, results: JSON.parse(row.results) })),
     }
   }
   function poll(body) {

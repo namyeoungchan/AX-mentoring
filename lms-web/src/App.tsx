@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Activity, ArrowDownToLine, ArrowRight, ArrowUpRight, Bell, BookOpen, Bot, CalendarDays, Check, CheckCheck, ChevronDown, ChevronRight, ClipboardList, Command, ExternalLink, GraduationCap, LayoutDashboard, Menu, MoreHorizontal, Plus, Search, Settings2, Sparkles, Users, X } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowRight, ArrowUpRight, Bell, BookOpen, Bot, CalendarDays, Check, CheckCheck, ChevronRight, ClipboardList, Command, ExternalLink, GraduationCap, LayoutDashboard, Menu, MoreHorizontal, Plus, Search, Settings2, Sparkles, Users, X } from 'lucide-react'
 import { Avatar, Badge, ModalShell } from './components'
 import { type Course, type Workspace } from './data'
 import Dashboard from './Dashboard'
@@ -10,6 +10,11 @@ import { useWorkspace } from './useWorkspace'
 import AuthScreen from './AuthScreen'
 import StudentHome from './StudentHome'
 import DiscordSetup from './DiscordSetup'
+import WorkspaceSwitcher from './WorkspaceSwitcher'
+import WorkspaceMembers from './WorkspaceMembers'
+import InstructorHome from './InstructorHome'
+import InvitationPage from './InvitationPage'
+import { AdmissionsReview } from './Admissions'
 
 const navigation = [
   { id: 'dashboard', name: '대시보드', icon: LayoutDashboard }, { id: 'courses', name: '학습 과정', icon: BookOpen },
@@ -17,19 +22,33 @@ const navigation = [
   { id: 'assignments', name: '과제 관리', icon: ClipboardList }, { id: 'bots', name: '봇 · 서버 관리', icon: Bot },
   { id: 'logs', name: '활동 로그', icon: Activity }, { id: 'settings', name: '워크스페이스 설정', icon: Settings2 },
 ]
-navigation.splice(1, 0, { id: 'asan', name: '아산 AX 운영 현황', icon: Bot })
+navigation.splice(1, 0, { id: 'connection', name: '봇 연결 현황', icon: Bot })
+navigation.push({ id: 'members', name: '구성원 · 초대', icon: Users }, { id: 'admissions', name: '가입 승인', icon: CheckCheck })
 navigation.push({ id: 'discord', name: 'Discord 채널 설정', icon: Settings2 })
 navigation.splice(4, 0, { id: 'teams', name: '팀 관리', icon: Users }, { id: 'mentors', name: '멘토 관리', icon: GraduationCap }, { id: 'attendance', name: '출결 관리', icon: CheckCheck }, { id: 'scores', name: '성적 관리', icon: ClipboardList })
 navigation.splice(navigation.length - 3, 0, { id: 'submissions', name: '제출 내역', icon: ClipboardList }, { id: 'notices', name: '공지 관리', icon: Bell }, { id: 'files', name: '통합 파일함', icon: BookOpen })
 type Modal = 'course' | 'session' | 'server' | 'assignment' | 'help' | null
-function readPage() { const hash = location.hash.slice(1); return navigation.some(n => n.id === hash) ? hash : 'dashboard' }
+function readPage() { const hash = location.hash === '#asan' ? 'connection' : location.hash.slice(1); return navigation.some(n => n.id === hash) ? hash : 'dashboard' }
 const pageInfo: Record<string, [string, string]> = {
+  members: ['구성원 · 초대', '워크스페이스 권한 및 초대 관리'], admissions: ['가입 승인', '수강생 가입 신청 및 Discord 초대'],
   discord: ['Discord 채널 설정', '봇 초대 시 적용할 서버 채널 구성'],
-  asan: ['아산 AX 운영 현황', 'Render 봇 연결 상태 · 멘토링 · 과제 · 제출 데이터'], submissions: ['제출 내역', '기존 봇의 과제 제출 데이터'], teams: ['팀 관리', '과정별 팀 구성 및 담당 멘토'], mentors: ['멘토 관리', '멘토 정보 및 Discord 계정'], attendance: ['출결 관리', '차시별 출결 등록 및 변경 이력'], scores: ['성적 관리', '항목별 점수 및 종합점수'], notices: ['공지 관리', '과정별 공지 초안'], files: ['통합 파일함', '과정·팀별 파일 및 S3 연동 상태'],
+  connection: ['봇 연결 현황', 'Render 봇 연결 상태 · 멘토링 · 과제 · 제출 데이터'], submissions: ['제출 내역', '기존 봇의 과제 제출 데이터'], teams: ['팀 관리', '과정별 팀 구성 및 담당 멘토'], mentors: ['멘토 관리', '멘토 정보 및 Discord 계정'], attendance: ['출결 관리', '차시별 출결 등록 및 변경 이력'], scores: ['성적 관리', '항목별 점수 및 종합점수'], notices: ['공지 관리', '과정별 공지 초안'], files: ['통합 파일함', '과정·팀별 파일 및 S3 연동 상태'],
   dashboard: ['운영 대시보드', '과정, 수강생, 과제, 멘토링 현황'], courses: ['과정 관리', '과정 및 기수 등록 · 운영 상태 관리'], learners: ['수강생 관리', '수강생 정보 · Discord 계정 · 팀 배정'], mentoring: ['멘토링 일정', '예약 등록 · 승인 · 진행 이력'], assignments: ['과제 관리', '과제 등록 · 제출 현황 · 마감 관리'], bots: ['봇 · 서버 관리', '배포 환경 및 연동 상태'], logs: ['활동 로그', '데이터 변경 및 운영 작업 이력'], settings: ['워크스페이스 설정', '기본 정보 및 연결 설정'],
 }
 export default function App() {
-  const { data, update, loading, saving, error, authRequired, account, learning, refresh, login, logout, enterDemo, leaveDemo } = useWorkspace()
+  const workspace = useWorkspace()
+  const [invitationToken, setInvitationToken] = useState(() => location.hash.startsWith('#invite=') ? location.hash.slice(8) : '')
+  const { loading, authRequired, account, learning, error, refresh, login, logout, enterDemo, workspaces, activeId, selectWorkspace } = workspace
+  if (loading) return <div className="connection-screen"><Command size={32} /><h1>LearningOps</h1><p>운영 데이터 불러오는 중…</p></div>
+  const authScreen = <AuthScreen login={login} error={error} enterDemo={enterDemo} registered={refresh} staffInvitation={Boolean(invitationToken)} />
+  if (invitationToken) return <InvitationPage token={invitationToken} account={account} auth={authScreen} logout={logout} accepted={async id => { location.hash = 'dashboard'; await selectWorkspace(id); setInvitationToken('') }} />
+  if (authRequired) return authScreen
+  if (workspace.activeRole === 'instructor') return <InstructorHome key={activeId} workspace={workspace} />
+  if (account && workspace.activeRole !== 'admin') return <StudentHome user={account} learning={learning} error={error} refresh={refresh} logout={logout} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} />
+  return <AdminWorkspace key={activeId} workspace={workspace} />
+}
+function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
+  const { data, update, saving, error, refresh, logout, leaveDemo, workspaces, activeId, selectWorkspace, createWorkspace } = workspace
   const [page, setPage] = useState(readPage)
   const [sidebar, setSidebar] = useState(false)
   const [query, setQuery] = useState('')
@@ -61,24 +80,21 @@ export default function App() {
     if (modal === 'server') ok = await change(d => ({ ...d, servers: [...d.servers, { id, name: value('title'), provider: value('provider'), region: value('region'), status: data.mode === 'api' ? '미연결' : '중지됨', version: '미확인' }], logs: [...d.logs, { id: crypto.randomUUID(), time: new Date().toLocaleTimeString('ko-KR', { hour12: false }), text: `${value('title')} 배포 환경이 등록되었습니다.` }] }), '배포 환경을 등록했습니다.')
     if (ok) setModal(null)
   }
-  if (loading) return <div className="connection-screen"><Command size={32} /><h1>LearningOps</h1><p>운영 데이터 불러오는 중…</p></div>
-  if (authRequired) return <AuthScreen login={login} error={error} enterDemo={enterDemo} />
-  if (account?.role === 'student') return <StudentHome user={account} learning={learning} error={error} refresh={refresh} logout={logout} />
   return <div className="app-shell">
     {sidebar && <button className="sidebar-overlay" aria-label="메뉴 닫기" onClick={() => setSidebar(false)} />}
     <aside className={`sidebar ${sidebar ? 'open' : ''}`}>
-      <a href="#dashboard" className="brand" onClick={() => go('dashboard')}><span className="brand-mark"><Command size={23} /></span><span>asan<span className="brand-ax">AX</span><small>LEARNINGOPS</small></span></a>
-      <button className="workspace-selector" onClick={() => go('settings')}><span className="workspace-icon"><GraduationCap size={20} /></span><span><strong>{data.name}</strong><small>운영자 워크스페이스</small></span><ChevronDown size={15} /></button>
+      <a href="#dashboard" className="brand" onClick={() => go('dashboard')}><span className="brand-mark"><Command size={23} /></span><span><span className="brand-ax">AX</span><small>LEARNINGOPS</small></span></a>
+      <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} createWorkspace={workspace.account?.role === 'admin' || data.mode === 'demo' ? createWorkspace : undefined} saving={saving} error={error} />
       <p className="nav-label">WORKSPACE</p>
       <nav aria-label="주 메뉴">{navigation.slice(0, -3).map(n => <button key={n.id} onClick={() => go(n.id)} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined}><n.icon size={19} /><span>{n.name}</span>{n.id === 'mentoring' && pending > 0 && <span className="nav-count">{pending}</span>}{page === n.id && <span className="active-dot" />}</button>)}<p className="nav-label system-label">MANAGEMENT</p>{navigation.slice(-3).map(n => <button key={n.id} onClick={() => go(n.id)} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined}><n.icon size={19} /><span>{n.name}</span>{n.id === 'bots' && <span className="online-dot" />}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="help-card"><span className="help-spark"><Sparkles size={19} /></span><h3>운영 도움말</h3><p>기능별 사용 방법과<br />연동 범위를 확인하세요.</p><button onClick={() => setModal('help')}>운영 가이드 <ArrowUpRight size={14} /></button></div><button className="profile" onClick={() => go('settings')}><Avatar name="관" color="peach" /><span><strong>관리자</strong><small>워크스페이스 관리자</small></span><MoreHorizontal size={19} /></button></div>
+      <div className="sidebar-bottom"><div className="help-card"><span className="help-spark"><Sparkles size={19} /></span><h3>운영 도움말</h3><p>기능별 사용 방법과<br />연동 범위를 확인하세요.</p><button onClick={() => setModal('help')}>운영 가이드 <ArrowUpRight size={14} /></button></div><button className="profile" onClick={() => go('settings')}><Avatar name="관" color="peach" /><span><strong>{workspace.account?.name || '관리자'}</strong><small>{workspace.account?.role === 'admin' ? '전체 관리자' : '워크스페이스 관리자'}</small></span><MoreHorizontal size={19} /></button></div>
     </aside>
-    <div className="main-shell"><header className="topbar"><div className="flex items-center gap-3"><button className="icon-button mobile-menu" aria-label="메뉴 열기" onClick={() => setSidebar(true)}><Menu size={22} /></button><span className="breadcrumb">워크스페이스</span><ChevronRight size={13} className="breadcrumb" /><strong>{navigation.find(n => n.id === page)?.name}</strong></div><div className="header-tools"><label className="search-box"><Search size={16} /><input ref={searchInput} aria-label="현재 화면 검색" placeholder="현재 화면 검색" value={query} onChange={e => setQuery(e.target.value)} /><kbd>⌘ K</kbd></label><span className="header-divider" /><div className="notification-wrap"><button className="icon-button notification-button" aria-label="알림" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}><Bell size={19} />{!read && <i />}</button>{notifications && <div className="notification-panel"><div className="flex items-center justify-between"><h3>운영 알림</h3><button className="text-button" onClick={() => setRead(true)}><CheckCheck size={15} /> 모두 읽음</button></div><button onClick={() => go('mentoring')}><span className="notification-icon"><CalendarDays size={17} /></span><span><strong>멘토링 승인 요청 {pending}건</strong><small>미처리 예약을 확인하세요.</small></span></button><button onClick={() => go('assignments')}><span className="notification-icon orange"><ClipboardList size={17} /></span><span><strong>진행 중인 과제를 확인하세요</strong><small>수강생의 제출 현황을 살펴보세요.</small></span></button><span className="notification-foot">{read ? '모든 알림을 읽었습니다.' : '현재 데이터 기준'}</span></div>}</div><button className="profile-avatar" aria-label="내 설정" onClick={() => go('settings')}><Avatar name="관" color="peach" small /></button></div></header>
+    <div className="main-shell"><header className="topbar"><div className="flex items-center gap-3"><button className="icon-button mobile-menu" aria-label="메뉴 열기" onClick={() => setSidebar(true)}><Menu size={22} /></button><span className="breadcrumb">{data.name}</span><ChevronRight size={13} className="breadcrumb" /><strong>{navigation.find(n => n.id === page)?.name}</strong></div><div className="header-tools"><label className="search-box"><Search size={16} /><input ref={searchInput} aria-label="현재 화면 검색" placeholder="현재 화면 검색" value={query} onChange={e => setQuery(e.target.value)} /><kbd>⌘ K</kbd></label><span className="header-divider" /><div className="notification-wrap"><button className="icon-button notification-button" aria-label="알림" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}><Bell size={19} />{!read && <i />}</button>{notifications && <div className="notification-panel"><div className="flex items-center justify-between"><h3>운영 알림</h3><button className="text-button" onClick={() => setRead(true)}><CheckCheck size={15} /> 모두 읽음</button></div><button onClick={() => go('mentoring')}><span className="notification-icon"><CalendarDays size={17} /></span><span><strong>멘토링 승인 요청 {pending}건</strong><small>미처리 예약을 확인하세요.</small></span></button><button onClick={() => go('assignments')}><span className="notification-icon orange"><ClipboardList size={17} /></span><span><strong>진행 중인 과제를 확인하세요</strong><small>수강생의 제출 현황을 살펴보세요.</small></span></button><span className="notification-foot">{read ? '모든 알림을 읽었습니다.' : '현재 데이터 기준'}</span></div>}</div><button className="profile-avatar" aria-label="내 설정" onClick={() => go('settings')}><Avatar name="관" color="peach" small /></button></div></header>
       <main><div className="page-heading"><div><div className="eyebrow">LEARNING OPERATIONS</div><h1>{pageInfo[page][0]}</h1><p>{pageInfo[page][1]}</p></div><div className="page-actions">{page === 'dashboard' && <button className="button secondary" onClick={exportReport}><ArrowDownToLine size={16} /> 리포트 내보내기</button>}{['dashboard', 'courses', 'bots', 'mentoring', 'assignments'].includes(page) && <button className="button primary" onClick={() => setModal(page === 'bots' ? 'server' : page === 'mentoring' ? 'session' : page === 'assignments' ? 'assignment' : 'course')}><Plus size={17} />{page === 'bots' ? '서버 추가' : page === 'mentoring' ? '일정 등록' : page === 'assignments' ? '과제 만들기' : '새 과정 만들기'}</button>}</div></div>
-      <div className="demo-indicator"><span className="online-dot" /> {page === 'asan' ? 'Render 원격 데이터' : error ? '연결·저장 오류' : data.mode === 'api' ? 'DB 연결됨' : '데모 모드'} <span>{page === 'asan' ? '읽기 전용 · 원본 데이터는 Render에서 관리' : data.mode === 'api' ? '관리자 · ' + data.name : '브라우저에만 저장'}</span><button className="text-button" onClick={() => void refresh()}>새로고침</button>{data.authEnabled ? <button className="text-button" onClick={() => void logout()}>로그아웃</button> : <button className="text-button" onClick={leaveDemo}>로그인 화면</button>}</div>
+      <div className="demo-indicator"><span className="online-dot" /> {page === 'connection' ? 'Render 원격 데이터' : error ? '연결·저장 오류' : data.mode === 'api' ? 'DB 연결됨' : '데모 모드'} <span>{page === 'connection' ? '읽기 전용 · 원본 데이터는 Render에서 관리' : data.mode === 'api' ? '관리자 · ' + data.name : '브라우저에만 저장'}</span><button className="text-button" onClick={() => void refresh()}>새로고침</button>{data.authEnabled ? <button className="text-button" onClick={() => void logout()}>로그아웃</button> : <button className="text-button" onClick={leaveDemo}>로그인 화면</button>}</div>
       {error && <div role="alert" className="inline-note error-note">{error}<button onClick={() => void refresh()} className="text-button">다시 불러오기</button></div>}
-      {page === 'discord' ? <DiscordSetup /> : page === 'asan' ? <RenderMonitor query={query} /> : page === 'dashboard' ? <Dashboard data={data} query={query} go={go} selectCourse={setSelectedCourse} addSession={() => setModal('session')} /> : ['learners', 'teams', 'mentors', 'attendance', 'scores', 'notices', 'files', 'submissions'].includes(page) ? <Operations key={page} page={page} data={data} query={query} change={change} saving={saving} error={error} /> : <Management page={page} data={data} query={query} filter={filter} setFilter={setFilter} change={change} go={go} selectCourse={setSelectedCourse} help={() => setModal('help')} />}
-      <footer><span>© 2026 천안 AX LearningOps</span><span>LearningOps <Sparkles size={12} /></span><button onClick={() => setModal('help')}>도움말 <ExternalLink size={12} /></button></footer>
+      {page === 'members' ? <WorkspaceMembers workspaceId={activeId} platformAdmin={workspace.account?.role === 'admin' || data.mode === 'demo'} /> : page === 'admissions' ? <AdmissionsReview workspaceId={activeId} /> : page === 'discord' ? <DiscordSetup workspaceId={activeId} /> : page === 'connection' ? <RenderMonitor query={query} workspaceId={activeId} workspaceName={data.name} sourceId={workspaces.find(w => w.id === activeId)?.sourceId || ''} /> : page === 'dashboard' ? <Dashboard data={data} query={query} go={go} selectCourse={setSelectedCourse} addSession={() => setModal('session')} /> : ['learners', 'teams', 'mentors', 'attendance', 'scores', 'notices', 'files', 'submissions'].includes(page) ? <Operations key={page} page={page} data={data} query={query} change={change} saving={saving} error={error} /> : <Management page={page} data={data} query={query} filter={filter} setFilter={setFilter} change={change} go={go} selectCourse={setSelectedCourse} help={() => setModal('help')} />}
+      <footer><span>© 2026 {data.name} LearningOps</span><span>LearningOps <Sparkles size={12} /></span><button onClick={() => setModal('help')}>도움말 <ExternalLink size={12} /></button></footer>
       </main>
     </div>
     {notice && <div className="toast" role="status"><span><Check size={16} /></span>{notice}<button aria-label="알림 닫기" onClick={() => setNotice('')}><X size={14} /></button></div>}

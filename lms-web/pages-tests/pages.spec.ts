@@ -44,7 +44,7 @@ test('Pages opens login and signup previews with explicit demo entry', async ({ 
   await expect(page.locator('form').getByRole('button', { name: '로그인', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: '회원가입', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'LMS 회원가입' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '인증 코드 받기' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '가입 및 승인 요청' })).toBeDisabled()
   await page.getByRole('button', { name: '데모 둘러보기' }).click()
   await expect(page.getByRole('heading', { name: '운영 대시보드' })).toBeVisible()
   expect(apiRequests).toEqual([])

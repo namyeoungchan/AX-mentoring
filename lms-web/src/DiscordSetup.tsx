@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronDown, Hash, Plus, RefreshCw, Save, Send, Trash2, Volume2 } from 'lucide-react'
-import { apiRequest, demoMode } from './api'
+import { workspaceRequest, demoMode } from './api'
 import { Badge, CardHeading } from './components'
 
 type Channel = { id: string; name: string; type: 'category' | 'text' | 'voice'; parentId: string }
@@ -21,7 +21,7 @@ const initial = (): Plan => ({ guildId: '', name: 'AX 교육 서버', autoApply:
 const jobNames: Record<string, string> = { queued: '봇 연결 대기', running: '적용 중', succeeded: '적용 완료', failed: '적용 실패' }
 const errorNames: Record<string, string> = { forbidden: '봇의 채널 관리 권한을 확인하세요.', missing_guild: '봇이 서버에 참여하고 있는지 확인하세요.', conflict: '중복된 채널 이름을 확인하세요.', timeout: '작업 시간이 초과됐습니다. 생성된 채널을 확인한 후 다시 요청하세요.', api_error: 'Discord 연결 오류입니다. 잠시 후 다시 요청하세요.' }
 
-export default function DiscordSetup() {
+export default function DiscordSetup({ workspaceId }: { workspaceId: string }) {
   const [state, setState] = useState<State>({ enabled: false, plans: [], guilds: [], jobs: [] })
   const [draft, setDraft] = useState<Plan>(initial)
   const [saved, setSaved] = useState('')
@@ -30,9 +30,9 @@ export default function DiscordSetup() {
   const [notice, setNotice] = useState('')
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (demoMode) return
-    try { setState(await apiRequest('discord/provision', { signal })); setError('') }
+    try { setState(await workspaceRequest(workspaceId, 'discord/provision', { signal })); setError('') }
     catch (e) { if (!signal?.aborted) setError((e as Error).message) }
-  }, [])
+  }, [workspaceId])
   useEffect(() => {
     const controller = new AbortController()
     // eslint-disable-next-line react/set-state-in-effect -- Load external configuration on mount.
@@ -52,7 +52,7 @@ export default function DiscordSetup() {
     if (busy || demoMode) return
     setBusy(true); setError(''); setNotice('')
     try {
-      const result = await apiRequest('discord/provision/plans', { method: 'POST', body: JSON.stringify(draft) })
+      const result = await workspaceRequest(workspaceId, 'discord/provision/plans', { method: 'POST', body: JSON.stringify(draft) })
       setDraft(result); setSaved(JSON.stringify(result)); await refresh()
       setNotice(result.autoApply ? '설정을 저장했습니다. 봇이 연결되면 자동 적용합니다.' : '설정을 저장했습니다.')
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
@@ -60,7 +60,7 @@ export default function DiscordSetup() {
   async function apply() {
     if (busy || dirty || demoMode) return
     setBusy(true); setError(''); setNotice('')
-    try { await apiRequest('discord/provision/jobs', { method: 'POST', body: JSON.stringify({ guildId: draft.guildId, revision: draft.revision }) }); await refresh(); setNotice('적용을 요청했습니다. 봇이 작업을 가져가면 상태가 바뀝니다.') }
+    try { await workspaceRequest(workspaceId, 'discord/provision/jobs', { method: 'POST', body: JSON.stringify({ guildId: draft.guildId, revision: draft.revision }) }); await refresh(); setNotice('적용을 요청했습니다. 봇이 작업을 가져가면 상태가 바뀝니다.') }
     catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   function channelPreview(row: Channel) { return <div className="discord-preview-channel" key={row.id}>{row.type === 'voice' ? <Volume2 size={16} /> : <Hash size={16} />}<span>{row.name || '채널 이름'}</span></div> }

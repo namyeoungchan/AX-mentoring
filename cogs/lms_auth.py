@@ -56,6 +56,7 @@ class LMSAuth(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.url = ""
+        self.synced_guilds = set()
         self.token = os.getenv("LEARNINGOPS_AUTH_TOKEN", "").strip()
         candidate = os.getenv("LEARNINGOPS_AUTH_URL", "").strip()
         if candidate and len(self.token) >= 32:
@@ -83,7 +84,7 @@ class LMSAuth(commands.Cog):
     @app_commands.guild_only()
     @app_commands.checks.cooldown(5, 60, key=lambda interaction: interaction.user.id)
     async def verify_registration(self, interaction: discord.Interaction, 코드: str):
-        if interaction.guild_id != config.GUILD_ID:
+        if interaction.guild_id is None:
             await interaction.response.send_message("가입 인증이 허용된 Discord 서버에서 실행해 주세요.", ephemeral=True)
             return
         if not self.url:
@@ -102,6 +103,26 @@ class LMSAuth(commands.Cog):
         message = f"LMS 아이디: `{data['username']}`\n본인이 웹에서 직접 만든 계정인지 확인한 후 인증해 주세요. 다른 사람이 보내준 코드는 인증하지 마세요."
         await interaction.followup.send(message, view=VerificationView(self, code, interaction.user.id, interaction.guild_id),
                                         ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+
+    async def sync_verification(self, guild):
+        if not self.url or guild.id == config.GUILD_ID or guild.id in self.synced_guilds:
+            return
+        try:
+            target = discord.Object(id=guild.id)
+            self.bot.tree.add_command(self.verify_registration, guild=target, override=True)
+            await self.bot.tree.sync(guild=target)
+            self.synced_guilds.add(guild.id)
+        except discord.HTTPException:
+            log.warning("LMS verification command synchronization failed")
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        for guild in self.bot.guilds:
+            await self.sync_verification(guild)
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild):
+        await self.sync_verification(guild)
 
 
 async def setup(bot: commands.Bot):

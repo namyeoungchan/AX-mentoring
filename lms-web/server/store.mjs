@@ -24,7 +24,7 @@ const schemas = {
   settings: z.object({ name: text, reminders: z.boolean(), onboarding: z.boolean(), qa: z.boolean() }),
 }
 export class ApiError extends Error { constructor(status, message) { super(message); this.status = status } }
-export function createStore(dbPath) {
+export function createStore(dbPath, { workspaceId = 'default', defaultName = '천안 AX' } = {}) {
   mkdirSync(dirname(dbPath), { recursive: true })
   const db = new DatabaseSync(dbPath)
   db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;')
@@ -60,7 +60,7 @@ export function createStore(dbPath) {
     result.sessions.push(...db.prepare('SELECT data FROM lms_booking_history ORDER BY rowid').all().map(r => JSON.parse(r.data)))
     result.submissions = db.prepare('SELECT id,assignment_id AS assignmentId,user_name AS name,team,content,link,submitted_at AS submittedAt FROM submissions ORDER BY id DESC').all().map(s => ({ ...s, id: String(s.id) }))
     result.logs = db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 200').all().reverse().map(l => ({ id: String(l.id), time: l.created_at + ' UTC', text: `${l.actor} · ${l.action} · ${l.target}`, before: l.before_json, after: l.after_json }))
-    Object.assign(result, get('settings', 'workspace') || { name: '천안 AX', reminders: true, onboarding: true, qa: true }, { mode: 'api' })
+    Object.assign(result, get('settings', 'workspace') || { name: defaultName, reminders: true, onboarding: true, qa: true }, { mode: 'api', workspaceId })
     result.revision = createHash('sha256').update(JSON.stringify(result)).digest('hex')
     return result
   }

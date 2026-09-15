@@ -10,7 +10,7 @@
     "start": "node server/index.mjs",
     "sync:setup": "node scripts/setup-render-sync.mjs",
     "bot:setup": "node scripts/setup-bot-integrations.mjs",
-    "test": "node --test server/store.test.mjs server/render-sync.test.mjs server/auth.test.mjs server/provision.test.mjs",
+    "test": "node --test server/store.test.mjs server/render-sync.test.mjs server/auth.test.mjs server/provision.test.mjs server/workspaces.test.mjs server/admissions.test.mjs",
     "test:e2e": "playwright test",
     "test:pages": "playwright test --config playwright.pages.config.ts",
     "build:pages": "node scripts/build-pages.mjs",

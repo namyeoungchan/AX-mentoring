@@ -1,15 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ArrowRight, BookOpen, Check, Copy, Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react'
-import { apiRequest, demoMode } from './api'
+import { apiRequest, demoMode, setSessionToken } from './api'
 
 type Mode = 'login' | 'signup' | 'admin'
 type Challenge = { ticket: string; code: string; expiresAt: number; state: 'pending' | 'verified' | 'expired' }
-export default function AuthScreen({ login, error, enterDemo }: { login: (username: string, password: string, admin?: boolean) => Promise<void>; error: string; enterDemo: () => void }) {
+export default function AuthScreen({ login, error, enterDemo, registered, staffInvitation = false }: { registered: () => Promise<void>; staffInvitation?: boolean; login: (username: string, password: string, admin?: boolean) => Promise<void>; error: string; enterDemo: () => void }) {
   const [mode, setMode] = useState<Mode>(location.hash === '#signup' ? 'signup' : 'login')
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [configured, setConfigured] = useState(false)
+  const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([])
   const [checking, setChecking] = useState(!demoMode)
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [clock, setClock] = useState(() => Date.now())
@@ -18,11 +19,11 @@ export default function AuthScreen({ login, error, enterDemo }: { login: (userna
   useEffect(() => {
     if (demoMode) return
     const controller = new AbortController()
-    apiRequest('auth/config', { signal: controller.signal }).then(result => setConfigured(result.registrationEnabled)).catch(() => {
+    apiRequest('auth/config', { signal: controller.signal }).then(result => { setConfigured(staffInvitation ? result.registrationEnabled : result.studentRegistrationEnabled); setWorkspaces(result.workspaces || []) }).catch(() => {
       if (!controller.signal.aborted) setFailure('서비스에 연결하지 못했습니다. 잠시 후 새로고침해 주세요.')
     }).finally(() => { if (!controller.signal.aborted) setChecking(false) })
     return () => controller.abort()
-  }, [])
+  }, [staffInvitation])
   useEffect(() => {
     if (!challenge || challenge.state !== 'pending') return
     const controller = new AbortController()
@@ -52,8 +53,8 @@ export default function AuthScreen({ login, error, enterDemo }: { login: (userna
     setBusy(true)
     try {
       if (mode === 'signup') {
-        const result = await apiRequest('auth/register', { method: 'POST', body: JSON.stringify({ username: value('username'), name: value('name'), discordId: value('discordId'), password: value('password') }) })
-        form.reset(); setClock(Date.now()); setChallenge({ ...result, state: 'pending' })
+        const result = await apiRequest(staffInvitation ? 'auth/register' : 'auth/student/register', { method: 'POST', body: JSON.stringify({ username: value('username'), name: value('name'), discordId: value('discordId'), password: value('password'), ...(!staffInvitation ? { workspaceId: value('workspaceId') } : {}) }) })
+        if (staffInvitation) { form.reset(); setClock(Date.now()); setChallenge({ ...result, state: 'pending' }) } else { setSessionToken(result.token || ''); await registered() }
       } else await login(value('username'), value('password'), mode === 'admin')
     } catch (e) { setFailure((e as Error).message) }
     finally { setBusy(false) }
@@ -72,7 +73,7 @@ export default function AuthScreen({ login, error, enterDemo }: { login: (userna
   return <div className="auth-page">
     <header className="auth-header"><a href="#login" onClick={() => changeMode('login')} className="auth-brand"><span><BookOpen size={21} /></span>AX <b>LearningOps</b></a><span>학습 관리 시스템</span></header>
     <main className="auth-layout">
-      <section className="auth-intro"><span className="eyebrow">LEARNING MANAGEMENT</span><h1>학습 계정으로<br />로그인하세요.</h1><p>과정과 과제를 확인하고<br />나의 출결과 성적을 조회합니다.</p><div className="auth-discord"><ShieldCheck size={24} /><div><h2>Discord로 가입 인증</h2><p>교육 서버에 참여한 본인의 Discord 계정을 연결합니다.</p></div></div><ol className="auth-steps"><li><span>01</span>가입 정보 입력</li><li><span>02</span>Discord 봇에 인증 코드 제출</li><li><span>03</span>LMS 로그인</li></ol></section>
+      <section className="auth-intro"><span className="eyebrow">LEARNING MANAGEMENT</span><h1>학습 계정으로<br />로그인하세요.</h1><p>과정과 과제를 확인하고<br />나의 출결과 성적을 조회합니다.</p><div className="auth-discord"><ShieldCheck size={24} /><div><h2>{staffInvitation ? 'Discord로 가입 인증' : '승인 후 Discord 참여'}</h2><p>{staffInvitation ? '교육 서버에서 본인의 Discord 계정을 연결합니다.' : '관리자 또는 강사가 승인하면 Discord 초대 링크를 받습니다.'}</p></div></div><ol className="auth-steps"><li><span>01</span>가입 정보 입력</li><li><span>02</span>{staffInvitation ? 'Discord 인증' : '관리자 · 강사 승인'}</li><li><span>03</span>{staffInvitation ? '초대 수락' : 'Discord 참여 및 인증'}</li></ol></section>
       <section className="auth-card" aria-label="계정 인증">
         {challenge ? <>
           <div className={`auth-status-icon ${challenge.state === 'verified' ? 'verified' : ''}`}>{challenge.state === 'verified' ? <Check size={28} /> : <ShieldCheck size={28} />}</div>
@@ -87,18 +88,19 @@ export default function AuthScreen({ login, error, enterDemo }: { login: (userna
           <button className="auth-back" onClick={() => changeMode('login')}>로그인으로 돌아가기</button>
         </> : <>
           {mode !== 'admin' && <div className="auth-tabs" aria-label="계정 메뉴"><button className={mode === 'login' ? 'selected' : ''} aria-pressed={mode === 'login'} onClick={() => changeMode('login')}>로그인</button><button className={mode === 'signup' ? 'selected' : ''} aria-pressed={mode === 'signup'} onClick={() => changeMode('signup')}>회원가입</button></div>}
-          <h2>{mode === 'signup' ? 'LMS 회원가입' : mode === 'admin' ? '관리자 로그인' : 'LMS 로그인'}</h2><p className="auth-description">{mode === 'signup' ? '계정을 만들고 Discord에서 가입을 인증하세요.' : mode === 'admin' ? '운영자 전용 계정으로 접속합니다.' : 'Discord 인증을 마친 계정으로 접속하세요.'}</p>
+          <h2>{mode === 'signup' ? 'LMS 회원가입' : mode === 'admin' ? '관리자 로그인' : 'LMS 로그인'}</h2><p className="auth-description">{mode === 'signup' ? (staffInvitation ? '계정을 만들고 Discord에서 가입을 인증하세요.' : '가입할 워크스페이스를 선택하고 승인을 요청하세요.') : mode === 'admin' ? '운영자 전용 계정으로 접속합니다.' : '가입한 계정으로 로그인하세요.'}</p>
           {demoMode && <p className="auth-demo-note">현재 데모 사이트입니다. 실제 로그인과 가입 인증은 서비스 연결 후 사용할 수 있습니다.</p>}
           {!demoMode && mode === 'signup' && !configured && <p className="auth-demo-note">{checking ? '가입 가능 여부 확인 중…' : 'Discord 가입 인증을 준비 중입니다. 운영자에게 문의해 주세요.'}</p>}
           <form onSubmit={submit} key={mode}>
             <fieldset disabled={busy}>
+              {mode === 'signup' && !staffInvitation && <label>가입할 워크스페이스<select name="workspaceId" required defaultValue=""><option value="" disabled>워크스페이스 선택</option>{workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>}
               {mode === 'signup' && <label>이름<input name="name" autoComplete="name" required maxLength={50} placeholder="이름" /></label>}
               {mode !== 'admin' && <label>아이디<input name="username" autoComplete="username" required minLength={4} maxLength={32} pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{3,31}" placeholder="영문·숫자 4~32자" autoCapitalize="none" spellCheck={false} /></label>}
               {mode === 'signup' && <label>Discord 사용자 ID<input name="discordId" aria-label="Discord 사용자 ID" inputMode="numeric" required pattern="[0-9]{17,20}" placeholder="17~20자리 숫자" /><small>Discord 설정 → 고급 → 개발자 모드 활성화 후, 내 프로필에서 사용자 ID를 복사하세요.</small></label>}
               <label>{mode === 'admin' ? '관리자 비밀번호' : '비밀번호'}<span className="auth-password"><input name="password" aria-label={mode === 'admin' ? '관리자 비밀번호' : '비밀번호'} type={showPassword ? 'text' : 'password'} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required minLength={mode === 'signup' ? 12 : 1} maxLength={128} placeholder={mode === 'signup' ? '12자 이상' : '비밀번호 입력'} /><button type="button" aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>
               {mode === 'signup' && <label>비밀번호 확인<input name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required minLength={12} maxLength={128} placeholder="비밀번호 다시 입력" /></label>}
               {(failure || error) && <p className="auth-error" role="alert">{failure || error}</p>}
-              <button className="button primary auth-submit" type="submit" disabled={demoMode || busy || (mode === 'signup' && !configured)}>{busy ? '처리 중…' : mode === 'signup' ? '인증 코드 받기' : '로그인'}<ArrowRight size={16} /></button>
+              <button className="button primary auth-submit" type="submit" disabled={demoMode || busy || (mode === 'signup' && !configured)}>{busy ? '처리 중…' : mode === 'signup' ? (staffInvitation ? '인증 코드 받기' : '가입 및 승인 요청') : '로그인'}<ArrowRight size={16} /></button>
             </fieldset>
           </form>
           {mode === 'admin' ? <button className="auth-back" onClick={() => changeMode('login')}>수강생 로그인으로 돌아가기</button> : <button className="auth-back" onClick={() => changeMode('admin')}><KeyRound size={13} />관리자 로그인</button>}

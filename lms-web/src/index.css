@@ -491,3 +491,36 @@ tbody tr:last-child td { border-bottom: none; }
 }
 @media (max-width: 1000px) { .banner-metrics { gap: 22px; padding-right: 0; } .operations-banner { padding: 23px; } .operations-banner h2 { font-size: 26px; } }
 @media (max-width: 520px) { .operations-banner { display: block; min-height: auto; padding: 23px; } .operations-banner p { max-width: none; } .banner-metrics { padding: 22px 0 0; gap: 0; justify-content: space-between; border-top: 1px solid #dce4d2; margin-top: 22px; } .banner-metrics strong { font-size: 25px; margin-top: 4px; } .banner-metrics span { font-size: 9px; } .operations-toolbar { flex-wrap: wrap; } .operations-toolbar > div { width: 100%; justify-content: flex-end; } .demo-indicator { flex-wrap: wrap; line-height: 1.9; } }
+/* Workspace selection stays above the sidebar and fits small screens. */
+.workspace-switcher { position: relative; min-width: 0; }
+.sidebar > .workspace-switcher { margin: 29px 0 27px; }
+.workspace-switcher .workspace-selector { width: 100%; margin: 0; text-align: left; }
+.workspace-selector > span:nth-child(2) { min-width: 0; flex: 1; }
+.workspace-selector strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-dismiss { position: fixed; inset: 0; z-index: 39; cursor: default; }
+.workspace-menu { position: absolute; top: calc(100% + 8px); left: 0; width: 100%; min-width: 210px; z-index: 40; padding: 8px; border: 1px solid #e3e8e3; border-radius: 14px; background: #fff; box-shadow: 0 12px 40px #173b2424; max-height: 55vh; overflow: auto; }
+.workspace-menu > p { padding: 7px 10px; font-size: 11px; color: #78847b; }
+.workspace-menu > button { width: 100%; display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 11px 10px; border-radius: 8px; text-align: left; font-size: 13px; }
+.workspace-menu > button:hover, .workspace-menu > button.selected { background: #edf3eb; color: #315b36; }
+.workspace-menu small { display: block; margin-top: 4px; color: #7a857c; font-size: 11px; }
+.workspace-menu span { overflow-wrap: anywhere; min-width: 0; }
+.workspace-menu > button.workspace-create { justify-content: flex-start; border-top: 1px solid #edf0eb; border-radius: 0; margin-top: 5px; color: #315b36; }
+.student-main > .workspace-switcher { max-width: 300px; margin-bottom: 24px; }
+.membership-invite, .membership-history, .admission-card { margin-bottom: 22px; }
+.membership-invite > form, .admission-card > form { padding: 0 24px 24px; }
+.invitation-link { margin: 0 24px 24px; display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.invitation-link label { flex: 1; min-width: 180px; }
+.invitation-link input { display: block; width: 100%; padding: 10px; border: 1px solid #dae1d9; border-radius: 8px; margin-top: 8px; }
+.invitation-link p { width: 100%; color: #758278; font-size: 12px; }
+.invitation-banner { max-width: 900px; padding: 28px; margin: 30px auto; }
+.invitation-banner h1 { font-size: 24px; font-weight: 700; }
+.invitation-banner h2 { font-size: 20px; margin: 12px 0; }
+.invitation-banner p { margin: 12px 0; }
+.admissions-status { margin: 28px 0; }
+.admission-detail { padding: 0 24px 24px; }
+.admission-detail p { margin: 12px 0; }
+.panel.admission-detail { padding: 24px; }
+.admission-apply { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 20px 0; }
+.admission-apply label { display: grid; gap: 8px; flex: 1; min-width: 190px; }
+.admission-apply select, .auth-card select { padding: 12px; width: 100%; border: 1px solid #dae1d9; border-radius: 8px; background: white; }
+@media (max-width: 600px) { .invitation-banner { margin: 12px; padding: 20px; } .membership-invite > form, .admission-card > form { padding: 0 16px 20px; } }

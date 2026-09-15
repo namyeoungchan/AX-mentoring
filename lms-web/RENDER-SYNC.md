@@ -12,7 +12,7 @@ LearningOps 웹 API /api/integrations/render/snapshot
   lms_remote_snapshots에 조회용 데이터 저장
        │ 관리자 인증 후 조회
        ▼
-웹 메뉴: 아산 AX 운영 현황 (#asan)
+워크스페이스: 아산 AX → 봇 연결 현황 (?workspace=asan-ax#connection)
 ```
 
 원본 봇 DB, 예약 및 과제는 변경하지 않습니다. 천안 AX 웹 관리 데이터와 아산 AX 원격 데이터는 별도 저장됩니다. 원격 스냅샷은 웹의 수정 API로 전달되지 않습니다.

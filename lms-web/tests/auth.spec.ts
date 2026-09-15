@@ -4,8 +4,10 @@ const discordId = '855456789012345678'
 const guildId = '123456789012345678'
 const secret = 'test-only-auth-token-12345678901234567890'
 
-test('signup, Discord identity proof, student login and API role isolation', async ({ page, request }) => {
-  await page.goto('/')
+test('staff signup, Discord identity proof, instructor invitation and API role isolation', async ({ page, request }) => {
+  const platform = await (await request.post('/api/login', { data: { password: 'test-only-password-1234' } })).json()
+  const invitation = await (await request.post('/api/workspaces/asan-ax/invitations', { headers: { Authorization: `Bearer ${platform.token}` }, data: { username: 'verified.student', role: 'instructor' } })).json()
+  await page.goto(`/#invite=${invitation.token}`)
   await page.getByRole('button', { name: '회원가입', exact: true }).click()
   await page.getByLabel('이름', { exact: true }).fill('인증 수강생')
   await page.getByLabel('아이디', { exact: true }).fill('verified.student')
@@ -30,14 +32,21 @@ test('signup, Discord identity proof, student login and API role isolation', asy
   await page.getByLabel('아이디', { exact: true }).fill('verified.student')
   await page.getByLabel('비밀번호', { exact: true }).fill('student-test-password-1234')
   await page.locator('form').getByRole('button', { name: '로그인', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '나의 학습', exact: true })).toBeVisible()
-  await expect(page.getByText('등록된 학습 과정이 없습니다.')).toBeVisible()
+  await page.getByRole('button', { name: '초대 수락', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '강사 수업 관리', exact: true })).toBeVisible()
+  await expect(page.getByText('등록된 수업이 없습니다.')).toBeVisible()
   await page.reload()
-  await expect(page.getByRole('heading', { name: '나의 학습', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '강사 수업 관리', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '새 과정 만들기' })).toHaveCount(0)
   for (const path of ['/api/workspace', '/api/audit', '/api/integrations/render', '/api/discord/provision']) expect((await page.request.get(path)).status()).toBe(403)
   expect((await page.request.post('/api/discord/provision/plans', { data: {} })).status()).toBe(403)
   expect((await page.request.patch('/api/workspace', { data: {} })).status()).toBe(403)
+  const membership = await (await page.request.get('/api/workspaces')).json()
+  expect(membership.workspaces.map((w: { id: string }) => w.id)).toEqual(['asan-ax'])
+  expect((await page.request.get('/api/workspaces/default/me/learning')).status()).toBe(403)
+  expect((await page.request.get('/api/workspaces/asan-ax/me/learning')).status()).toBe(403)
+  for (const path of ['workspace', 'audit', 'integrations/render', 'discord/provision']) expect((await page.request.get(`/api/workspaces/asan-ax/${path}`)).status()).toBe(403)
+  expect((await page.request.post('/api/workspaces', { data: { name: '권한 없는 생성' } })).status()).toBe(403)
   const own = await (await page.request.get('/api/auth/me')).json()
   expect(own.user.role).toBe('student')
   expect(own.user.password_hash).toBeUndefined()

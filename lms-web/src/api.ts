@@ -5,6 +5,11 @@ let sessionToken = ''
 
 export function setSessionToken(value: string) { sessionToken = value }
 
+export function workspaceRequest(workspaceId: string, path: string, init: RequestInit = {}) {
+  if (!workspaceId) throw new Error('워크스페이스를 선택하세요.')
+  return apiRequest(`workspaces/${encodeURIComponent(workspaceId)}/${path}`, init)
+}
+
 export async function apiRequest(path: string, init: RequestInit = {}) {
   let external = false
   if (apiBaseUrl) {

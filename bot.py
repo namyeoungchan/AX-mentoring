@@ -28,6 +28,7 @@ COGS = [
     "cogs.peer_eval",
     "cogs.lms_auth",
     "cogs.lms_provision",
+    "cogs.lms_admissions",
 ]
 
 
