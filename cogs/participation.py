@@ -209,13 +209,15 @@ class ParticipationPanelView(WorkspaceView):
 
     def _make_period_callback(self, days: int):
         async def callback(interaction: discord.Interaction) -> None:
-            await self._refresh(interaction, days)
+            await self._refresh_panel(interaction, days)
         return callback
 
     async def _on_refresh(self, interaction: discord.Interaction) -> None:
-        await self._refresh(interaction, None)
+        await self._refresh_panel(interaction, None)
 
-    async def _refresh(self, interaction: discord.Interaction, days: int | None) -> None:
+    async def _refresh_panel(self, interaction: discord.Interaction, days: int | None) -> None:
+        # View._refresh is a synchronous Discord gateway hook for MESSAGE_UPDATE.
+        # Keep our asynchronous user action separate from that lifecycle method.
         # 히스토리 스캔은 오래 걸릴 수 있음
         await interaction.response.defer(ephemeral=True)
         ok = await refresh_participation_panel(self.bot, days)

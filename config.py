@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DISCORD_TOKEN: str = os.environ["DISCORD_TOKEN"]
+DISCORD_TOKEN: str = os.getenv("DISCORD_TOKEN", "").strip()
 # Compatibility only for identifying an old, single-server local DB during import.
 # Live operations use the Discord event's guild and the web workspace registry.
 GUILD_ID: int = int(os.getenv("GUILD_ID", "0") or "0")

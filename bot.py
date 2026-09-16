@@ -68,6 +68,12 @@ class AsanAXBot(commands.Bot):
 
 
 async def main() -> None:
+    if not config.DISCORD_TOKEN:
+        raise SystemExit(
+            "DISCORD_TOKEN이 설정되지 않았습니다. Render에서 실제 운영 중인 봇 서비스의 "
+            "Environment에 DISCORD_TOKEN을 설정하고 다시 배포하세요. "
+            "웹 서비스의 환경변수는 봇 서비스에 자동 전달되지 않습니다."
+        )
     bot = AsanAXBot()
     async with bot:
         await bot.start(config.DISCORD_TOKEN)
