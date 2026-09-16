@@ -56,6 +56,14 @@ class AuthCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request.call_args.args[-1], "verify")
         confirmation.edit_original_response.assert_awaited_once()
 
+    async def test_panel_modal_uses_the_same_identity_checked_verification_flow(self):
+        cog = SimpleNamespace(begin_verification=AsyncMock())
+        modal = auth.VerificationModal(cog)
+        modal.code._value = "01234567-89ABCDEF"
+        interaction = self.interaction()
+        await modal.on_submit(interaction)
+        cog.begin_verification.assert_awaited_once_with(interaction, "01234567-89ABCDEF")
+
     def test_endpoint_rejects_credentials_wrong_paths_and_nonlocal_http(self):
         for value in ["http://example.com/api/integrations/discord/verify", "https://user:pass@example.com/api/integrations/discord/verify", "https://example.com/wrong", "https://example.com/api/integrations/discord/verify?key=x"]:
             with self.assertRaises(ValueError):

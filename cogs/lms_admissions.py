@@ -12,13 +12,15 @@ from cogs.lms_provision import validate_provision_endpoint
 log = logging.getLogger("asanAX.lms_admissions")
 
 
-async def create_student_invite(guild):
+async def create_student_invite(guild, start_id=None):
     if not guild or not guild.me:
         raise ValueError("missing_guild")
     channels = await guild.fetch_channels()
     candidates = [channel for channel in channels if isinstance(channel, discord.TextChannel)
                   and channel.permissions_for(guild.me).create_instant_invite
                   and channel.permissions_for(guild.default_role).view_channel]
+    if start_id is not None:
+        candidates = [channel for channel in candidates if channel.id == start_id]
     if not candidates:
         raise ValueError("missing_invite_channel")
     invite = await candidates[0].create_invite(max_age=86400, max_uses=1, unique=True,
@@ -69,7 +71,19 @@ class LMSAdmissions(commands.Cog):
                     code = None
                     try:
                         guild = self.bot.get_guild(int(job["guildId"]))
-                        code = await asyncio.wait_for(create_student_invite(guild), timeout=60)
+                        onboarding = self.bot.get_cog("LMSOnboarding")
+                        if not guild or not onboarding:
+                            raise ValueError("missing_onboarding")
+                        await onboarding.refresh([guild.id])
+                        cfg = onboarding.configs.get(str(guild.id))
+                        if not cfg or not cfg.get("enabled"):
+                            raise ValueError("missing_onboarding")
+                        async with onboarding.lock(guild.id):
+                            await onboarding.ensure_resources(guild, cfg)
+                        start = await onboarding.store.get(guild.id, "channel", "start")
+                        if not start:
+                            raise ValueError("missing_onboarding")
+                        code = await asyncio.wait_for(create_student_invite(guild, start["id"]), timeout=60)
                     except (discord.HTTPException, ValueError, asyncio.TimeoutError):
                         log.warning("LMS admission invite could not be issued")
                     self.pending_result = {"id": job["id"], "claim": job["claim"], "success": code is not None, "code": code}

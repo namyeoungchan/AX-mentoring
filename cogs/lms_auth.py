@@ -15,7 +15,7 @@ import config
 log = logging.getLogger("asanAX.lms_auth")
 
 MESSAGES = {
-    200: "LMS 가입 인증이 완료됐습니다. 웹에서 아이디와 비밀번호로 로그인해 주세요.",
+    200: "LMS 계정 인증이 완료됐습니다.",
     403: "연결된 Discord 계정과 인증을 진행하는 서버를 확인해 주세요.",
     409: "이미 가입된 아이디 또는 Discord 계정입니다. 기존 계정으로 로그인해 주세요.",
     410: "사용했거나 만료된 코드입니다. 웹에서 인증 코드를 다시 발급받아 주세요.",
@@ -40,6 +40,21 @@ class VerificationView(discord.ui.View):
         await interaction.response.edit_message(content="가입 인증 처리 중…", view=None)
         status, _ = await self.cog.api_request(self.code, self.member_id, self.guild_id, "verify")
         await interaction.edit_original_response(content=MESSAGES.get(status, "가입 인증을 처리하지 못했습니다. 웹에서 인증 상태를 확인한 후 다시 시도해 주세요."), view=None)
+        if status == 200 and self.cog.bot:
+            onboarding = self.cog.bot.get_cog("LMSOnboarding")
+            if onboarding:
+                await onboarding.after_verification(interaction)
+
+
+class VerificationModal(discord.ui.Modal, title="1단계 · LMS 계정 인증"):
+    code = discord.ui.TextInput(label="LMS에서 발급받은 인증 코드", placeholder="가입 신청 현황 → Discord 인증 코드 받기", max_length=30)
+
+    def __init__(self, cog):
+        super().__init__()
+        self.cog = cog
+
+    async def on_submit(self, interaction):
+        await self.cog.begin_verification(interaction, self.code.value)
 
 
 def validate_auth_endpoint(url: str) -> str:
@@ -84,13 +99,16 @@ class LMSAuth(commands.Cog):
     @app_commands.guild_only()
     @app_commands.checks.cooldown(5, 60, key=lambda interaction: interaction.user.id)
     async def verify_registration(self, interaction: discord.Interaction, 코드: str):
+        await self.begin_verification(interaction, 코드)
+
+    async def begin_verification(self, interaction, code):
         if interaction.guild_id is None:
             await interaction.response.send_message("가입 인증이 허용된 Discord 서버에서 실행해 주세요.", ephemeral=True)
             return
         if not self.url:
             await interaction.response.send_message("LMS 가입 인증이 아직 준비되지 않았습니다. 운영자에게 문의해 주세요.", ephemeral=True)
             return
-        code = 코드.strip().upper().replace("-", "")
+        code = code.strip().upper().replace("-", "")
         if not re.fullmatch(r"[A-F0-9]{16}", code):
             await interaction.response.send_message("웹 회원가입 화면의 인증 코드를 그대로 입력해 주세요.", ephemeral=True)
             return

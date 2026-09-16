@@ -97,7 +97,7 @@ test('password changes reauthenticate, rotate the current session and revoke all
     const auth = createAuth(db, options)
     const first = await auth.signup(member, () => {})
     const second = await auth.login({ username: member.username, password: member.password })
-    const newPassword = 'replacement-password-123456'
+    const newPassword = 'New12345'
     await assert.rejects(auth.changePassword(first.user, { currentPassword: 'incorrect', newPassword }), { status: 401 })
     assert.ok(auth.session(second.token))
     await assert.rejects(auth.changePassword(first.user, { currentPassword: member.password, newPassword: member.password }), { status: 422 })
@@ -118,7 +118,7 @@ test('server-console recovery preserves roles and revokes sessions only for the 
     const auth = createAuth(db, options)
     const owner = await auth.setup({ username: 'owner.test', name: '운영자', password: member.password, setupKey: options.adminPassword })
     const student = await auth.signup(member, () => {})
-    const newPassword = 'recovered-password-123456'
+    const newPassword = 'Reset123'
     await auth.resetPassword({ username: owner.user.username, newPassword })
     assert.equal(auth.session(owner.token), null)
     assert.ok(auth.session(student.token))
@@ -258,4 +258,16 @@ test('student data uses verified identity and hides other students, courses, and
     db.prepare("UPDATE lms_records SET data=json_set(data,'$.status','비활성') WHERE kind='learners' AND id='u1'").run()
     assert.deepEqual(studentLearning(db, { discordId: member.discordId }).scores, [])
   } finally { db.close(); rmSync(directory, { recursive: true }) }
+})
+
+
+test('signup accepts exactly eight characters and rejects seven', async () => {
+  const db = new DatabaseSync(':memory:')
+  const auth = createAuth(db, options)
+  try {
+    await assert.rejects(auth.signup({ ...member, password: '1234567' }, () => {}), error => error.name === 'ZodError')
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM lms_users').get().n, 0)
+    const { user } = await auth.signup({ ...member, password: 'Test1234' }, () => {})
+    assert.equal((await auth.login({ username: user.username, password: 'Test1234' })).user.id, user.id)
+  } finally { db.close() }
 })

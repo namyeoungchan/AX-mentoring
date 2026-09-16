@@ -22,6 +22,8 @@ function fixture(t) {
   createRenderSync(store.db)
   const provision = createProvision(store.db, { token })
   const manager = createWorkspaces({ store, dbPath, provision, authGuildId: guildId, now })
+  const course = { id: 'c1', title: '승인 과정', category: 'AX', description: '', progress: 0, learners: 0, weeks: '4주', mentor: '', theme: 'green', status: '진행 중', code: 'C1', cohort: '1', guildId, startDate: '2026-09-01', endDate: '2026-12-01' }
+  manager.mutate('asan-ax', { revision: manager.snapshot('asan-ax').revision, changes: [{ kind: 'courses', value: course }, { kind: 'teams', value: { id: 't1', name: '1조', courseId: 'c1', code: 'T1', mentorId: '' } }] }, 'test')
   const admissions = createAdmissions(store.db, manager, { token, now })
   t.after(() => { manager.close(); store.db.close(); rmSync(directory, { recursive: true, force: true }) })
   return { store, auth, manager, admissions, advance: ms => { clock += ms } }
@@ -37,8 +39,12 @@ test('signup creates an approval-only account; approval precedes a private Disco
   assert.throws(() => admissions.approved(application.id, user), { status: 403 })
   assert.throws(() => admissions.review('asan-ax', application.id, { action: 'approve', guildId }, user), { status: 403 })
   assert.throws(() => admissions.review('asan-ax', application.id, { action: 'approve', guildId: '223456789012345678' }, admin), { status: 422 })
-  admissions.review('asan-ax', application.id, { action: 'approve', guildId }, admin)
+  admissions.review('asan-ax', application.id, { action: 'approve', guildId, teamId: 't1' }, admin)
   assert.equal(admissions.own(user)[0].inviteUrl, null)
+  const waiting = manager.snapshot('asan-ax').learners[0]
+  assert.equal(waiting.status, '대기')
+  assert.equal(waiting.team, '1조')
+  assert.equal(waiting.discordId, '')
   assert.equal(admissions.poll({ guildIds: ['223456789012345678'] }).job, null)
   const { job } = admissions.poll({ guildIds: [guildId] })
   admissions.complete({ id: job.id, claim: job.claim, success: true, code: 'private-test-invite' })
@@ -52,6 +58,14 @@ test('signup creates an approval-only account; approval precedes a private Disco
   admissions.activate(input.discordId, guildId)
   assert.equal(admissions.own(user)[0].state, 'joined')
   assert.equal(manager.role('asan-ax', user), 'student')
+  const roster = manager.snapshot('asan-ax').learners
+  assert.equal(roster.length, 1)
+  assert.equal(roster[0].id, waiting.id)
+  assert.equal(roster[0].discordId, input.discordId)
+  assert.equal(roster[0].status, '정상')
+  assert.equal(roster[0].team, '1조')
+  admissions.activate(input.discordId, guildId)
+  assert.equal(manager.snapshot('asan-ax').learners.length, 1)
   assert.throws(() => auth.verify({ code: challenge.code, discordId: input.discordId, guildId }), { status: 410 })
 })
 
@@ -64,14 +78,14 @@ test('signup rolls back invalid applications and rejection never queues a Discor
   admissions.review('asan-ax', application.id, { action: 'reject', reason: '대상 과정 확인 필요' }, admin)
   assert.equal(admissions.own(user)[0].reason, '대상 과정 확인 필요')
   assert.equal(admissions.poll({ guildIds: [guildId] }).job, null)
-  assert.throws(() => admissions.review('asan-ax', application.id, { action: 'approve', guildId }, admin), { status: 409 })
+  assert.throws(() => admissions.review('asan-ax', application.id, { action: 'approve', guildId, teamId: 't1' }, admin), { status: 409 })
 })
 
 test('worker claims expire and cannot be replayed; expired invitations can be renewed only by their applicant', async t => {
   const { auth, admissions, advance } = fixture(t)
   const { user } = await auth.signup(input, user => admissions.apply('asan-ax', user))
   const application = admissions.own(user)[0]
-  admissions.review('asan-ax', application.id, { action: 'approve', guildId }, admin)
+  admissions.review('asan-ax', application.id, { action: 'approve', guildId, teamId: 't1' }, admin)
   assert.equal(admissions.authorized(`Bearer ${token}`), true); assert.equal(admissions.authorized('Bearer wrong'), false)
   const { job } = admissions.poll({ guildIds: [guildId] })
   advance(121000)
@@ -96,4 +110,31 @@ test('archived workspaces leave the public catalogue and reject new applications
   manager.setArchived('asan-ax', false, admin)
   assert.ok(admissions.catalogue().some(row => row.id === 'asan-ax'))
   assert.equal(admissions.apply('asan-ax', user).state, 'pending')
+})
+
+test('approval requires a local team and rejects missing/foreign teams without inviting or creating a learner', async t => {
+  const { auth, manager, admissions } = fixture(t)
+  const { user } = await auth.signup(input, u => admissions.apply('asan-ax', u))
+  const application = admissions.own(user)[0]
+  for (const teamId of ['', 'foreign-team']) {
+    assert.throws(() => admissions.review('asan-ax', application.id, { action: 'approve', guildId, teamId }, admin), { status: 422 })
+    assert.equal(admissions.own(user)[0].state, 'pending')
+    assert.equal(admissions.poll({ guildIds: [guildId] }).job, null)
+    assert.equal(manager.snapshot('asan-ax').learners.length, 0)
+  }
+  assert.equal(admissions.reviewList('asan-ax', admin).teams[0].id, 't1')
+})
+
+test('legacy approvals missing a team can be repaired and approved learners without email remain distinct', async t => {
+  const { auth, store, manager, admissions } = fixture(t)
+  for (let i = 0; i < 2; i++) {
+    const { user } = await auth.signup({ ...input, username: `repair.student${i}`, discordId: `75545678901234567${i}` }, u => admissions.apply('asan-ax', u))
+    const application = admissions.own(user)[0]
+    store.db.prepare("UPDATE lms_admissions SET state='approved',guild_id=? WHERE id=?").run(guildId, application.id)
+    admissions.review('asan-ax', application.id, { action: 'approve', guildId, teamId: 't1' }, admin)
+    assert.throws(() => admissions.review('asan-ax', application.id, { action: 'approve', guildId, teamId: 't1' }, admin), { status: 409 })
+  }
+  const learners = manager.snapshot('asan-ax').learners
+  assert.equal(learners.length, 2)
+  assert.ok(learners.every(l => l.email === '' && l.team === '1조' && l.status === '대기'))
 })

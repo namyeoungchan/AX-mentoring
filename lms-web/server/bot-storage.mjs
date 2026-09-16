@@ -158,7 +158,7 @@ export function createBotStorage(main, workspaces, onboarding) {
       for (const row of data.runtime) {
         // One bot manages multiple guilds. Keep each guild's existing metadata under its own key.
         // Never import stale configuration caches or metadata for unregistered guilds.
-        if (main.prepare('SELECT 1 FROM lms_workspace_guilds WHERE guild_id=?').get(row.guild_id) && ['member', 'role', 'channel', 'panel', 'panel-channel', 'panel-options'].includes(row.kind)) {
+        if (main.prepare('SELECT 1 FROM lms_workspace_guilds WHERE guild_id=?').get(row.guild_id) && ['member', 'access-gate', 'role', 'channel', 'panel', 'panel-channel', 'panel-options'].includes(row.kind)) {
           JSON.parse(row.data)
           main.prepare('INSERT OR IGNORE INTO lms_runtime_state VALUES(?,?,?,?)').run(row.guild_id, row.kind, row.record_key, row.data)
         }
@@ -190,7 +190,7 @@ export function createBotStorage(main, workspaces, onboarding) {
     return { ok: true }
   }
   function runtime(body) {
-    const input = z.object({ guildId: z.string(), kind: z.enum(['config', 'member', 'role', 'channel', 'panel', 'panel-channel', 'panel-options']), key: z.string().max(200).optional(), operation: z.enum(['get', 'all', 'put']), value: z.unknown().optional() }).strict().parse(body)
+    const input = z.object({ guildId: z.string(), kind: z.enum(['config', 'member', 'access-gate', 'role', 'channel', 'panel', 'panel-channel', 'panel-options']), key: z.string().max(200).optional(), operation: z.enum(['get', 'all', 'put']), value: z.unknown().optional() }).strict().parse(body)
     if (input.guildId === '0') { if (input.kind !== 'config') throw new ApiError(403, '잘못된 공통 상태입니다.') }
     else owner(input.guildId)
     if (input.operation === 'all') return Object.fromEntries(main.prepare('SELECT record_key,data FROM lms_runtime_state WHERE guild_id=? AND kind=?').all(input.guildId, input.kind).map(r => [r.record_key, JSON.parse(r.data)]))

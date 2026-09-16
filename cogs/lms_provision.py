@@ -134,6 +134,12 @@ class LMSProvision(commands.Cog):
             raise ProvisionError('forbidden' if str(error) in {'permissions', 'role_hierarchy'} else 'api_error') from error
         try:
             await apply_channels(guild, items, results, ensure_dashboard=onboarding.ensure_dashboard)
+            await onboarding.refresh([guild.id])
+            cfg = onboarding.configs.get(str(guild.id))
+            if cfg and cfg.get("enabled"):
+                onboarding.resources_checked.pop(str(guild.id), None)
+                async with onboarding.lock(guild.id):
+                    await onboarding.ensure_resources(guild, cfg)
         except OnboardingError as error:
             raise ProvisionError('forbidden' if str(error) in {'permissions', 'role_hierarchy'} else 'api_error') from error
         manager = self.bot.get_cog('AutoPanels')

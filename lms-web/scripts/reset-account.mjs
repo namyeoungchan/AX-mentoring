@@ -19,7 +19,7 @@ try {
     process.stdout.write(label); muted = true
     try { return await rl.question('') } finally { muted = false; process.stdout.write('\n') }
   }
-  const newPassword = await question('새 비밀번호 (15자 이상): ')
+  const newPassword = await question('새 비밀번호 (8자 이상): ')
   const confirm = await question('새 비밀번호 확인: ')
   if (newPassword !== confirm) throw new Error('비밀번호가 일치하지 않습니다.')
   db = new DatabaseSync(resolve(root, process.env.BOT_DB_PATH || '../data/mentoring.db'), { open: true })

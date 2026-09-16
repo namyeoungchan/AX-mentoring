@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import time
+from urllib.parse import urlsplit
 
 import discord
 from discord.ext import commands, tasks
@@ -12,6 +13,8 @@ from cogs.lms_guides import ensure_guide, guide_text, GUIDES
 from cogs.lms_onboarding_store import OnboardingStore
 from cogs.lms_provision import validate_provision_endpoint
 from cogs.panel_objects import PANEL_OBJECTS
+from cogs.lms_auth import VerificationModal
+from ui.embeds import panel_embed
 
 log = logging.getLogger("asanAX.lms_onboarding")
 ROLE_NAMES = {"pending": "LMS 온보딩 대기", "student": "LMS 수강생", "instructor": "LMS 강사", "admin": "LMS 운영자", "complete": "LMS 온보딩 완료"}
@@ -26,7 +29,7 @@ def desired_roles(participant, intro_done):
         return {"pending"}
     if participant["role"] in {"admin", "instructor"}:
         return {participant["role"]} | {f"team:{team_id}" for team_id in participant.get("teamIds", [])}
-    if not intro_done:
+    if not intro_done or not participant.get("teamId"):
         return {"pending"}
     return {"student", "complete"} | ({f"team:{participant['teamId']}"} if participant.get("teamId") else set())
 
@@ -35,9 +38,28 @@ class StartView(discord.ui.View):
     def __init__(self, cog, guild_id):
         super().__init__(timeout=None)
         self.cog, self.guild_id = cog, int(guild_id)
-        button = discord.ui.Button(label="자기소개 작성", style=discord.ButtonStyle.primary, custom_id=f"lms:onboarding:{guild_id}")
+        verify = discord.ui.Button(label="1 · LMS 인증", style=discord.ButtonStyle.success, custom_id=f"lms:verify:{guild_id}")
+        verify.callback = self.verify
+        self.add_item(verify)
+        button = discord.ui.Button(label="2 · 자기소개 작성", style=discord.ButtonStyle.primary, custom_id=f"lms:onboarding:{guild_id}")
         button.callback = self.start
         self.add_item(button)
+        if cog.url:
+            endpoint = urlsplit(cog.url)
+            self.add_item(discord.ui.Button(label="LMS에서 인증 코드 받기", url=f"{endpoint.scheme}://{endpoint.netloc}"))
+
+    async def interaction_check(self, interaction):
+        if interaction.guild_id != self.guild_id:
+            await interaction.response.send_message("서버의 시작하기 채널에서 진행하세요.", ephemeral=True)
+            return False
+        return True
+
+    async def verify(self, interaction):
+        auth = self.cog.bot.get_cog("LMSAuth")
+        if not auth or not auth.url:
+            await interaction.response.send_message("LMS 인증 연결을 준비 중입니다. 운영자에게 문의하세요.", ephemeral=True)
+            return
+        await interaction.response.send_modal(VerificationModal(auth))
 
     async def start(self, interaction):
         cfg = self.cog.configs.get(str(self.guild_id))
@@ -47,6 +69,9 @@ class StartView(discord.ui.View):
         participant = next((p for p in cfg.get("participants", []) if p["discordId"] == str(interaction.user.id)), None)
         if not participant or participant["role"] != "student":
             await interaction.response.send_message("멘토·운영자는 자기소개가 필요 없습니다. LMS의 업무 안내를 진행하세요." if participant else "LMS에서 Discord 인증을 먼저 완료하세요. 인증 직후라면 잠시 후 다시 눌러 주세요. 멘토는 자기소개가 필요 없습니다.", ephemeral=True)
+            return
+        if not participant.get("teamId"):
+            await interaction.response.send_message("담당자가 팀을 배정해야 다음 단계로 진행할 수 있습니다.", ephemeral=True)
             return
         await interaction.response.send_modal(Introduction(self.cog, self.guild_id))
 
@@ -252,13 +277,7 @@ class LMSOnboarding(commands.Cog):
         roles = await self.ensure_roles(guild)
         start = await self.channel(guild, "start", cfg["onboardingChannel"], "text", adopt=True)
         intro = await self.channel(guild, "intro", cfg["introChannel"], "text", adopt=True)
-        for channel in [start, intro]:
-            for role in roles.values():
-                overwrite = channel.overwrites_for(role)
-                if overwrite.view_channel is not True or overwrite.send_messages is not True or overwrite.read_message_history is not True:
-                    overwrite.update(view_channel=True, send_messages=True, read_message_history=True)
-                    await channel.set_permissions(role, overwrite=overwrite, reason="LMS onboarding channel access")
-        await ensure_guide(start, cfg["welcomeText"], self.view(guild.id))
+        await ensure_guide(start, cfg["welcomeText"] + "\n\n**1 · LMS 인증**\nLMS 가입 신청 현황에서 코드를 발급받고 아래 인증 버튼에 입력하세요.\n**2 · 자기소개**\n수강생은 인증 후 자기소개를 작성하세요. 멘토·운영자는 생략합니다.\n**3 · 학습 시작**\n승인 시 배정된 팀과 학습 채널이 열립니다.", self.view(guild.id))
         await ensure_guide(intro, GUIDES["intro"])
         for team in cfg["teams"]:
             team_role = await self.role(guild, f"team:{team['id']}", f"LMS 팀 · {team['name']}")
@@ -274,7 +293,80 @@ class LMSOnboarding(commands.Cog):
             matches = [channel for channel in guild.text_channels if channel.name == item["name"]]
             if len(matches) == 1 and matches[0].id not in {start.id, intro.id}:
                 await ensure_guide(matches[0], guide_text(item))
+        await self.gate_channels(guild, cfg, roles, start.id, intro.id)
         self.resources_checked[str(guild.id)] = (cfg["revision"], time.monotonic())
+
+    async def gate_channels(self, guild, cfg, roles, start_id, intro_id):
+        """Deny access before a member is verified, including voice and unmanaged channels."""
+        general_names = {item["name"] for item in cfg.get("channels", [])}
+        stored = await self.store.all(guild.id, "channel")
+        private_ids = {value["id"] for key, value in stored.items() if key.startswith("team-") or key == PANEL_OBJECTS["dashboard"].template_id}
+        for channel in await guild.fetch_channels():
+            overwrites = dict(channel.overwrites)
+            entrance = channel.id == start_id
+            for role, visible in [(guild.default_role, entrance), (roles["pending"], entrance)]:
+                overwrite = channel.overwrites_for(role)
+                overwrite.update(view_channel=visible, send_messages=False if entrance else None,
+                                 read_message_history=True if entrance else None)
+                overwrites[role] = overwrite
+            # Staff-only dashboards and team channels retain their narrower grants.
+            if entrance or (channel.id not in private_ids and channel.name not in PANEL_OBJECTS["dashboard"].channel_names and (channel.name in general_names or channel.id == intro_id)):
+                for key in ["student", "instructor", "admin"]:
+                    overwrite = channel.overwrites_for(roles[key])
+                    overwrite.update(view_channel=True, read_message_history=True,
+                                     send_messages=not entrance, connect=True, speak=True)
+                    overwrites[roles[key]] = overwrite
+            bot_access = channel.overwrites_for(guild.me)
+            bot_access.update(view_channel=True, send_messages=True, read_message_history=True, connect=True)
+            overwrites[guild.me] = bot_access
+            if overwrites != channel.overwrites:
+                await channel.edit(overwrites=overwrites, reason="LMS verification required before channel access")
+
+    async def gate_member(self, member, restricted):
+        # A role denial cannot override another role's allowance. Member-specific
+        # overwrites close that bypass while preserving prior custom permissions.
+        start = await self.store.get(member.guild.id, "channel", "start")
+        if not start:
+            return
+        key = str(member.id)
+        saved = await self.store.get(member.guild.id, "access-gate", key) or {}
+        if not restricted and not saved:
+            return
+        for channel in await member.guild.fetch_channels():
+            if channel.id == start["id"]:
+                continue
+            cid = str(channel.id)
+            overwrite = channel.overwrites_for(member)
+            if restricted:
+                if cid not in saved:
+                    saved[cid] = overwrite.view_channel
+                    await self.store.put(member.guild.id, "access-gate", key, saved)
+                if overwrite.view_channel is not False:
+                    overwrite.view_channel = False
+                    await channel.set_permissions(member, overwrite=overwrite, reason="LMS onboarding incomplete")
+            elif cid in saved:
+                if overwrite.view_channel is False:
+                    overwrite.view_channel = saved[cid]
+                    await channel.set_permissions(member, overwrite=None if overwrite.is_empty() else overwrite, reason="LMS onboarding complete")
+                del saved[cid]
+                await self.store.put(member.guild.id, "access-gate", key, saved)
+
+    async def after_verification(self, interaction):
+        try:
+            await self.refresh([interaction.guild_id])
+            cfg = self.configs.get(str(interaction.guild_id))
+            if not cfg or not cfg.get("enabled"):
+                return
+            async with self.lock(interaction.guild_id):
+                await self.ensure_resources(interaction.guild, cfg)
+                await self.sync_member(interaction.user, cfg, welcome=False)
+            participant = next((p for p in cfg["participants"] if p["discordId"] == str(interaction.user.id)), None)
+            text = ("인증 완료 · 다음으로 **2 · 자기소개 작성**을 눌러 주세요." if participant and participant["role"] == "student" and participant.get("teamId") else
+                    "인증 완료 · 멘토·운영자는 자기소개 없이 LMS 업무 안내를 진행하세요." if participant and participant["role"] != "student" else
+                    "인증 완료 · 팀 배정과 과정 등록을 운영자에게 확인해 주세요. 학습 채널은 온보딩 완료 후 열립니다.")
+            await interaction.followup.send(text, view=self.view(interaction.guild_id), ephemeral=True)
+        except (OnboardingError, discord.HTTPException, asyncio.TimeoutError):
+            await interaction.followup.send("계정 인증은 완료됐습니다. 역할 반영을 재시도 중이니 잠시 후 시작하기 패널을 확인하세요.", ephemeral=True)
 
     async def sync_member(self, member, cfg, welcome=True):
         if member.bot:
@@ -282,6 +374,10 @@ class LMSOnboarding(commands.Cog):
         record = await self.store.get(member.guild.id, "member", member.id) or {"introDone": False, "welcomed": False}
         participant = next((person for person in cfg["participants"] if person["discordId"] == str(member.id)), None)
         desired = desired_roles(participant, record["introDone"])
+        if participant and participant["role"] == "student" and not any(t["id"] == participant.get("teamId") for t in cfg["teams"]):
+            desired = {"pending"}
+        if "pending" in desired:
+            await self.gate_member(member, True)
         mappings = await self.store.all(member.guild.id, "role")
         wanted = {mappings[key]["id"] for key in desired if key in mappings}
         managed = {value["id"] for value in mappings.values()}
@@ -298,6 +394,8 @@ class LMSOnboarding(commands.Cog):
             await member.remove_roles(*remove, reason="LMS membership or team changed")
         if add:
             await member.add_roles(*add, reason="LMS onboarding and web team assignment")
+        if "pending" not in desired:
+            await self.gate_member(member, False)
         mentor = participant and participant["role"] == "instructor"
         if participant and (mentor or record["introDone"]):
             team = next((team for team in cfg["teams"] if team["id"] == participant.get("teamId")), None)
@@ -314,11 +412,9 @@ class LMSOnboarding(commands.Cog):
             team = next((t for t in cfg["teams"] if participant and t["id"] == participant.get("teamId")), None)
             student = participant and participant["role"] == "student"
             text = (f"{cfg['workspaceName']} 서버 안내\n{cfg['welcomeText']}\n배정 팀: {team['name'] if team else '미배정'}" if student else f"{cfg['workspaceName']} 서버 안내\nLMS에서 초대 수락 또는 가입 승인을 확인하고 Discord 인증을 완료하세요. 멘토는 자기소개가 필요 없습니다.") + f"\n시작하기: https://discord.com/channels/{member.guild.id}/{start_id}"
-            try:
-                await member.send(text, view=self.view(member.guild.id) if student else None, allowed_mentions=discord.AllowedMentions.none())
-            except discord.Forbidden:
-                channel = member.guild.get_channel(start_id)
-                await channel.send(f"{member.mention} " + ("서버 이용 안내를 확인하고 자기소개를 작성하세요." if student else "LMS에서 Discord 인증을 완료하세요. 멘토는 자기소개가 필요 없습니다."), view=self.view(member.guild.id) if student else None, allowed_mentions=discord.AllowedMentions(users=[member], roles=False, everyone=False))
+            channel = member.guild.get_channel(start_id)
+            await channel.send(member.mention, embed=panel_embed(title="온보딩을 시작하세요", description=text, section="WELCOME"),
+                               view=self.view(member.guild.id), allowed_mentions=discord.AllowedMentions(users=[member], roles=False, everyone=False))
             record["welcomed"] = True
         if record["introDone"] and not record.get("reported"):
             await self.request("progress", {"guildId": str(member.guild.id), "discordId": str(member.id)})
@@ -338,6 +434,8 @@ class LMSOnboarding(commands.Cog):
                 await self.ensure_resources(guild, cfg)
                 await self.sync_member(member, cfg, welcome=False)
             return "멘토·운영자는 자기소개가 필요 없습니다. LMS의 업무 안내를 진행하세요."
+        if not participant or not any(t["id"] == participant.get("teamId") for t in cfg["teams"]):
+            return "LMS 인증과 팀 배정을 먼저 완료하세요. 자기소개를 저장하지 않았습니다."
         async with self.lock(guild_id):
             await self.ensure_resources(guild, cfg)
             record = await self.store.get(guild_id, "member", user_id) or {"introDone": False, "welcomed": False}
@@ -403,6 +501,16 @@ class LMSOnboarding(commands.Cog):
         await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
+    async def on_guild_channel_create(self, channel):
+        cfg = self.configs.get(str(channel.guild.id))
+        if cfg and cfg.get("enabled"):
+            self.resources_checked.pop(str(channel.guild.id), None)
+            try:
+                await self.sync_guild(channel.guild, cfg)
+            except (OnboardingError, discord.HTTPException, asyncio.TimeoutError):
+                log.warning("LMS new channel access sync pending for guild %s", channel.guild.id)
+
+    @commands.Cog.listener()
     async def on_member_join(self, member):
         if member.bot or not self.url:
             return
@@ -412,6 +520,10 @@ class LMSOnboarding(commands.Cog):
             if cfg and cfg.get("enabled"):
                 async with self.lock(member.guild.id):
                     await self.ensure_resources(member.guild, cfg)
+                    record = await self.store.get(member.guild.id, "member", member.id)
+                    if record:
+                        record["welcomed"] = False
+                        await self.store.put(member.guild.id, "member", member.id, record)
                     await self.sync_member(member, cfg)
         except (OnboardingError, discord.HTTPException, asyncio.TimeoutError):
             log.warning("LMS join onboarding pending for guild %s", member.guild.id)

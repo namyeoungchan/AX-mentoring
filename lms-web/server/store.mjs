@@ -13,7 +13,7 @@ const discord = z.string().regex(/^\d{17,20}$/, 'Discord ID는 17~20자리 숫�
 const optionalDiscord = z.union([discord, z.literal('')]).default('')
 const schemas = {
   courses: z.object({ id, title: text, category: text, description: z.string().max(2000), progress: z.number().min(0).max(100), learners: z.number().int().nonnegative(), weeks: text, mentor: z.string().max(100), theme: z.enum(['orange', 'green', 'blue']), status: z.enum(['진행 중', '모집 중', '종료']), code: text, cohort: text, guildId: optionalDiscord, startDate: date, endDate: date }).refine(v => v.startDate <= v.endDate, '종료일은 시작일 이후여야 합니다.'),
-  learners: z.object({ id, name: text, email: z.email(), courseId: id, team: z.string().max(100), discordId: optionalDiscord, status: z.enum(['대기', '정상', '중도탈락', '수료', '비활성']), progress: z.number().min(0).max(100).default(0), color: z.string().default('sage') }),
+  learners: z.object({ id, name: text, email: z.union([z.email(), z.literal('')]), courseId: id, team: z.string().max(100), discordId: optionalDiscord, status: z.enum(['대기', '정상', '중도탈락', '수료', '비활성']), progress: z.number().min(0).max(100).default(0), color: z.string().default('sage') }),
   teams: z.object({ id, name: text, code: text, courseId: id, mentorId: z.string().default('') }),
   attendance: z.object({ id, studentId: id, courseId: id, date, period: z.coerce.number().int().min(1).max(100), status: z.enum(['출석', '지각', '결석', '공결']), reason: text }),
   scores: z.object({ id, studentId: id, courseId: id, item: text, score: z.coerce.number().min(0), maximum: z.coerce.number().positive().max(10000) }).refine(v => v.score <= v.maximum, '입력 점수가 최대 배점을 초과했습니다.'),
@@ -44,11 +44,15 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
     CREATE TABLE IF NOT EXISTS lms_assignment_courses (assignment_id INTEGER PRIMARY KEY REFERENCES assignments(id), course_id TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lms_booking_history (id TEXT PRIMARY KEY, data TEXT NOT NULL);
     CREATE UNIQUE INDEX IF NOT EXISTS lms_course_code ON lms_records(json_extract(data,'$.code'),json_extract(data,'$.cohort')) WHERE kind='courses';
-    CREATE UNIQUE INDEX IF NOT EXISTS lms_learner_email ON lms_records(lower(json_extract(data,'$.email'))) WHERE kind='learners';
+
     CREATE UNIQUE INDEX IF NOT EXISTS lms_learner_discord ON lms_records(json_extract(data,'$.discordId')) WHERE kind='learners' AND json_extract(data,'$.discordId') <> '';
     CREATE UNIQUE INDEX IF NOT EXISTS lms_team_code ON lms_records(json_extract(data,'$.courseId'),json_extract(data,'$.code')) WHERE kind='teams';
     CREATE UNIQUE INDEX IF NOT EXISTS lms_attendance_unique ON lms_records(json_extract(data,'$.studentId'),json_extract(data,'$.courseId'),json_extract(data,'$.date'),json_extract(data,'$.period')) WHERE kind='attendance';
     CREATE UNIQUE INDEX IF NOT EXISTS lms_score_unique ON lms_records(json_extract(data,'$.studentId'),json_extract(data,'$.courseId'),json_extract(data,'$.item')) WHERE kind='scores';`)
+  // Accounts approved through LMS do not collect email addresses. Keep real addresses unique.
+  const emailIndex = db.prepare("SELECT sql FROM sqlite_master WHERE name='lms_learner_email'").get()
+  if (emailIndex && !emailIndex.sql.includes("<> ''")) db.exec('DROP INDEX lms_learner_email')
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS lms_learner_email ON lms_records(lower(json_extract(data,'$.email'))) WHERE kind='learners' AND json_extract(data,'$.email') <> ''")
   const rows = kind => db.prepare('SELECT data FROM lms_records WHERE kind=? ORDER BY rowid').all(kind).map(r => JSON.parse(r.data))
   const get = (kind, key) => { const row = db.prepare('SELECT data FROM lms_records WHERE kind=? AND id=?').get(kind, key); return row ? JSON.parse(row.data) : null }
   const requireRecord = (kind, key) => { const row = get(kind, key); if (!row) throw new ApiError(422, `${kind}: 연결된 항목을 찾을 수 없습니다.`); return row }

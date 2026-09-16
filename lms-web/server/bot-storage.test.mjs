@@ -80,6 +80,10 @@ test('runtime panel and onboarding state lives in the web and stays scoped to ea
   workspaces.create({ name: '별도', guildId: '888456789012345678' })
   storage.runtime({ guildId, kind: 'member', key: '555456789012345678', operation: 'put', value: { introDone: true } })
   assert.equal(storage.runtime({ guildId, kind: 'member', key: '555456789012345678', operation: 'get' }).introDone, true)
+  const previousAccess = { '999456789012345678': null, '999456789012345679': true }
+  storage.runtime({ guildId, kind: 'access-gate', key: '555456789012345678', operation: 'put', value: previousAccess })
+  assert.deepEqual(storage.runtime({ guildId, kind: 'access-gate', key: '555456789012345678', operation: 'get' }), previousAccess)
+  assert.equal(storage.runtime({ guildId: '888456789012345678', kind: 'access-gate', key: '555456789012345678', operation: 'get' }), null)
   assert.equal(storage.runtime({ guildId: '888456789012345678', kind: 'member', key: '555456789012345678', operation: 'get' }), null)
 })
 

@@ -28,6 +28,14 @@ class AdmissionInviteTests(unittest.IsolatedAsyncioTestCase):
                 await create_student_invite(guild)
             channel.create_invite.assert_not_awaited()
 
+    async def test_invites_only_target_the_configured_onboarding_channel(self):
+        guild, channel = self.guild()
+        channel.id = 123
+        with self.assertRaises(ValueError):
+            await create_student_invite(guild, 456)
+        channel.create_invite.assert_not_awaited()
+        self.assertEqual(await create_student_invite(guild, 123), "test-invite-code")
+
     async def test_complete_conflict_stops_replaying_a_stale_claim(self):
         response = MagicMock()
         response.status = 409

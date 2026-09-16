@@ -174,7 +174,7 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
     async def test_team_channels_are_private_to_assigned_team_and_staff(self):
         everyone, bot = Role(0), Role(100)
         bot.guild_permissions = SimpleNamespace(manage_channels=True, manage_roles=True, view_channel=True, send_messages=True, read_message_history=True, embed_links=True, pin_messages=True)
-        guild = SimpleNamespace(id=123, me=bot, default_role=everyone, text_channels=[])
+        guild = SimpleNamespace(id=123, me=bot, default_role=everyone, text_channels=[], fetch_channels=AsyncMock(return_value=[]))
         roles = {key: Role(i + 1) for i, key in enumerate([*module.ROLE_NAMES, "team:t1"])}
         async def role(_guild, key, _name):
             return roles[key]
@@ -200,19 +200,20 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(new, {"instructor", "team:t2", "team:t3"})
         self.assertNotIn("admin", new)
 
-    async def test_dm_blocked_uses_the_onboarding_channel_and_does_not_repeat(self):
+    async def test_join_panel_is_sent_in_channel_without_dm_and_does_not_repeat(self):
         roles = {1: Role(1)}
         await self.store.put(123, "role", "pending", {"id": 1})
         await self.store.put(123, "channel", "start", {"id": 11})
         fallback = SimpleNamespace(send=AsyncMock())
         denied = discord.Forbidden(SimpleNamespace(status=403, reason='Forbidden'), 'DM blocked')
         member = SimpleNamespace(id=7, bot=False, roles=[roles[1]], mention='<@7>', send=AsyncMock(side_effect=denied))
-        member.guild = SimpleNamespace(id=123, get_role=roles.get, get_channel=lambda _: fallback, me=SimpleNamespace(top_role=Role(100)))
+        member.guild = SimpleNamespace(id=123, fetch_channels=AsyncMock(return_value=[]), get_role=roles.get, get_channel=lambda _: fallback, me=SimpleNamespace(top_role=Role(100)))
         cfg = {"participants": [], "teams": [], "workspaceName": "교육", "welcomeText": "시작 안내"}
         await self.cog.sync_member(member, cfg)
         await self.cog.sync_member(member, cfg)
-        member.send.assert_awaited_once()
+        member.send.assert_not_awaited()
         fallback.send.assert_awaited_once()
+        self.assertIsInstance(fallback.send.call_args.kwargs["view"], module.StartView)
 
     async def test_server_join_starts_onboarding_without_a_command(self):
         self.cog.url = 'https://test.example/api/integrations/discord/onboarding'
@@ -220,7 +221,7 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.cog.refresh = AsyncMock()
         self.cog.ensure_resources = AsyncMock()
         self.cog.sync_member = AsyncMock()
-        member = SimpleNamespace(bot=False, guild=SimpleNamespace(id=123))
+        member = SimpleNamespace(id=7, bot=False, guild=SimpleNamespace(id=123))
         await self.cog.on_member_join(member)
         self.cog.refresh.assert_awaited_once_with([123])
         self.cog.sync_member.assert_awaited_once_with(member, self.cog.configs['123'])
@@ -241,6 +242,57 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('1팀', result)
         channel.send.assert_awaited_once()
         self.assertEqual(self.cog.sync_member.await_count, 2)
+
+
+    async def test_unverified_access_gate_covers_all_channels_and_restores_member_overrides(self):
+        everyone, bot, foreign_role = Role(0), Role(100), Role(99)
+        roles = {key: Role(i + 1) for i, key in enumerate(module.ROLE_NAMES)}
+        class Channel:
+            def __init__(self, cid, name):
+                self.id, self.name = cid, name
+                self.overwrites = {everyone: discord.PermissionOverwrite(view_channel=True), foreign_role: discord.PermissionOverwrite(view_channel=True)}
+            def overwrites_for(self, target):
+                allow, deny = self.overwrites.get(target, discord.PermissionOverwrite()).pair()
+                return discord.PermissionOverwrite.from_pair(allow, deny)
+            async def edit(self, **kwargs):
+                self.overwrites = kwargs['overwrites']
+            async def set_permissions(self, target, overwrite, **kwargs):
+                if overwrite is None: self.overwrites.pop(target, None)
+                else: self.overwrites[target] = overwrite
+        channels = [Channel(11, '시작하기'), Channel(12, '자기소개'), Channel(13, '공지사항'), Channel(14, '과제-대시보드'), Channel(15, '기존 음성 채널')]
+        guild = SimpleNamespace(id=123, default_role=everyone, me=bot, fetch_channels=AsyncMock(return_value=channels))
+        cfg = {'channels': [{'name': c.name} for c in channels[:4]]}
+        await self.store.put(123, 'channel', 'start', {'id': 11})
+        await self.cog.gate_channels(guild, cfg, roles, 11, 12)
+        self.assertTrue(channels[0].overwrites[everyone].view_channel)
+        for channel in channels[1:]:
+            self.assertFalse(channel.overwrites[everyone].view_channel)
+            self.assertFalse(channel.overwrites[roles['pending']].view_channel)
+        self.assertTrue(channels[2].overwrites[roles['student']].view_channel)
+        self.assertNotIn(roles['student'], channels[3].overwrites)
+        member = Role(7)
+        member.guild = guild
+        channels[2].overwrites[member] = discord.PermissionOverwrite(view_channel=True, send_messages=False)
+        await self.cog.gate_member(member, True)
+        for channel in channels[1:]: self.assertFalse(channel.overwrites[member].view_channel)
+        self.assertNotIn(member, channels[0].overwrites)
+        await self.cog.gate_member(member, True)  # A retry must not replace the original saved permissions.
+        await self.cog.gate_member(member, False)
+        self.assertTrue(channels[2].overwrites[member].view_channel)
+        self.assertFalse(channels[2].overwrites[member].send_messages)
+        for channel in [channels[1], channels[3], channels[4]]: self.assertNotIn(member, channel.overwrites)
+
+    async def test_unverified_or_unassigned_student_cannot_submit_a_stale_intro_modal(self):
+        self.cog.refresh = AsyncMock()
+        self.cog.bot.get_guild.return_value = SimpleNamespace(get_member=lambda _: SimpleNamespace(id=7))
+        self.cog.ensure_resources = AsyncMock()
+        for participants in [[], [{'discordId': '7', 'role': 'student', 'teamId': ''}]]:
+            self.cog.configs['123'] = {'enabled': True, 'participants': participants, 'teams': []}
+            result = await self.cog.submit_intro(123, 7, '학생', '소개')
+            self.assertIn('먼저 완료', result)
+            self.assertIsNone(await self.store.get(123, 'member', 7))
+        self.cog.ensure_resources.assert_not_awaited()
+        self.assertEqual(module.desired_roles({'role': 'student', 'teamId': ''}, True), {'pending'})
 
 
 if __name__ == '__main__':

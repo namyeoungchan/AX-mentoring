@@ -8,6 +8,7 @@ from cogs.lms_provision import LMSProvision, apply_channels, ProvisionError, val
 
 class Guild:
     def __init__(self, allowed=True):
+        self.id = 123
         self.me = SimpleNamespace(guild_permissions=SimpleNamespace(manage_channels=allowed))
         self.channels = []
         self.created = 0
@@ -106,7 +107,7 @@ class ProvisionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_server_build_creates_roles_before_channels_and_saves_bindings(self):
         events = []
-        onboarding = SimpleNamespace(provision_roles=AsyncMock(side_effect=lambda _guild: events.append('roles')), ensure_dashboard=AsyncMock())
+        onboarding = SimpleNamespace(provision_roles=AsyncMock(side_effect=lambda _guild: events.append('roles')), ensure_dashboard=AsyncMock(), refresh=AsyncMock(), configs={})
         panels = SimpleNamespace(bind_channels=AsyncMock(side_effect=lambda *_: events.append('bindings')))
         cog = object.__new__(LMSProvision)
         cog.bot = SimpleNamespace(get_cog=lambda name: {'LMSOnboarding': onboarding, 'AutoPanels': panels}.get(name))
