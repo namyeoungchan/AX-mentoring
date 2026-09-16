@@ -21,13 +21,13 @@ export function useWorkspace() {
   const loggingOut = useRef(false)
   const generation = useRef(0)
   const controller = useRef<AbortController | null>(null)
-  const refresh = useCallback(async (requestedId?: string) => {
+  const refresh = useCallback(async (requestedId?: string, quiet = false) => {
     if (locked.current || loggingOut.current) return
     const version = ++generation.current
     controller.current?.abort()
     const nextController = new AbortController(); controller.current = nextController
     const signal = AbortSignal.any([nextController.signal, AbortSignal.timeout(15000)])
-    setLoading(true); setData(emptyWorkspace); setLearning(null)
+    if (!quiet) { setLoading(true); setData(emptyWorkspace); setLearning(null) }
     try {
       const demo = demoMode ? readDemoWorkspaces() : null
       const user: Account | null = demo ? null : (await request('auth/me', { signal })).user
@@ -132,5 +132,5 @@ export function useWorkspace() {
   }
   function enterDemo() { const url = new URL(location.href); url.searchParams.set('demo', '1'); url.hash = 'dashboard'; location.assign(url.href) }
   function leaveDemo() { const url = new URL(location.href); url.searchParams.delete('demo'); url.hash = 'login'; location.assign(url.href) }
-  return { data, update, loading, saving, error, authRequired, account, learning, refresh: () => refresh(), login, logout, enterDemo, leaveDemo, workspaces, activeId, activeRole: demoMode ? 'admin' : workspaces.find(w => w.id === activeId)?.role, selectWorkspace: (id: string) => refresh(id), createWorkspace, setWorkspaceArchived }
+  return { data, update, loading, saving, error, authRequired, account, learning, refresh: () => refresh(), refreshQuietly: () => refresh(undefined, true), login, logout, enterDemo, leaveDemo, workspaces, activeId, activeRole: demoMode ? 'admin' : workspaces.find(w => w.id === activeId)?.role, selectWorkspace: (id: string) => refresh(id), createWorkspace, setWorkspaceArchived }
 }

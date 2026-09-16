@@ -138,3 +138,48 @@ test('legacy approvals missing a team can be repaired and approved learners with
   assert.equal(learners.length, 2)
   assert.ok(learners.every(l => l.email === '' && l.team === '1조' && l.status === '대기'))
 })
+
+test('bulk approval assigns only selected students and reports stale selections without duplicate invites', async t => {
+  const { auth, manager, admissions } = fixture(t)
+  const people = []
+  for (let i = 0; i < 3; i++) {
+    const { user } = await auth.signup({ name: `일괄 학생 ${i}`, username: `bulk.student${i}`, password: 'bulk-password-1234' }, u => admissions.apply('asan-ax', u))
+    people.push({ user, id: admissions.own(user)[0].id })
+  }
+  const body = { applicationIds: people.slice(0, 2).map(p => p.id), guildId, teamId: 't1' }
+  assert.throws(() => admissions.bulkReview('asan-ax', body, people[0].user), { status: 403 })
+  assert.throws(() => admissions.bulkReview('asan-ax', { ...body, teamId: 'missing' }, admin), { status: 422 })
+  assert.equal(manager.snapshot('asan-ax').learners.length, 0)
+  admissions.review('asan-ax', people[0].id, { action: 'approve', guildId, teamId: 't1' }, admin)
+  const result = admissions.bulkReview('asan-ax', body, admin)
+  assert.deepEqual(result.succeeded, [people[1].id])
+  assert.equal(result.failed[0].id, people[0].id)
+  assert.equal(admissions.own(people[2].user)[0].state, 'pending')
+  assert.equal(manager.snapshot('asan-ax').learners.length, 2)
+  assert.ok(manager.snapshot('asan-ax').learners.every(l => l.team === '1조' && l.status === '대기'))
+  assert.equal(admissions.bulkReview('asan-ax', body, admin).succeeded.length, 0)
+  const jobs = [admissions.poll({ guildIds: [guildId] }).job, admissions.poll({ guildIds: [guildId] }).job]
+  assert.deepEqual(jobs.map(j => j.id).sort(), body.applicationIds.sort())
+  assert.equal(admissions.poll({ guildIds: [guildId] }).job, null)
+})
+
+test('bulk approval validates the whole workspace selection and instructor team scope before any writes', async t => {
+  const { auth, manager, admissions, store } = fixture(t)
+  const { user } = await auth.signup(input, u => admissions.apply('asan-ax', u))
+  const application = admissions.own(user)[0]
+  const other = manager.create({ name: '별도 일괄 승인', guildId: '223456789012345678' })
+  const foreign = admissions.apply(other.id, user)
+  const body = { applicationIds: [application.id], guildId, teamId: 't1' }
+  assert.throws(() => admissions.bulkReview('asan-ax', { ...body, applicationIds: [application.id, foreign.id] }, admin), { status: 404 })
+  assert.throws(() => admissions.bulkReview('asan-ax', { ...body, applicationIds: [application.id, application.id] }, admin))
+  assert.throws(() => admissions.bulkReview('asan-ax', { ...body, applicationIds: [] }, admin))
+  assert.throws(() => admissions.bulkReview('asan-ax', { ...body, applicationIds: Array(101).fill(application.id) }, admin))
+  assert.equal(manager.snapshot('asan-ax').learners.length, 0)
+  const { user: teacher } = await auth.signup({ name: '담당 강사', username: 'bulk.teacher', password: 'bulk-password-1234' }, () => {})
+  store.db.prepare("INSERT INTO lms_workspace_members VALUES(?,?,'instructor',?)").run('asan-ax', teacher.id, Date.now())
+  store.db.prepare("INSERT INTO lms_mentor_scopes VALUES(?,?,'group',?)").run('asan-ax', teacher.id, '[]')
+  assert.throws(() => admissions.bulkReview('asan-ax', body, teacher), { status: 422 })
+  assert.equal(admissions.own(user)[0].state, 'pending')
+  store.db.prepare('UPDATE lms_mentor_scopes SET team_ids=? WHERE subject_id=?').run('["t1"]', teacher.id)
+  assert.deepEqual(admissions.bulkReview('asan-ax', body, teacher).succeeded, [application.id])
+})

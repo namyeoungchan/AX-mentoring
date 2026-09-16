@@ -80,6 +80,27 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     } else db.prepare("UPDATE lms_admissions SET state='rejected',reviewed_by=?,reviewed_at=?,reason=? WHERE id=? AND state='pending'").run(user.id, now(), input.reason, row.id)
     return { ok: true }
   }
+  function bulkReview(id, body, user) {
+    workspaces.requireRole(id, user, ['admin', 'instructor'])
+    const input = z.object({ applicationIds: z.array(z.string().uuid()).min(1).max(100).refine(ids => new Set(ids).size === ids.length, '중복된 신청이 있습니다.'), guildId: snowflake, teamId: z.string().min(1).max(200), reason: z.string().trim().max(300).default('') }).strict().parse(body)
+    if (workspaces.metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스에서는 승인할 수 없습니다.')
+    if (!workspaces.metadata(id).guildIds.includes(input.guildId)) throw new ApiError(422, '이 워크스페이스에 연결된 Discord 서버를 선택하세요.')
+    if (!availableTeams(id, user).some(team => team.id === input.teamId)) throw new ApiError(422, '배정할 수 있는 조를 선택하세요.')
+    // Validate ownership for the whole selection before making any change.
+    const rows = input.applicationIds.map(applicationId => db.prepare("SELECT id FROM lms_admissions WHERE id=? AND workspace_id=? AND purpose='student'").get(applicationId, id))
+    if (rows.some(row => !row)) throw new ApiError(404, '이 워크스페이스의 수강생 신청만 선택하세요.')
+    const succeeded = [], failed = []
+    for (const applicationId of input.applicationIds) {
+      try {
+        review(id, applicationId, { action: 'approve', guildId: input.guildId, teamId: input.teamId, reason: input.reason }, user)
+        succeeded.push(applicationId)
+      } catch (error) {
+        if (!(error instanceof ApiError)) console.error('Bulk admission review failed:', error.code || error.name)
+        failed.push({ id: applicationId, error: error instanceof ApiError ? error.message : '저장하지 못했습니다. 목록을 새로고침하고 다시 시도하세요.' })
+      }
+    }
+    return { succeeded, failed }
+  }
   function approved(applicationId, user) {
     const row = db.prepare('SELECT * FROM lms_admissions WHERE id=? AND user_id=?').get(applicationId, user.id)
     if (!row || row.state !== 'approved') throw new ApiError(403, '승인된 가입 신청이 필요합니다.')
@@ -138,5 +159,5 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     db.prepare('UPDATE lms_admissions SET invite_state=?,invite_code=?,invite_expires=?,claim_hash=NULL,lease_until=NULL WHERE id=?').run(input.success ? 'ready' : 'failed', input.success ? input.code : null, input.success ? now() + 23 * 3600000 : null, input.id)
     return { ok: true }
   }
-  return { catalogue, apply, own, staffInvite, reviewList, review, approved, renew, activate, authorized, poll, complete }
+  return { catalogue, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete }
 }

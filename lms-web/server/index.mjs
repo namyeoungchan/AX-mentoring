@@ -194,6 +194,7 @@ app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
   res.json(workspaces.teaching(req.workspaceId, req.account))
 })
 app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admissions.reviewList(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/admissions/bulk-review', (req, res) => res.json(admissions.bulkReview(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res.json(admissions.review(req.workspaceId, req.params.id, req.body, req.account)))
 app.patch('/api/workspaces/:workspaceId/teaching', (req, res) => res.json(workspaces.teach(req.workspaceId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/staff/onboarding', (req, res) => res.json(staff.read(req.workspaceId, req.account)))

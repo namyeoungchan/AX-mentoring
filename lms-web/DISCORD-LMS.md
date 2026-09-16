@@ -105,3 +105,9 @@ python -m unittest discover -s tests -p "test_*.py" -v
 로컬 임시 DB와 모의 Discord 객체로 가입·인증·권한 차단·채널 생성 및 재사용·실패 재시도를 검증합니다. 실제 Discord 서버의 채널 생성과 Render 배포 검증은 별도로 필요합니다.
 
 구현 참고: [Node scrypt](https://nodejs.org/docs/latest-v24.x/api/crypto.html#cryptoscryptpassword-salt-keylen-options-callback), [discord.py interactions](https://discordpy.readthedocs.io/en/stable/interactions/api.html), [discord.py 채널 생성](https://discordpy.readthedocs.io/en/stable/api.html#discord.Guild.create_text_channel).
+
+## 수강생 일괄 승인 · 조 배정
+
+관리자의 **수강생 관리 / 가입 승인**, 강사의 **가입 승인**에서 신청자를 체크하고 **일괄 배정할 조**를 선택한 뒤 **선택 N명 승인 · 조 배정**을 누릅니다. 한 번에 최대 100명을 같은 조에 배정합니다. 이름·아이디 검색과 상태 필터를 사용할 수 있으며 **현재 목록 전체 선택**은 필터에 표시된 처리 가능 신청만 선택합니다. 목록 밖의 선택 인원도 표시합니다.
+
+강사는 담당 범위의 조만 선택할 수 있습니다. 다른 워크스페이스 신청이나 허용되지 않은 조가 포함된 요청은 거절합니다. 이미 처리된 신청이 섞여 있으면 완료·실패 인원을 구분해 보여주고, 완료된 신청의 초대는 중복 발급하지 않습니다. 개별 처리 창에서는 한 명의 승인·조 배정 또는 사유를 입력한 반려를 처리할 수 있습니다.

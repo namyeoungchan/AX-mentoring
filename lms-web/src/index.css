@@ -718,3 +718,66 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
   .assignment-details table { min-width: 650px; }
 }
 @media (prefers-reduced-motion: reduce) { .assignment-caret { transition: none; } }
+
+.admission-review { display:grid; gap:18px; min-width:0; margin-bottom:24px; }
+.admission-review-heading { display:flex; justify-content:space-between; align-items:center; gap:18px; }
+.admission-review-heading h2 { font-size:18px; font-weight:700; }
+.admission-review-heading p { margin-top:7px; color:#738078; font-size:12px; line-height:1.7; }
+.admission-review-heading .button { flex-shrink:0; }
+.admission-summary { display:flex; flex-wrap:wrap; gap:12px 28px; padding:15px 20px; background:#eef2ec; border-radius:10px; }
+.admission-summary span { display:flex; gap:12px; align-items:center; color:#65736a; font-size:12px; }
+.admission-summary strong { color:#284c38; font-size:19px; }
+.admission-review .inline-note { margin:0; }
+.admission-result { display:flex; align-items:center; gap:9px; padding:14px 18px; background:#e9f4e9; border:1px solid #c9e1cd; border-radius:9px; color:#2f643b; }
+.admission-bulk { padding:22px; border:1px solid #dce4d9; }
+.admission-bulk.has-selection { border-color:#8aaa91; box-shadow:0 0 0 1px #8aaa9133; }
+.admission-bulk fieldset { min-width:0; border:0; padding:0; margin:0; }
+.admission-bulk-title { display:flex; align-items:center; gap:9px; color:#31523d; }
+.admission-bulk-title .text-button { margin-left:auto; }
+.admission-selected { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }
+.admission-selected span { padding:5px 9px; border-radius:6px; background:#edf3e9; color:#46613e; font-size:11px; overflow-wrap:anywhere; }
+.admission-bulk-fields { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto; align-items:end; gap:14px; margin-top:18px; }
+.admission-bulk-fields label, .admission-list-tools > label:not(.admission-search) { display:grid; gap:8px; font-size:12px; color:#526257; min-width:0; }
+.admission-bulk-fields select, .admission-list-tools select { width:100%; min-width:0; background:white; border:1px solid #dbe2d8; padding:11px 12px; border-radius:7px; color:#304936; }
+.admission-bulk-fields .button { min-height:42px; white-space:nowrap; }
+.admission-bulk-hint { margin-top:12px; font-size:11px; color:#748173; line-height:1.7; }
+.admission-list { overflow:hidden; min-width:0; }
+.admission-list-tools { display:flex; gap:16px; padding:20px; align-items:end; border-bottom:1px solid #e6ebe4; }
+.admission-search { display:flex; align-items:center; gap:9px; flex:1; min-width:0; padding:10px 12px; border:1px solid #dbe2d8; border-radius:7px; color:#829080; }
+.admission-search input { width:100%; min-width:0; background:transparent; border:0; outline:none; font-size:12px; }
+.admission-search:focus-within { outline:2px solid #9fbcac; outline-offset:1px; }
+.admission-list-tools > label:not(.admission-search) { width:155px; }
+.admission-select-all { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 20px; background:#f7f9f5; border-bottom:1px solid #e6ebe4; font-size:11px; color:#778475; }
+.admission-select-all label { display:flex; align-items:center; gap:10px; color:#4c5e4c; cursor:pointer; }
+.admission-review input[type=checkbox] { width:17px; height:17px; accent-color:#365c41; flex-shrink:0; cursor:pointer; }
+.admission-review input[type=checkbox]:disabled { cursor:default; opacity:.4; }
+.admission-review-row { display:grid; grid-template-columns:20px minmax(0,1fr) minmax(110px,.5fr) 115px; align-items:center; gap:18px; padding:17px 20px; border-bottom:1px solid #edf0e9; }
+.admission-review-row:last-child { border-bottom:0; }
+.admission-review-row.selected { background:#f1f7ed; }
+.admission-person { min-width:0; }
+.admission-person h3 { font-size:14px; font-weight:650; overflow-wrap:anywhere; }
+.admission-person span { display:block; color:#82907e; font-size:11px; margin-top:4px; overflow-wrap:anywhere; }
+.admission-row-state { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.admission-row-state small { color:#7d8b77; font-size:11px; }
+.admission-row-note { font-size:11px; color:#809077; overflow-wrap:anywhere; line-height:1.6; }
+.admission-list-empty { padding:42px 20px; text-align:center; color:#82907d; }
+@media(max-width:1100px) { .admission-bulk-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } .admission-bulk-fields .button { grid-column:1 / -1; } }
+@media(max-width:600px) {
+  .admission-review-heading { align-items:flex-start; flex-wrap:wrap; gap:12px; }
+  .admission-review-heading h2 { font-size:17px; }
+  .admission-summary { gap:10px 18px; padding:13px 15px; }
+  .admission-summary span { font-size:11px; gap:8px; }
+  .admission-summary strong { font-size:17px; }
+  .admission-bulk { padding:17px; }
+  .admission-bulk-fields { grid-template-columns:minmax(0,1fr); }
+  .admission-bulk-title { flex-wrap:wrap; font-size:12px; }
+  .admission-list-tools { padding:15px; flex-wrap:wrap; gap:12px; }
+  .admission-search { flex-basis:100%; }
+  .admission-list-tools > label:not(.admission-search) { width:100%; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:12px; }
+  .admission-select-all { padding:13px 15px; flex-wrap:wrap; }
+  .admission-review-row { grid-template-columns:18px minmax(0,1fr) 85px; padding:15px; gap:9px 12px; }
+  .admission-review-row > input { grid-column:1; grid-row:1 / 3; }
+  .admission-person { grid-column:2; grid-row:1; }
+  .admission-row-state { grid-column:2; grid-row:2; }
+  .admission-review-row > button, .admission-row-note { grid-column:3; grid-row:1 / 3; }
+}
