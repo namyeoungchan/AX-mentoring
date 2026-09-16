@@ -33,7 +33,8 @@ test('channel template saves, bot join applies, failures are visible and retry s
   expect((await request.post('/api/integrations/discord/provision/poll', { data: poll })).status()).toBe(401)
   expect((await request.post('/api/integrations/discord/provision/poll', { headers: { Authorization: 'Bearer test-only-auth-token-12345678901234567890' }, data: poll })).status()).toBe(401)
   const { job } = await (await request.post('/api/integrations/discord/provision/poll', { headers, data: poll })).json()
-  expect(job.plan.channels).toHaveLength(9)
+  expect(job.plan.channels.some((channel: { id: string }) => channel.id === 'assignment-dashboard')).toBe(true)
+  expect(job.plan.channels).toHaveLength(10)
   expect((await request.post('/api/integrations/discord/provision/complete', { headers, data: { id: job.id, claim: job.claim, success: false, errorCode: 'forbidden', results: [] } })).status()).toBe(200)
   await page.locator('.operations-toolbar').getByRole('button', { name: '새로고침' }).click()
   await expect(page.getByText('봇의 역할 관리·채널 관리·채널 보기·메시지 보내기·기록 보기·링크 삽입·메시지 고정 권한과 봇 역할의 순서를 확인하세요.', { exact: true })).toBeVisible()
@@ -43,7 +44,7 @@ test('channel template saves, bot join applies, failures are visible and retry s
   expect((await request.post('/api/integrations/discord/provision/complete', { headers, data: { id: claimed.job.id, claim: claimed.job.claim, success: true, errorCode: null, results } })).status()).toBe(200)
   await page.locator('.operations-toolbar').getByRole('button', { name: '새로고침' }).click()
   await expect(page.getByText('적용 완료', { exact: true })).toBeVisible()
-  await expect(page.getByText('생성 7 · 재사용 2', { exact: true })).toBeVisible()
+  await expect(page.getByText('생성 8 · 재사용 2', { exact: true })).toBeVisible()
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 950 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()

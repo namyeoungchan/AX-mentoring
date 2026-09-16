@@ -81,7 +81,8 @@ export function createStaffFlow(db, workspaces, onboarding, admissions, { now = 
   }
   function profile(id, body, user) {
     workspaces.requireRole(id, user, ['admin', 'instructor']); active(id)
-    const input = z.object({ name: z.string().trim().min(1).max(50), expertise: z.string().trim().min(1).max(150), bio: z.string().trim().max(800) }).strict().parse(body)
+    const input = z.object({ name: z.string().trim().min(1).max(50), expertise: z.string().trim().min(1).max(150), bio: z.string().trim().max(800).optional() }).strict().parse(body)
+    input.bio ??= db.prepare('SELECT bio FROM lms_staff_profiles WHERE workspace_id=? AND user_id=?').get(id, user.id)?.bio || ''
     db.prepare("INSERT INTO lms_staff_profiles(workspace_id,user_id,name,expertise,bio,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET name=excluded.name,expertise=excluded.expertise,bio=excluded.bio,updated_at=excluded.updated_at").run(id, user.id, input.name, input.expertise, input.bio, now())
     syncMentor(id, user.id)
     if (workspaces.metadata(id).guildIds.length && !read(id, user).verified) admissions.staffInvite(id, user)

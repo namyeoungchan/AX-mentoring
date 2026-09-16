@@ -11,6 +11,7 @@ import config
 from cogs.lms_guides import ensure_guide, guide_text, GUIDES
 from cogs.lms_onboarding_store import OnboardingStore
 from cogs.lms_provision import validate_provision_endpoint
+from cogs.panel_objects import PANEL_OBJECTS
 
 log = logging.getLogger("asanAX.lms_onboarding")
 ROLE_NAMES = {"pending": "LMS 온보딩 대기", "student": "LMS 수강생", "instructor": "LMS 강사", "admin": "LMS 운영자", "complete": "LMS 온보딩 완료"}
@@ -42,6 +43,10 @@ class StartView(discord.ui.View):
         cfg = self.cog.configs.get(str(self.guild_id))
         if not cfg or not cfg.get("enabled"):
             await interaction.response.send_message("온보딩이 아직 준비되지 않았습니다. 운영자에게 문의하세요.", ephemeral=True)
+            return
+        participant = next((p for p in cfg.get("participants", []) if p["discordId"] == str(interaction.user.id)), None)
+        if not participant or participant["role"] != "student":
+            await interaction.response.send_message("멘토·운영자는 자기소개가 필요 없습니다. LMS의 업무 안내를 진행하세요." if participant else "LMS에서 Discord 인증을 먼저 완료하세요. 인증 직후라면 잠시 후 다시 눌러 주세요. 멘토는 자기소개가 필요 없습니다.", ephemeral=True)
             return
         await interaction.response.send_modal(Introduction(self.cog, self.guild_id))
 
@@ -167,6 +172,43 @@ class LMSOnboarding(commands.Cog):
             log.info("LMS base roles ready for guild %s (%s roles)", guild.id, len(roles))
             return roles
 
+    async def ensure_dashboard(self, guild, channel=None, name=None, category=None):
+        """Repair the staff dashboard before any private panel content is published."""
+        async with self.lock(guild.id):
+            if not guild.me or not guild.me.guild_permissions.manage_channels:
+                raise OnboardingError("permissions")
+            roles = await self.ensure_roles(guild)
+            spec = PANEL_OBJECTS["dashboard"]
+            channels = list(await guild.fetch_channels())
+            if channel is not None:
+                channel = next((c for c in channels if c.id == channel.id), None)
+            if channel is None:
+                stored = await self.store.get(guild.id, "channel", spec.template_id) or await self.store.get(guild.id, "panel-channel", spec.template_id)
+                channel = next((c for c in channels if stored and c.id == stored["id"]), None)
+            if channel is None:
+                matches = [c for c in channels if c.type == discord.ChannelType.text and c.name in {*spec.channel_names, name}]
+                if len(matches) > 1:
+                    raise OnboardingError("conflict")
+                channel = matches[0] if matches else None
+            if channel is not None and channel.type != discord.ChannelType.text:
+                raise OnboardingError("conflict")
+            allowed = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+            overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False), guild.me: allowed,
+                          roles["admin"]: allowed, roles["instructor"]: allowed}
+            if channel is None:
+                channel = await guild.create_text_channel(name or "과제-대시보드", category=category, overwrites=overwrites, reason="LMS staff-only assignment dashboard")
+            else:
+                changes = {}
+                if channel.overwrites != overwrites:
+                    changes["overwrites"] = overwrites
+                if name and channel.name != name:
+                    changes["name"] = name
+                if changes:
+                    channel = await channel.edit(**changes, reason="LMS staff-only assignment dashboard")
+            await self.store.put(guild.id, "channel", spec.template_id, {"id": channel.id})
+            await self.store.put(guild.id, "panel-channel", spec.template_id, {"id": channel.id})
+            return channel
+
     async def channel(self, guild, key, name, channel_type, overwrites=None, category=None, adopt=False):
         stored = await self.store.get(guild.id, "channel", key)
         channel = guild.get_channel(stored["id"]) if stored else None
@@ -256,20 +298,27 @@ class LMSOnboarding(commands.Cog):
             await member.remove_roles(*remove, reason="LMS membership or team changed")
         if add:
             await member.add_roles(*add, reason="LMS onboarding and web team assignment")
-        if record["introDone"] and participant:
+        mentor = participant and participant["role"] == "instructor"
+        if participant and (mentor or record["introDone"]):
             team = next((team for team in cfg["teams"] if team["id"] == participant.get("teamId")), None)
-            nick = (participant["name"] + (f"_{team['name']}" if team else ""))[:32]
-            if member.nick != nick and member.guild.me.guild_permissions.manage_nicknames and member.top_role < member.guild.me.top_role and member.id != member.guild.owner_id:
-                await member.edit(nick=nick, reason="LMS web team assignment")
+            nick = (f"멘토_{participant['name']}" if mentor else participant["name"] + (f"_{team['name']}" if team else ""))[:32]
+            if member.nick != nick:
+                if mentor and not member.guild.me.guild_permissions.manage_nicknames:
+                    raise OnboardingError("permissions")
+                if mentor and (member.top_role >= member.guild.me.top_role or member.id == member.guild.owner_id):
+                    raise OnboardingError("role_hierarchy")
+                if member.guild.me.guild_permissions.manage_nicknames and member.top_role < member.guild.me.top_role and member.id != member.guild.owner_id:
+                    await member.edit(nick=nick, reason="LMS mentor identity" if mentor else "LMS web team assignment")
         if welcome and not record["welcomed"] and (not participant or participant["role"] == "student"):
             start_id = (await self.store.get(member.guild.id, "channel", "start"))["id"]
             team = next((t for t in cfg["teams"] if participant and t["id"] == participant.get("teamId")), None)
-            text = f"{cfg['workspaceName']} 서버 안내\n{cfg['welcomeText']}\n배정 팀: {team['name'] if team else '미배정'}\n시작하기: https://discord.com/channels/{member.guild.id}/{start_id}"
+            student = participant and participant["role"] == "student"
+            text = (f"{cfg['workspaceName']} 서버 안내\n{cfg['welcomeText']}\n배정 팀: {team['name'] if team else '미배정'}" if student else f"{cfg['workspaceName']} 서버 안내\nLMS에서 초대 수락 또는 가입 승인을 확인하고 Discord 인증을 완료하세요. 멘토는 자기소개가 필요 없습니다.") + f"\n시작하기: https://discord.com/channels/{member.guild.id}/{start_id}"
             try:
-                await member.send(text, view=self.view(member.guild.id), allowed_mentions=discord.AllowedMentions.none())
+                await member.send(text, view=self.view(member.guild.id) if student else None, allowed_mentions=discord.AllowedMentions.none())
             except discord.Forbidden:
                 channel = member.guild.get_channel(start_id)
-                await channel.send(f"{member.mention} 서버 이용 안내를 확인하고 자기소개를 작성하세요.", view=self.view(member.guild.id), allowed_mentions=discord.AllowedMentions(users=[member], roles=False, everyone=False))
+                await channel.send(f"{member.mention} " + ("서버 이용 안내를 확인하고 자기소개를 작성하세요." if student else "LMS에서 Discord 인증을 완료하세요. 멘토는 자기소개가 필요 없습니다."), view=self.view(member.guild.id) if student else None, allowed_mentions=discord.AllowedMentions(users=[member], roles=False, everyone=False))
             record["welcomed"] = True
         if record["introDone"] and not record.get("reported"):
             await self.request("progress", {"guildId": str(member.guild.id), "discordId": str(member.id)})
@@ -283,6 +332,12 @@ class LMSOnboarding(commands.Cog):
         if not guild or not cfg or not cfg.get("enabled") or not name or not introduction:
             raise OnboardingError("conflict")
         member = guild.get_member(user_id) or await guild.fetch_member(user_id)
+        participant = next((p for p in cfg["participants"] if p["discordId"] == str(user_id)), None)
+        if participant and participant["role"] in {"instructor", "admin"}:
+            async with self.lock(guild_id):
+                await self.ensure_resources(guild, cfg)
+                await self.sync_member(member, cfg, welcome=False)
+            return "멘토·운영자는 자기소개가 필요 없습니다. LMS의 업무 안내를 진행하세요."
         async with self.lock(guild_id):
             await self.ensure_resources(guild, cfg)
             record = await self.store.get(guild_id, "member", user_id) or {"introDone": False, "welcomed": False}

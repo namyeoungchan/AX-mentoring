@@ -26,7 +26,7 @@ test('staff joins LMS first, completes mentor onboarding and keeps workspace rol
   await page.getByRole('button', { name: '초대 수락', exact: true }).click()
   await expect(page.getByRole('heading', { name: '멘토 활동 관리', exact: true })).toBeVisible()
   await page.getByLabel('전문 분야').fill('AI 활용')
-  await page.getByLabel('자기소개', { exact: true }).fill('교육 멘토입니다.')
+  await expect(page.getByLabel('자기소개', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '기본 정보 저장' }).click()
   await expect(page.getByText('봇이 초대 링크를 발급하고 있습니다. 잠시 기다려 주세요.')).toBeVisible()
   const botHeaders = { Authorization: 'Bearer test-only-provision-token-12345678901234567890' }

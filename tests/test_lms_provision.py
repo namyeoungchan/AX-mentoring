@@ -78,6 +78,22 @@ class ProvisionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.code, "conflict")
         self.assertEqual(guild.created, 2)
 
+    async def test_dashboard_template_requires_private_provisioning_before_posting(self):
+        guild = Guild()
+        items = [{"id": "assignment-dashboard", "name": "과제-대시보드", "type": "text", "parentId": ""}]
+        with self.assertRaisesRegex(ProvisionError, 'forbidden'):
+            await apply_channels(guild, items, [])
+        self.assertEqual(guild.created, 0)
+        self.guide.assert_not_awaited()
+        async def private(_guild, _channel, **kwargs):
+            return guild.create(kwargs['name'], discord.ChannelType.text)
+        secure = AsyncMock(side_effect=private)
+        results = []
+        await apply_channels(guild, items, results, ensure_dashboard=secure)
+        secure.assert_awaited_once()
+        self.assertEqual(results[0]['id'], 'assignment-dashboard')
+        self.guide.assert_awaited_once()
+
     async def test_unrelated_channels_remain_and_invalid_parent_is_rejected(self):
         guild = Guild()
         unrelated = guild.create("기존-채널", discord.ChannelType.text)
@@ -90,11 +106,11 @@ class ProvisionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_server_build_creates_roles_before_channels_and_saves_bindings(self):
         events = []
-        onboarding = SimpleNamespace(provision_roles=AsyncMock(side_effect=lambda _guild: events.append('roles')))
+        onboarding = SimpleNamespace(provision_roles=AsyncMock(side_effect=lambda _guild: events.append('roles')), ensure_dashboard=AsyncMock())
         panels = SimpleNamespace(bind_channels=AsyncMock(side_effect=lambda *_: events.append('bindings')))
         cog = object.__new__(LMSProvision)
         cog.bot = SimpleNamespace(get_cog=lambda name: {'LMSOnboarding': onboarding, 'AutoPanels': panels}.get(name))
-        async def channels(*_): events.append('channels')
+        async def channels(*_, **kwargs): events.append('channels')
         with patch('cogs.lms_provision.apply_channels', new=AsyncMock(side_effect=channels)):
             await cog.apply_server(Guild(), self.items(), [])
         self.assertEqual(events, ['roles', 'channels', 'bindings'])

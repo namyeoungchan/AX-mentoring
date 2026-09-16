@@ -112,6 +112,15 @@ class AutoPanels(commands.Cog):
         if kind not in PANEL_OBJECTS:
             raise ValueError("Unknown panel object")
         channel = channel or await self.resolve_channel(guild, kind)
+        if PANEL_OBJECTS[kind].template_id == "assignment-dashboard":
+            onboarding = self.bot.get_cog("LMSOnboarding")
+            if not onboarding:
+                raise ValueError("Staff dashboard permissions cannot be verified")
+            from cogs.lms_onboarding import OnboardingError
+            try:
+                channel = await onboarding.ensure_dashboard(guild, channel)
+            except OnboardingError as error:
+                raise ValueError(f"Staff dashboard unavailable: {error}") from error
         if not channel:
             log.warning("Automatic panel channel not found: guild=%s object=%s", guild.id, kind)
             return None

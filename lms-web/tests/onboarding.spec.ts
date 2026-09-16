@@ -26,7 +26,7 @@ test('workspace onboarding saves course-driven teams, worker configuration and v
   expect(poll.configs[0].enabled).toBe(true)
   expect((await request.post('/api/integrations/discord/onboarding/report', { headers: botHeaders, data: { guildId, revision: poll.configs[0].revision, state: 'failed', error: 'permissions' } })).status()).toBe(200)
   await page.getByRole('main').getByRole('button', { name: '새로고침', exact: true }).last().click()
-  await expect(page.getByText('봇의 채널 관리·역할 관리·메시지 고정·채널 보기·메시지 보내기·기록 보기·링크 삽입 권한을 확인하세요.', { exact: true })).toBeVisible()
+  await expect(page.getByText('봇의 채널 관리·역할 관리·별명 관리·메시지 고정·채널 보기·메시지 보내기·기록 보기·링크 삽입 권한을 확인하세요.', { exact: true })).toBeVisible()
   await page.reload()
   await expect(page.getByLabel('온보딩 과정', { exact: true })).toBeChecked()
   for (const width of [1440, 390, 360]) {

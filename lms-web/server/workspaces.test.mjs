@@ -149,7 +149,8 @@ test('workspace creation with a server ID queues the default layout even before 
   const { manager } = fixture(t)
   const created = manager.create({ name: '생성 시 서버 구축', guildId })
   const state = manager.provisionRead(created.id)
-  assert.equal(state.plans[0].channels.length, 9)
+  assert.equal(state.plans[0].channels.length, 10)
+  assert.ok(state.plans[0].channels.some(c => c.id === 'assignment-dashboard'))
   assert.equal(state.jobs.length, 1); assert.equal(state.jobs[0].state, 'queued')
 })
 

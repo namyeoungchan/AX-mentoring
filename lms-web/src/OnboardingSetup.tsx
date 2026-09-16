@@ -6,7 +6,7 @@ import { demoMode, workspaceRequest } from './api'
 type Config = { guildId: string; enabled: boolean; courseIds: string[]; welcomeText: string; onboardingChannel: string; introChannel: string; revision: string }
 type Report = { state: string; error: string; updatedAt: number }
 type State = { guildIds: string[]; courses: { id: string; title: string }[]; teams: { id: string; name: string; courseId: string; members: number }[]; configs: (Config & { report: Report | null; progress: { discordId: string; introDone: number }[] })[] }
-const errors: Record<string, string> = { team_limit: '서버당 최대 50개 팀을 연결할 수 있습니다. 연결할 과정을 줄여 주세요.', permissions: '봇의 채널 관리·역할 관리·메시지 고정·채널 보기·메시지 보내기·기록 보기·링크 삽입 권한을 확인하세요.', role_hierarchy: '봇 역할을 LMS 역할보다 위로 이동하세요. LMS 역할에는 서버 관리 권한을 추가하지 마세요.', discord_error: 'Discord 요청에 실패했습니다. 봇 로그를 확인하세요.', api_error: '봇과 웹의 연결 설정을 확인하세요.', conflict: '중복된 채널이나 삭제된 역할을 확인하세요.' }
+const errors: Record<string, string> = { team_limit: '서버당 최대 50개 팀을 연결할 수 있습니다. 연결할 과정을 줄여 주세요.', permissions: '봇의 채널 관리·역할 관리·별명 관리·메시지 고정·채널 보기·메시지 보내기·기록 보기·링크 삽입 권한을 확인하세요.', role_hierarchy: '봇 역할을 LMS 역할과 대상 멘토의 최상위 역할보다 위로 이동하세요. 서버 소유자의 별명은 직접 변경해야 합니다. LMS 역할에는 서버 관리 권한을 추가하지 마세요.', discord_error: 'Discord 요청에 실패했습니다. 봇 로그를 확인하세요.', api_error: '봇과 웹의 연결 설정을 확인하세요.', conflict: '중복된 채널이나 삭제된 역할을 확인하세요.' }
 const pick = (row: Config): Config => ({ guildId: row.guildId, enabled: row.enabled, courseIds: [...row.courseIds], welcomeText: row.welcomeText, onboardingChannel: row.onboardingChannel, introChannel: row.introChannel, revision: row.revision })
 
 export default function OnboardingSetup({ workspaceId }: { workspaceId: string }) {

@@ -6,6 +6,7 @@
     { "id": "questions", "name": "질문답변", "type": "text", "parentId": "info" },
     { "id": "learning", "name": "학습 활동", "type": "category", "parentId": "" },
     { "id": "assignments", "name": "과제제출", "type": "text", "parentId": "learning" },
+    { "id": "assignment-dashboard", "name": "과제-대시보드", "type": "text", "parentId": "learning" },
     { "id": "mentoring", "name": "멘토링예약", "type": "text", "parentId": "learning" },
     { "id": "teams", "name": "팀 활동", "type": "category", "parentId": "" },
     { "id": "start", "name": "시작하기", "type": "text", "parentId": "info" },

@@ -64,6 +64,7 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         import asyncio
         cog = module.AutoPanels(MagicMock(get_guild=MagicMock(return_value=self.guild)))
         cog.store = self.store
+        cog.bot.get_cog.return_value = SimpleNamespace(ensure_dashboard=AsyncMock(return_value=self.channel))
         cog.legacy_id = AsyncMock(return_value=None)
         cog.build = AsyncMock(return_value=([discord.Embed(title='과제')], MagicMock()))
         with patch.object(module.database, 'save_assignment_panel', new_callable=AsyncMock):
@@ -75,6 +76,30 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         cog = module.AutoPanels(MagicMock())
         with patch.object(module.database, 'get_active_peer_round', new_callable=AsyncMock, return_value=None):
             self.assertIsNone(await cog.build(self.guild, 'peer_eval'))
+
+    async def test_private_panels_are_never_built_if_channel_permissions_cannot_be_repaired(self):
+        from cogs.lms_onboarding import OnboardingError
+        cog = module.AutoPanels(MagicMock(get_guild=MagicMock(return_value=self.guild)))
+        cog.bot.get_cog.return_value = SimpleNamespace(ensure_dashboard=AsyncMock(side_effect=OnboardingError('permissions')))
+        cog.build = AsyncMock()
+        for kind in ['dashboard', 'participation', 'peer_eval']:
+            with self.assertRaisesRegex(ValueError, 'Staff dashboard unavailable'):
+                await cog.publish(kind, self.channel)
+        cog.build.assert_not_awaited()
+        self.channel.send.assert_not_awaited()
+
+    async def test_missing_dashboard_is_repaired_before_publication(self):
+        cog = module.AutoPanels(MagicMock(get_guild=MagicMock(return_value=self.guild)))
+        cog.store = self.store
+        cog.resolve_channel = AsyncMock(return_value=None)
+        repair = AsyncMock(return_value=self.channel)
+        cog.bot.get_cog.return_value = SimpleNamespace(ensure_dashboard=repair)
+        cog.build = AsyncMock(return_value=([discord.Embed(title='과제 현황')], MagicMock()))
+        cog.legacy_id = AsyncMock(return_value=None)
+        with patch.object(module.database, 'save_assignment_panel', new_callable=AsyncMock):
+            await cog.publish('dashboard')
+        repair.assert_awaited_once_with(self.guild, None)
+        self.channel.send.assert_awaited_once()
 
 
 if __name__ == '__main__':

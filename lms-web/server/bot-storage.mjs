@@ -78,6 +78,7 @@ export function createBotStorage(main, workspaces, onboarding) {
     for (const [setting, kind, key] of [
       ['ADMIN_ROLE_ID', 'role', 'admin'], ['STUDENT_ROLE_ID', 'role', 'student'], ['ONBOARDING_COMPLETE_ROLE_ID', 'role', 'complete'],
       ['ONBOARDING_CHANNEL_ID', 'channel', 'start'], ['INTRO_CHANNEL_ID', 'channel', 'intro'],
+      ['ASSIGNMENT_DASHBOARD_CHANNEL_ID', 'channel', 'assignment-dashboard'],
     ]) {
       const id = resourceId(kind, key)
       if (!value.channels[setting] && id) value.channels[setting] = id

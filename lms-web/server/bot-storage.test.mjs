@@ -143,7 +143,7 @@ test('generated channel and role IDs are resolved per guild and change after res
     onboarding.save(meta.id, { guildId: guild, enabled: true, courseIds: ['course'], welcomeText: cfg.welcomeText, onboardingChannel: cfg.onboardingChannel, introChannel: cfg.introChannel, revision })
     const id = offset => String(600000000000000000n + BigInt(index * 100 + offset))
     for (const [key, offset] of [['admin', 1], ['instructor', 2], ['student', 3], ['complete', 4]]) put(guild, 'role', key, id(offset))
-    for (const [key, offset] of [['start', 5], ['intro', 6], ['team-text:team', 7]]) put(guild, 'channel', key, id(offset))
+    for (const [key, offset] of [['start', 5], ['intro', 6], ['team-text:team', 7], ['assignment-dashboard', 8]]) put(guild, 'channel', key, id(offset))
     expected.push({ id, guild })
   }
   for (const { id, guild } of expected) {
@@ -153,6 +153,7 @@ test('generated channel and role IDs are resolved per guild and change after res
     assert.equal(settings.channels.ONBOARDING_COMPLETE_ROLE_ID, id(4))
     assert.equal(settings.channels.ONBOARDING_CHANNEL_ID, id(5))
     assert.equal(settings.channels.INTRO_CHANNEL_ID, id(6))
+    assert.equal(settings.channels.ASSIGNMENT_DASHBOARD_CHANNEL_ID, id(8))
     assert.deepEqual(settings.qaNotifyRoleIds, [id(1), id(2)])
     assert.deepEqual(settings.teams, [{ name: '팀', channelId: id(7) }])
   }

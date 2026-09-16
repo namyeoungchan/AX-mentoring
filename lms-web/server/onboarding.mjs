@@ -6,7 +6,7 @@ const snowflake = z.string().regex(/^\d{17,20}$/)
 const channelName = z.string().trim().min(1).max(70).regex(/^[\p{L}\p{N}_-]+$/u)
 const settings = z.object({ guildId: snowflake, enabled: z.boolean(), courseIds: z.array(z.string().min(1).max(100)).max(50), welcomeText: z.string().trim().min(1).max(1500), onboardingChannel: channelName, introChannel: channelName, revision: z.string().max(64) }).strict()
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
-const defaults = { enabled: false, courseIds: [], welcomeText: '서버 이용 순서\n1. 웹에서 가입 승인 상태와 Discord 인증을 확인하세요.\n2. 아래 버튼으로 자기소개를 작성하세요.\n3. 웹에 배정된 팀과 채널을 확인하세요.\n팀 배정은 운영자가 관리합니다. 미배정 상태라면 운영자에게 문의하세요.', onboardingChannel: '시작하기', introChannel: '자기소개' }
+const defaults = { enabled: false, courseIds: [], welcomeText: '서버 이용 순서\n1. 웹에서 가입 승인 상태와 Discord 인증을 확인하세요.\n2. 수강생은 아래 버튼으로 자기소개를 작성하세요. 멘토·운영자는 자기소개가 필요 없습니다.\n3. 웹에 배정된 팀과 채널을 확인하세요.\n팀 배정은 운영자가 관리합니다. 미배정 상태라면 운영자에게 문의하세요.', onboardingChannel: '시작하기', introChannel: '자기소개' }
 
 export function createOnboarding(db, workspaces, provision, { now = Date.now } = {}) {
   db.exec(`CREATE TABLE IF NOT EXISTS lms_onboarding_settings(guild_id TEXT PRIMARY KEY REFERENCES lms_workspace_guilds(guild_id), data TEXT NOT NULL, revision TEXT NOT NULL);
@@ -52,7 +52,8 @@ export function createOnboarding(db, workspaces, provision, { now = Date.now } =
     const memberships = db.prepare('SELECT u.id AS userId,u.discord_id AS discordId,u.name,m.role FROM lms_workspace_members m JOIN lms_users u ON u.id=m.user_id WHERE m.workspace_id=? AND u.verified_at IS NOT NULL').all(id).filter(m => /^\d{17,20}$/.test(m.discordId))
     const participants = memberships.filter(m => m.role !== 'student').map(({ userId, ...m }) => {
       const scope = workspaces.mentorScope(id, userId)
-      return { ...m, teamId: '', ...scope, teamIds: (scope.mentorType === 'main' ? teams.map(t => t.id) : scope.teamIds).filter(teamId => teams.some(t => t.id === teamId)) }
+      const mentor = m.role === 'instructor' ? data.mentors.find(mentor => mentor.discordId === m.discordId) : null
+      return { ...m, name: mentor?.name || m.name, teamId: '', ...scope, teamIds: (scope.mentorType === 'main' ? teams.map(t => t.id) : scope.teamIds).filter(teamId => teams.some(t => t.id === teamId)) }
     })
     for (const learner of data.learners.filter(l => cfg.courseIds.includes(l.courseId) && l.discordId && l.status === '정상')) {
       const member = memberships.find(m => m.discordId === learner.discordId)

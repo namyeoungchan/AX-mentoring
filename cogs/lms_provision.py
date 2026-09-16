@@ -8,6 +8,7 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 from cogs.lms_guides import ensure_guide, guide_text
+from cogs.panel_objects import PANEL_OBJECTS
 
 log = logging.getLogger("asanAX.lms_provision")
 
@@ -36,8 +37,8 @@ def validate_provision_endpoint(url: str) -> str:
     return url
 
 
-async def apply_channels(guild, items: list[dict], results: list[dict]) -> None:
-    """Create missing channels only; preserve existing channels and permission overwrites."""
+async def apply_channels(guild, items: list[dict], results: list[dict], *, ensure_dashboard=None) -> None:
+    """Create missing channels; restrict dashboard access while preserving other channels."""
     if not guild.me or not guild.me.guild_permissions.manage_channels:
         raise ProvisionError("forbidden")
     types = {"category": discord.ChannelType.category, "text": discord.ChannelType.text, "voice": discord.ChannelType.voice}
@@ -49,6 +50,11 @@ async def apply_channels(guild, items: list[dict], results: list[dict]) -> None:
                    or (item["type"] == "category" and item.get("parentId")) for item in items)):
         raise ProvisionError("conflict")
     channels = list(await guild.fetch_channels())
+    dashboard = PANEL_OBJECTS["dashboard"]
+    def is_dashboard(item):
+        return item["type"] == "text" and (item["id"] == dashboard.template_id or item["name"] in dashboard.channel_names)
+    if any(is_dashboard(item) for item in items) and ensure_dashboard is None:
+        raise ProvisionError("forbidden")
     parents = {}
     ordered = [item for item in items if item["type"] == "category"] + [item for item in items if item["type"] != "category"]
     for item in ordered:
@@ -59,7 +65,12 @@ async def apply_channels(guild, items: list[dict], results: list[dict]) -> None:
                    and (item["type"] == "category" or channel.category_id == parent_id)]
         if len(matches) > 1:
             raise ProvisionError("conflict")
-        if matches:
+        if is_dashboard(item):
+            target = await ensure_dashboard(guild, matches[0] if matches else None, name=item["name"], category=parent)
+            action = "reused" if any(c.id == target.id for c in channels) else "created"
+            if action == "created":
+                channels.append(target)
+        elif matches:
             target, action = matches[0], "reused"
         else:
             reason = "LMS channel template requested by workspace administrator"
@@ -121,7 +132,10 @@ class LMSProvision(commands.Cog):
             await onboarding.provision_roles(guild)
         except OnboardingError as error:
             raise ProvisionError('forbidden' if str(error) in {'permissions', 'role_hierarchy'} else 'api_error') from error
-        await apply_channels(guild, items, results)
+        try:
+            await apply_channels(guild, items, results, ensure_dashboard=onboarding.ensure_dashboard)
+        except OnboardingError as error:
+            raise ProvisionError('forbidden' if str(error) in {'permissions', 'role_hierarchy'} else 'api_error') from error
         manager = self.bot.get_cog('AutoPanels')
         if manager:
             await manager.bind_channels(guild, items, results)

@@ -70,7 +70,7 @@ test('group count creates durable teams, survives retries, enables the bound ser
 })
 
 test('mentor profile queues only their guild invite, verified identity registers one mentor, and ordered guide progress persists', async t => {
-  const { store, staff, workspace, workspaces, auth, admissions, signup, setup, connect } = fixture(t)
+  const { store, staff, workspace, workspaces, auth, admissions, onboarding, signup, setup, connect } = fixture(t)
   setup(2); connect()
   const user = await signup('main.mentor')
   assert.throws(() => staff.invite(workspace.id, user), { status: 422 })
@@ -88,6 +88,10 @@ test('mentor profile queues only their guild invite, verified identity registers
   staff.syncDiscord(discordId, guildId)
   assert.equal(workspaces.open(workspace.id).db.prepare('SELECT COUNT(*) AS n FROM mentors').get().n, 1)
   assert.equal(workspaces.role(workspace.id, user), 'instructor')
+  assert.equal(onboarding.poll({ guildIds: [guildId] }).configs[0].participants[0].name, '강사')
+  const updated = staff.profile(workspace.id, { name: '변경된 활동명', expertise: 'AI' }, user)
+  assert.equal(updated.profile.bio, '자기소개')
+  assert.equal(onboarding.poll({ guildIds: [guildId] }).configs[0].participants[0].name, '변경된 활동명')
   assert.equal(staff.read(workspace.id, user).verified, true)
   assert.throws(() => staff.step(workspace.id, { step: 'mentoring' }, user), { status: 409 })
   for (const step of ['assignments', 'approval', 'mentoring', 'mentoring']) staff.step(workspace.id, { step }, user)
