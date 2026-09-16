@@ -91,6 +91,7 @@ test('platform administrator edits and removes workspace administrators, and can
   expect((await request.get('/api/workspaces/default/members', { headers: { Authorization: `Bearer ${owner.token}` } })).status()).toBe(403)
   await page.getByLabel('초대할 아이디').fill('cancelled.owner')
   await page.getByLabel('참여 권한').selectOption('admin')
+  await page.getByLabel('계정 발급 방식').selectOption('existing')
   await page.getByRole('button', { name: '초대 링크 만들기' }).click()
   const link = await page.getByLabel('초대 링크', { exact: true }).inputValue()
   await page.getByRole('row').filter({ hasText: 'cancelled.owner' }).getByRole('button', { name: '초대 취소', exact: true }).click()

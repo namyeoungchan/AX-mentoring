@@ -247,6 +247,7 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
   }
   function invite(id, body, user) {
     requireRole(id, user, ['admin'])
+    if (metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스에는 초대할 수 없습니다.')
     const input = z.object({ username: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_.-]{3,31}$/), role: z.enum(['admin', 'instructor', 'student']), mentorType: z.enum(['main', 'group']).default('main'), teamIds: z.array(z.string()).max(50).default([]) }).strict().parse(body)
     const scope = validateScope(id, { mentorType: input.mentorType, teamIds: input.teamIds })
     if (input.role === 'student') throw new ApiError(422, '수강생은 가입 신청 후 관리자 또는 강사가 승인해야 합니다.')
@@ -254,13 +255,14 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     if (user.role !== 'admin' && db.prepare("SELECT 1 FROM lms_workspace_invitations WHERE workspace_id=? AND username=? AND role='admin' AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>?").get(id, input.username, now())) throw new ApiError(403, '관리자 초대는 전체 관리자만 변경할 수 있습니다.')
     if (db.prepare('SELECT 1 FROM lms_workspace_members m JOIN lms_users u ON u.id=m.user_id WHERE m.workspace_id=? AND u.username=?').get(id, input.username)) throw new ApiError(409, '이미 참여한 구성원입니다.')
     const token = randomBytes(32).toString('hex'), invitationId = randomUUID(), expiresAt = now() + 7 * 24 * 3600000
-    db.exec('BEGIN IMMEDIATE')
+    // May be nested inside account issuance: both records must commit together.
+    db.exec('SAVEPOINT workspace_invitation')
     try {
       db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE workspace_id=? AND username=? AND accepted_at IS NULL AND revoked_at IS NULL').run(now(), id, input.username)
       db.prepare('INSERT INTO lms_workspace_invitations VALUES(?,?,?,?,?,?,?,?,NULL,NULL)').run(invitationId, id, digest(token), input.username, input.role, user.id, now(), expiresAt)
       if (input.role === 'instructor') putScope(id, invitationId, scope)
-      db.exec('COMMIT')
-    } catch (error) { db.exec('ROLLBACK'); throw error }
+      db.exec('RELEASE workspace_invitation')
+    } catch (error) { db.exec('ROLLBACK TO workspace_invitation; RELEASE workspace_invitation'); throw error }
     return { id: invitationId, token, expiresAt, username: input.username, role: input.role, workspaceName: metadata(id).name }
   }
   function pendingInvitation(token) {

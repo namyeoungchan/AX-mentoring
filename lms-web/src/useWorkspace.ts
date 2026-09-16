@@ -31,6 +31,12 @@ export function useWorkspace() {
     try {
       const demo = demoMode ? readDemoWorkspaces() : null
       const user: Account | null = demo ? null : (await request('auth/me', { signal })).user
+      if (user?.mustChangePassword) {
+        if (version !== generation.current) return
+        setAccount(user); setAuthRequired(false); setError(''); setWorkspaces([]); setData(emptyWorkspace); setLearning(null)
+        active.current = ''; setActiveId('')
+        return
+      }
       const list: WorkspaceMetadata[] = demo ? demo.workspaces : (await request('workspaces?includeArchived=true', { signal })).workspaces
       const preferred = requestedId || preferredWorkspace() || active.current
       const id = list.some(w => w.id === preferred) ? preferred : list.find(w => w.archivedAt == null)?.id || ''
