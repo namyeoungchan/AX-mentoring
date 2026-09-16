@@ -69,7 +69,7 @@ app.post('/api/auth/setup', async (req, res) => {
   setLogin(res.status(201), await auth.setup(req.body))
 })
 app.post('/api/auth/student/register', async (req, res) => {
-  auth.limit('registration-ip', req.ip, 10, 3600000)
+  auth.limit('registration-ip', req.ip, 100, 3600000)
   const { workspaceId, ...input } = req.body || {}
   workspaces.metadata(typeof workspaceId === 'string' ? workspaceId : '')
   const result = await auth.signup(input, user => admissions.apply(workspaceId, user))
@@ -80,7 +80,7 @@ app.post('/api/invitations/preview', (req, res) => {
   res.json(workspaces.previewInvitation(req.body?.token))
 })
 app.post('/api/auth/register', async (req, res) => {
-  auth.limit('registration-ip', req.ip, 10, 3600000)
+  auth.limit('registration-ip', req.ip, 100, 3600000)
   const { invitationToken, ...input } = req.body || {}
   if (invitationToken) {
     const check = username => {
@@ -107,7 +107,7 @@ app.post('/api/integrations/discord/:operation', (req, res) => {
   return res.status(404).json({ error: '지원하지 않는 인증 작업입니다.' })
 })
 app.post('/api/auth/login', async (req, res) => {
-  auth.limit('member-ip', req.ip, 30, 15 * 60000)
+  auth.limit('member-ip', req.ip, 120, 15 * 60000)
   setLogin(res, await auth.login(req.body))
 })
 app.post('/api/integrations/discord/provision/:operation', (req, res) => {
