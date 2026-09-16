@@ -572,3 +572,64 @@ tbody tr:last-child td { border-bottom: none; }
 .mentor-panel > p { margin: 12px 0; line-height: 1.7; }
 .student-main > .tabs { flex-wrap: wrap; justify-content: flex-start; }
 .student-main > .tabs button { white-space: nowrap; }
+
+/* Membership forms keep their own spacing, including nested team controls. */
+.membership-invite > .card-heading { padding: 24px 24px 0; margin-bottom: 24px; }
+.membership-invite > .card-heading p { color: #6b786e; font-size: 12px; line-height: 1.7; }
+.membership-invite > .membership-form { padding: 0 24px 24px; }
+.membership-form > fieldset { display: grid; gap: 22px; min-width: 0; border: 0; padding: 0; margin: 0; }
+.membership-form .form-row { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; gap: 20px; }
+.membership-form label { min-width: 0; margin: 0; color: #42574a; font-size: 13px; gap: 9px; }
+.membership-form input, .membership-form select { min-width: 0; min-height: 44px; border-radius: 8px; font-size: 14px; color: #283e31; }
+.membership-form .membership-field-hint { color: #707d73; font-size: 11px; font-weight: 400; line-height: 1.6; }
+.membership-form .mentor-team-picker { display: block; min-width: 0; margin: 0; padding: 0; border: 0; }
+.membership-form .mentor-team-picker legend { font-size: 13px; font-weight: 550; color: #42574a; margin-bottom: 10px; }
+.membership-form .mentor-team-picker legend span { margin-left: 8px; color: #707d73; font-size: 11px; font-weight: 400; }
+.mentor-team-options { display: flex; flex-wrap: wrap; gap: 10px; padding: 14px; border: 1px solid #e5ebe3; background: #f7f9f5; border-radius: 10px; }
+.membership-form .mentor-team-options label { display: flex; flex-direction: row; align-items: center; gap: 9px; min-height: 44px; max-width: 100%; padding: 10px 14px; border: 1px solid #dce4da; border-radius: 8px; background: white; cursor: pointer; overflow-wrap: anywhere; }
+.membership-form .mentor-team-options label:has(input:checked) { border-color: #749883; background: #edf4ee; color: #294e39; }
+.membership-form .mentor-team-options input { width: 16px; height: 16px; min-height: 0; padding: 0; margin: 0; flex: 0 0 16px; accent-color: #315a43; }
+.mentor-team-options > p { font-size: 12px; color: #707d73; line-height: 1.7; }
+.membership-actions { display: flex; gap: 20px; justify-content: space-between; align-items: center; padding-top: 20px; border-top: 1px solid #edf0e9; }
+.membership-actions p { font-size: 12px; line-height: 1.7; color: #6b786e; }
+.membership-actions .button { flex-shrink: 0; min-height: 44px; font-size: 13px; }
+.membership-invite .invitation-link { padding: 18px; background: #f4f8f1; border: 1px solid #dce7d5; border-radius: 10px; }
+.membership-invite .invitation-link label { min-width: 0; flex-basis: 240px; font-size: 12px; color: #42574a; }
+.membership-invite .invitation-link input { min-width: 0; font-size: 13px; background: white; }
+.membership-invite .invitation-link .button { min-height: 44px; }
+.membership-remove-modal { width: 480px; }
+.membership-removal { padding: 24px 28px 28px; }
+.membership-removal-person { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid #e7eae5; border-radius: 10px; background: #f8f9f6; }
+.membership-removal-icon { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; background: #f8ebe8; color: #a24b40; }
+.membership-removal-person > div { min-width: 0; }
+.membership-removal-person strong { display: block; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.membership-removal-person > div > span { display: block; margin-top: 4px; font-size: 12px; color: #6d796f; overflow-wrap: anywhere; }
+.membership-removal-question { margin: 22px 0 12px; font-size: 14px; font-weight: 600; line-height: 1.7; }
+.membership-removal-effects { font-size: 13px; color: #637067; line-height: 1.9; }
+ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
+.membership-removal-effects li + li { margin-top: 4px; }
+.membership-removal-preserved { display: flex; align-items: flex-start; gap: 9px; margin-top: 18px; padding: 14px; background: #f0f5ef; border-radius: 8px; color: #42604a; }
+.membership-removal-preserved svg { margin-top: 2px; }
+.membership-removal-preserved p { font-size: 12px; line-height: 1.8; }
+.membership-removal .modal-actions { border-top: 1px solid #edf0e9; padding-top: 20px; margin-top: 24px; }
+.membership-removal .button { min-height: 44px; font-size: 12px; }
+.membership-removal .button.danger { background: #ad493f; border-color: #ad493f; color: white; }
+.membership-removal .button.danger:hover:not(:disabled) { background: #923c34; border-color: #923c34; }
+.membership-removal .button.danger:focus-visible { outline-color: #d79086; }
+.membership-removal .error-note { margin: 0 0 16px; }
+.membership-spinner { animation: membership-spin 1s linear infinite; }
+@keyframes membership-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .membership-spinner { animation: none; } }
+@media (max-width: 600px) {
+  .membership-invite > .card-heading { padding: 20px 18px 0; margin-bottom: 22px; }
+  .membership-invite > .membership-form { padding: 0 18px 20px; }
+  .membership-form .form-row { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .membership-form input, .membership-form select { font-size: 16px; }
+  .membership-actions { align-items: stretch; flex-direction: column; gap: 14px; }
+  .membership-actions .button { width: 100%; }
+  .membership-invite .invitation-link { margin: 0 18px 20px; padding: 14px; }
+  .membership-invite .invitation-link .button { width: 100%; }
+  .membership-removal { padding: 20px; }
+  .membership-removal .modal-actions { flex-direction: column; gap: 10px; }
+  .membership-removal .modal-actions .button { width: 100%; }
+}

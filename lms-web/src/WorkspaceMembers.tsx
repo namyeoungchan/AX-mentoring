@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Copy, Plus, RefreshCw } from 'lucide-react'
+import { Copy, LoaderCircle, Plus, RefreshCw, ShieldCheck, UserMinus } from 'lucide-react'
 import { workspaceRequest, demoMode } from './api'
 import { Badge, CardHeading, ModalShell } from './components'
 import { roleNames, type WorkspaceRole } from './demoWorkspaces'
@@ -66,9 +66,9 @@ export default function WorkspaceMembers({ workspaceId, platformAdmin }: { works
     {error && !editing && !removing && <p className="inline-note error-note" role="alert">{error}</p>}
     {notice && <p className="inline-note" role="status">{notice}</p>}
     <section className="panel membership-invite"><CardHeading title="구성원 초대" subtitle={platformAdmin ? '워크스페이스 관리자와 멘토를 초대하고, 참여 권한과 담당 조를 관리합니다.' : '멘토 초대와 정보 수정, 담당 조 변경을 이 화면에서 관리합니다.'} />
-      <form className="modal-form" onSubmit={invite}><fieldset disabled={busy || demoMode}>
-        <div className="form-row"><label>초대할 아이디<input name="username" required pattern="[a-z0-9][a-z0-9_.-]{3,31}" placeholder="가입할 아이디 또는 기존 아이디" maxLength={32} /></label><RoleField value={inviteRole} platformAdmin={platformAdmin} change={setInviteRole} /></div>
-        {inviteRole === 'instructor' && <ScopeFields scope={scope} teams={state.teams} change={setScope} />}<button className="button primary" type="submit"><Plus size={16} />초대 링크 만들기</button>
+      <form className="modal-form membership-form" onSubmit={invite}><fieldset disabled={busy || demoMode}>
+        <div className="form-row"><label>초대할 아이디<input name="username" required pattern="[a-z0-9][a-z0-9_.-]{3,31}" placeholder="예: mentor.kim" maxLength={32} aria-describedby="invite-username-hint" /><small id="invite-username-hint" className="membership-field-hint">영문 소문자·숫자와 _ . - 조합, 4~32자</small></label><RoleField value={inviteRole} platformAdmin={platformAdmin} change={setInviteRole} /></div>
+        {inviteRole === 'instructor' && <ScopeFields scope={scope} teams={state.teams} change={setScope} />}<div className="membership-actions"><p>초대 링크는 발급 후 7일 동안 한 번 사용할 수 있습니다.</p><button className="button primary" type="submit">{busy ? <LoaderCircle size={16} className="membership-spinner" /> : <Plus size={16} />}{busy ? '링크 만드는 중…' : '초대 링크 만들기'}</button></div>
       </fieldset></form>
       {link && <div className="invitation-link" role="status"><label>초대 링크<input readOnly value={link} onFocus={e => e.target.select()} /></label><button className="button secondary" onClick={async () => { try { await navigator.clipboard.writeText(link); setCopied(true) } catch { setError('초대 링크를 선택해서 복사하세요.') } }}><Copy size={15} />{copied ? '복사됨' : '링크 복사'}</button><p>7일 동안 한 번 사용할 수 있습니다. 초대할 사람에게 링크를 전달하세요.</p></div>}
     </section>
@@ -82,7 +82,7 @@ export default function WorkspaceMembers({ workspaceId, platformAdmin }: { works
       <td>{i.username}</td><td>{roleLabel(i)}{teamsLabel(i) && <p>{teamsLabel(i)}</p>}</td><td>{new Date(i.expiresAt).toLocaleDateString('ko-KR')}</td><td>{i.acceptedAt ? '수락 완료' : i.revokedAt ? '취소됨' : i.expiresAt <= clock ? '만료됨' : '대기 중'}</td>
       <td>{!i.acceptedAt && !i.revokedAt && i.expiresAt > clock && canManage(i.role) && <div className="flex gap-2"><button className="button secondary compact" disabled={busy} onClick={() => { setError(''); setEditing({ kind: 'invitation', value: { ...i } }) }}>초대 수정</button><button className="button secondary compact" disabled={busy} onClick={() => { setError(''); setRemoving({ kind: 'invitation', value: i }) }}>초대 취소</button></div>}</td>
     </tr>)}</tbody></table></div>{!state.invitations.length && <p className="calendar-empty">발급한 초대가 없습니다.</p>}</section>
-    {editing && <ModalShell title={editing.kind === 'member' ? '구성원 수정' : '초대 수정'} close={() => { if (!busy) setEditing(null) }}><form className="modal-form" onSubmit={save}>
+    {editing && <ModalShell title={editing.kind === 'member' ? '구성원 수정' : '초대 수정'} busy={busy} close={() => { if (!busy) setEditing(null) }}><form className="modal-form membership-form" onSubmit={save}>
       {error && <p role="alert" className="inline-note error-note">{error}</p>}
       <p>{editing.value.username}{editing.kind === 'member' ? ' · 이 워크스페이스에서 사용할 정보입니다.' : ' · 아이디를 바꾸려면 초대를 취소하고 새로 발급하세요.'}</p>
       <fieldset disabled={busy}>
@@ -92,11 +92,14 @@ export default function WorkspaceMembers({ workspaceId, platformAdmin }: { works
         <div className="modal-actions"><button className="button secondary" type="button" onClick={() => setEditing(null)}>취소</button><button className="button primary">저장</button></div>
       </fieldset><p>LMS 담당 범위는 즉시 적용되며, Discord 역할은 봇의 다음 동기화 때 갱신됩니다.</p>
     </form></ModalShell>}
-    {removing && <ModalShell title={removing.kind === 'member' ? '구성원 삭제' : '초대 취소'} close={() => { if (!busy) setRemoving(null) }}>
-      {error && <p role="alert" className="inline-note error-note">{error}</p>}
-      <p><strong>{removing.value.username}</strong>{removing.kind === 'member' ? ' 님을 이 워크스페이스에서 제외합니다.' : ' 님의 초대 링크를 취소합니다.'}</p>
-      {removing.kind === 'member' ? <p>LMS 접근과 신규 멘토링 예약을 중단하고, 봇의 다음 동기화 때 Discord 역할을 회수합니다. 계정, 다른 워크스페이스와 기존 예약·멘토링 이력은 유지됩니다.</p> : <p>취소한 링크로는 가입할 수 없습니다. 필요하면 새 초대를 발급하세요.</p>}
-      <div className="modal-actions"><button className="button secondary" disabled={busy} onClick={() => setRemoving(null)}>돌아가기</button><button className="button primary" disabled={busy} onClick={() => void remove()}>{removing.kind === 'member' ? '워크스페이스에서 제외' : '초대 취소 확인'}</button></div>
+    {removing && <ModalShell title={removing.kind === 'member' ? '구성원 삭제' : '초대 취소'} className="membership-remove-modal" busy={busy} close={() => setRemoving(null)}>
+      <div className="membership-removal">
+        {error && <p role="alert" className="inline-note error-note">{error}</p>}
+        <div className="membership-removal-person"><span className="membership-removal-icon"><UserMinus size={21} aria-hidden="true" /></span><div><strong>{removing.kind === 'member' ? removing.value.name : removing.value.username}</strong><span>{removing.kind === 'member' ? `@${removing.value.username} · ${roleNames[removing.value.role]}` : roleNames[removing.value.role]}</span></div></div>
+        <p className="membership-removal-question">{removing.kind === 'member' ? '이 구성원을 워크스페이스에서 제외할까요?' : '이 구성원에게 발급한 초대를 취소할까요?'}</p>
+        {removing.kind === 'member' ? <><ul className="membership-removal-effects"><li>LMS 접근과 신규 멘토링 예약을 중단합니다.</li><li>Discord 역할은 봇의 다음 동기화 때 회수합니다.</li></ul><div className="membership-removal-preserved"><ShieldCheck size={18} aria-hidden="true" /><p>개인 계정과 다른 워크스페이스의 권한,<br />기존 예약·멘토링 이력은 그대로 유지됩니다.</p></div></> : <p className="membership-removal-effects">기존 초대 링크는 더 이상 사용할 수 없습니다. 다시 초대하려면 새 링크를 발급해 주세요.</p>}
+        <div className="modal-actions"><button className="button secondary" data-modal-autofocus disabled={busy} onClick={() => setRemoving(null)}>돌아가기</button><button className="button danger" disabled={busy} onClick={() => void remove()}>{busy && <LoaderCircle size={16} className="membership-spinner" />}{busy ? '처리 중…' : removing.kind === 'member' ? '워크스페이스에서 제외' : '초대 취소 확인'}</button></div>
+      </div>
     </ModalShell>}
   </>
 }
@@ -104,5 +107,5 @@ function RoleField({ value, platformAdmin, change }: { value: string; platformAd
   return <label>참여 권한<select value={value} onChange={e => change(e.target.value)}>{platformAdmin && <option value="admin">워크스페이스 관리자</option>}<option value="instructor">멘토</option></select></label>
 }
 function ScopeFields({ scope, teams, change }: { scope: Scope; teams: Team[]; change: (scope: Scope) => void }) {
-  return <><label>멘토 구분<select value={scope.mentorType} onChange={e => change({ mentorType: e.target.value as Scope['mentorType'], teamIds: [] })}><option value="main">메인 강사 · 전체 조</option><option value="group">조 담당 멘토</option></select></label>{scope.mentorType === 'group' && <fieldset className="mentor-team-picker"><legend>담당 조 (복수 선택 가능)</legend>{teams.map(team => <label key={team.id}><input type="checkbox" checked={scope.teamIds.includes(team.id)} onChange={e => change({ ...scope, teamIds: e.target.checked ? [...scope.teamIds, team.id] : scope.teamIds.filter(id => id !== team.id) })} />{team.name}</label>)}{!teams.length && <p>Discord 구축 화면에서 조를 먼저 설정하세요.</p>}</fieldset>}</>
+  return <><label>멘토 구분<select value={scope.mentorType} onChange={e => change({ mentorType: e.target.value as Scope['mentorType'], teamIds: [] })}><option value="main">메인 강사 · 전체 조</option><option value="group">조 담당 멘토</option></select></label>{scope.mentorType === 'group' && <fieldset className="mentor-team-picker"><legend>담당 조 <span>복수 선택 가능</span></legend><div className="mentor-team-options">{teams.map(team => <label key={team.id}><input type="checkbox" checked={scope.teamIds.includes(team.id)} onChange={e => change({ ...scope, teamIds: e.target.checked ? [...scope.teamIds, team.id] : scope.teamIds.filter(id => id !== team.id) })} />{team.name}</label>)}{!teams.length && <p>Discord 구축 화면에서 조를 먼저 설정하세요.</p>}</div></fieldset>}</>
 }
