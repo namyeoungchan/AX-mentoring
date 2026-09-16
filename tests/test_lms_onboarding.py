@@ -114,9 +114,16 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(private[everyone].view_channel)
         self.assertTrue(private[roles['team:t1']].view_channel)
         self.assertTrue(private[roles['admin']].view_channel)
-        self.assertTrue(private[roles['instructor']].view_channel)
+        self.assertNotIn(roles['instructor'], private)
         self.assertNotIn(roles['student'], private)
         self.assertNotIn(roles['pending'], private)
+
+    async def test_mentor_reassignment_replaces_team_access_without_granting_admin(self):
+        old = module.desired_roles({"role": "instructor", "teamIds": ["t1"]}, False)
+        new = module.desired_roles({"role": "instructor", "teamIds": ["t2", "t3"]}, False)
+        self.assertEqual(old, {"instructor", "team:t1"})
+        self.assertEqual(new, {"instructor", "team:t2", "team:t3"})
+        self.assertNotIn("admin", new)
 
     async def test_dm_blocked_uses_the_onboarding_channel_and_does_not_repeat(self):
         roles = {1: Role(1)}

@@ -49,8 +49,11 @@ export function createOnboarding(db, workspaces, provision, { now = Date.now } =
     const data = workspaces.snapshot(id)
     const teams = data.teams.filter(t => cfg.courseIds.includes(t.courseId)).map(t => ({ id: t.id, name: t.name, courseId: t.courseId }))
     if (teams.length > 50) return { guildId, enabled: true, error: 'team_limit', revision: digest({ ...cfg, teamCount: teams.length }) }
-    const memberships = db.prepare('SELECT u.discord_id AS discordId,u.name,m.role FROM lms_workspace_members m JOIN lms_users u ON u.id=m.user_id WHERE m.workspace_id=? AND u.verified_at IS NOT NULL').all(id)
-    const participants = memberships.filter(m => m.role !== 'student').map(m => ({ ...m, teamId: '' }))
+    const memberships = db.prepare('SELECT u.id AS userId,u.discord_id AS discordId,u.name,m.role FROM lms_workspace_members m JOIN lms_users u ON u.id=m.user_id WHERE m.workspace_id=? AND u.verified_at IS NOT NULL').all(id).filter(m => /^\d{17,20}$/.test(m.discordId))
+    const participants = memberships.filter(m => m.role !== 'student').map(({ userId, ...m }) => {
+      const scope = workspaces.mentorScope(id, userId)
+      return { ...m, teamId: '', ...scope, teamIds: (scope.mentorType === 'main' ? teams.map(t => t.id) : scope.teamIds).filter(teamId => teams.some(t => t.id === teamId)) }
+    })
     for (const learner of data.learners.filter(l => cfg.courseIds.includes(l.courseId) && l.discordId && l.status === '정상')) {
       const member = memberships.find(m => m.discordId === learner.discordId)
       if (!member || participants.some(p => p.discordId === learner.discordId)) continue

@@ -24,7 +24,7 @@ def desired_roles(participant, intro_done):
     if not participant:
         return {"pending"}
     if participant["role"] in {"admin", "instructor"}:
-        return {participant["role"]}
+        return {participant["role"]} | {f"team:{team_id}" for team_id in participant.get("teamIds", [])}
     if not intro_done:
         return {"pending"}
     return {"student", "complete"} | ({f"team:{participant['teamId']}"} if participant.get("teamId") else set())
@@ -221,7 +221,7 @@ class LMSOnboarding(commands.Cog):
         for team in cfg["teams"]:
             team_role = await self.role(guild, f"team:{team['id']}", f"LMS 팀 · {team['name']}")
             allowed = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, connect=True, speak=True)
-            overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False), guild.me: allowed, roles["admin"]: allowed, roles["instructor"]: allowed, team_role: allowed}
+            overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False), guild.me: allowed, roles["admin"]: allowed, team_role: allowed}
             category = await self.channel(guild, f"team-category:{team['id']}", f"팀 · {team['name']}", "category", overwrites)
             chat = await self.channel(guild, f"team-text:{team['id']}", "팀-대화", "text", overwrites, category)
             await self.channel(guild, f"team-voice:{team['id']}", "팀 회의", "voice", overwrites, category)

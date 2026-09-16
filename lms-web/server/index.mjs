@@ -3,7 +3,7 @@ import { config } from 'dotenv'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ZodError } from 'zod'
-import { createStore } from './store.mjs'
+import { ApiError, createStore } from './store.mjs'
 import { createRenderSync } from './render-sync.mjs'
 import { createAuth } from './auth.mjs'
 import { studentLearning } from './student.mjs'
@@ -13,6 +13,7 @@ import { createAdmissions } from './admissions.mjs'
 import { configuredOrigins } from './origins.mjs'
 import { createOnboarding } from './onboarding.mjs'
 import { createBotStorage } from './bot-storage.mjs'
+import { createStaffFlow } from './staff-flow.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -30,6 +31,7 @@ const provision = createProvision(store.db, { token: process.env.LEARNINGOPS_PRO
 const workspaces = createWorkspaces({ store, dbPath, provision, syncToken: process.env.LEARNINGOPS_SYNC_TOKEN || '', sourceId: process.env.LEARNINGOPS_SOURCE_ID || 'asan-ax', authGuildId: process.env.LEARNINGOPS_AUTH_GUILD_ID || '' })
 const admissions = createAdmissions(store.db, workspaces, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
 const onboarding = createOnboarding(store.db, workspaces, provision)
+const staff = createStaffFlow(store.db, workspaces, onboarding, admissions)
 const botStorage = createBotStorage(store.db, workspaces, onboarding)
 const app = express()
 app.disable('x-powered-by')
@@ -80,8 +82,14 @@ app.post('/api/invitations/preview', (req, res) => {
 app.post('/api/auth/register', async (req, res) => {
   auth.limit('registration-ip', req.ip, 10, 3600000)
   const { invitationToken, ...input } = req.body || {}
-  const guildId = invitationToken ? workspaces.invitationGuild(invitationToken, input.username) : process.env.LEARNINGOPS_AUTH_GUILD_ID || ''
-  res.status(201).json(await auth.register(input, guildId))
+  if (invitationToken) {
+    const check = username => {
+      if (workspaces.previewInvitation(invitationToken).username !== (typeof username === 'string' ? username.trim().toLowerCase() : '')) throw new ApiError(403, '초대받은 아이디로 가입하세요.')
+    }
+    check(input.username)
+    return setLogin(res.status(201), await auth.signup(input, user => check(user.username)))
+  }
+  res.status(201).json(await auth.register(input, process.env.LEARNINGOPS_AUTH_GUILD_ID || ''))
 })
 app.post('/api/auth/registration/status', (req, res) => {
   auth.limit('status-ip', req.ip, 120, 60000)
@@ -95,7 +103,7 @@ app.post('/api/integrations/discord/:operation', (req, res) => {
   if (!auth.botAuthorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
   auth.limit('discord-verify', String(req.body?.discordId || ''), 10, 60000)
   if (req.params.operation === 'preview') return res.json(auth.preview(req.body))
-  if (req.params.operation === 'verify') { const result = auth.verify(req.body); admissions.activate(req.body.discordId, req.body.guildId); return res.json(result) }
+  if (req.params.operation === 'verify') { const result = auth.verify(req.body); admissions.activate(req.body.discordId, req.body.guildId); staff.syncDiscord(req.body.discordId, req.body.guildId); return res.json(result) }
   return res.status(404).json({ error: '지원하지 않는 인증 작업입니다.' })
 })
 app.post('/api/auth/login', async (req, res) => {
@@ -183,15 +191,27 @@ app.get('/api/workspaces/:workspaceId/me/learning', (req, res) => {
 })
 app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
   workspaces.requireRole(req.workspaceId, req.account, ['instructor'])
-  res.json(workspaces.teaching(req.workspaceId))
+  res.json(workspaces.teaching(req.workspaceId, req.account))
 })
 app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admissions.reviewList(req.workspaceId, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res.json(admissions.review(req.workspaceId, req.params.id, req.body, req.account)))
 app.patch('/api/workspaces/:workspaceId/teaching', (req, res) => res.json(workspaces.teach(req.workspaceId, req.body, req.account)))
+app.get('/api/workspaces/:workspaceId/staff/onboarding', (req, res) => res.json(staff.read(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/staff/profile', (req, res) => res.json(staff.profile(req.workspaceId, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/staff/invite', (req, res) => { auth.limit('staff-invite', req.account.id, 5, 3600000); res.json(staff.invite(req.workspaceId, req.account)) })
+app.post('/api/workspaces/:workspaceId/staff/step', (req, res) => res.json(staff.step(req.workspaceId, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/staff/verification', (req, res) => {
+  const state = staff.read(req.workspaceId, req.account)
+  if (!state.profile || !state.guildId) throw new ApiError(409, '기본 정보와 Discord 서버 연결을 먼저 완료하세요.')
+  res.json(auth.issueVerification(req.account, state.guildId))
+})
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
+app.get('/api/workspaces/:workspaceId/discord/groups', (req, res) => res.json(staff.groups(req.workspaceId)))
+app.post('/api/workspaces/:workspaceId/discord/groups', (req, res) => res.json(staff.setupGroups(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/archive', (req, res) => res.json(workspaces.setArchived(req.workspaceId, true, req.account)))
 app.post('/api/workspaces/:workspaceId/restore', (req, res) => res.json(workspaces.setArchived(req.workspaceId, false, req.account)))
 app.get('/api/workspaces/:workspaceId/members', (req, res) => res.json(workspaces.members(req.workspaceId, req.account)))
+app.patch('/api/workspaces/:workspaceId/members/:memberId/assignment', (req, res) => res.json(workspaces.assignMentor(req.workspaceId, req.params.memberId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/bot-data', (req, res) => res.json(botStorage.state(req.workspaceId)))
 app.get('/api/workspaces/:workspaceId/bot-data/table/:table', (req, res) => res.json(botStorage.table(req.workspaceId, req.params.table, req.query.page)))
 app.get('/api/workspaces/:workspaceId/bot-data/archive/:checksum', (req, res) => res.json({ archive: botStorage.archive(req.workspaceId, req.params.checksum) }))
@@ -209,6 +229,7 @@ app.get('/api/workspaces/:workspaceId/discord/provision', (req, res) => res.json
 app.post('/api/workspaces/:workspaceId/discord/provision/template', (req, res) => res.json(workspaces.saveTemplate(req.workspaceId, req.body)))
 app.post('/api/workspaces/:workspaceId/discord/provision/servers', (req, res) => {
   const result = workspaces.addServer(req.workspaceId, req.body)
+  staff.enableTeams(req.workspaceId)
   res.status(result.created ? 201 : 200).json(result)
 })
 app.post('/api/workspaces/:workspaceId/discord/provision/plans', (req, res) => res.json(workspaces.savePlan(req.workspaceId, req.body)))

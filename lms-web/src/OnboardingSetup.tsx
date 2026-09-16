@@ -65,7 +65,7 @@ export default function OnboardingSetup({ workspaceId }: { workspaceId: string }
         <div className="flex gap-2"><a className="button secondary" href="#teams">팀 관리</a><a className="button secondary" href="#learners">수강생 배정</a></div>
         <div className="table-scroll"><table><thead><tr><th>팀</th><th>배정 인원</th></tr></thead><tbody>{teams.map(t => <tr key={t.id}><td>{t.name}</td><td>{t.members}명</td></tr>)}</tbody></table></div>
         <h3>참여 순서</h3><ol><li>서버 참여 → 안내 DM, 대기 역할 부여</li><li>DM이 막혀 있으면 시작 안내 채널에서 진행</li><li>웹 가입 승인·Discord 인증·과정 등록 확인</li><li>자기소개 완료 → 수강생·완료·배정 팀 역할 부여</li></ol>
-        <p>팀별 대화·음성 채널은 팀원과 해당 워크스페이스 관리자·강사에게 공개됩니다. 팀 변경 시 이전 팀 역할을 회수합니다.</p>
+        <p>팀별 대화·음성 채널은 팀원·워크스페이스 관리자·메인 강사·해당 조 담당 멘토에게 공개됩니다. 팀 변경 시 이전 팀 역할을 회수합니다.</p>
         <p>자기소개 완료: {selected?.progress.filter(p => p.introDone).length || 0}명</p>
         <p>봇에 역할 관리·채널 관리·메시지 고정 권한이 필요합니다. 봇 역할을 LMS 역할보다 위에 두고 Server Members Intent를 켜 주세요.</p>
       </aside>

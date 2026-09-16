@@ -12,6 +12,7 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     invite_state TEXT NOT NULL DEFAULT 'none', invite_code TEXT, invite_expires INTEGER, claim_hash TEXT, lease_until INTEGER,
     UNIQUE(workspace_id,user_id)
   );`)
+  if (!db.prepare('PRAGMA table_info(lms_admissions)').all().some(row => row.name === 'purpose')) db.exec("ALTER TABLE lms_admissions ADD COLUMN purpose TEXT NOT NULL DEFAULT 'student'")
   function catalogue() { return db.prepare('SELECT id,name FROM lms_workspaces WHERE archived_at IS NULL ORDER BY created_at,rowid').all() }
   function apply(id, user) {
     if (workspaces.metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스에는 새 가입을 신청할 수 없습니다.')
@@ -28,9 +29,18 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
       return { ...result, inviteUrl: row.state === 'approved' && inviteCode && row.inviteExpires > now() ? `https://discord.gg/${inviteCode}` : null }
     })
   }
+  function staffInvite(id, user) {
+    workspaces.requireRole(id, user, ['admin', 'instructor'])
+    const guilds = workspaces.metadata(id).guildIds
+    if (guilds.length !== 1) throw new ApiError(409, '관리자가 Discord 서버를 먼저 연결해야 합니다.')
+    const existing = db.prepare('SELECT * FROM lms_admissions WHERE workspace_id=? AND user_id=?').get(id, user.id)
+    if (existing && (['queued', 'running'].includes(existing.invite_state) || (existing.state === 'approved' && existing.invite_code && existing.invite_expires > now()))) return
+    db.prepare(`INSERT INTO lms_admissions(id,workspace_id,user_id,state,created_at,reviewed_by,reviewed_at,guild_id,invite_state,purpose)
+      VALUES(?,?,?,'approved',?,?,?,?, 'queued','staff') ON CONFLICT(workspace_id,user_id) DO UPDATE SET state='approved',purpose='staff',guild_id=excluded.guild_id,invite_state='queued',invite_code=NULL,invite_expires=NULL,claim_hash=NULL,lease_until=NULL`).run(randomUUID(), id, user.id, now(), user.id, now(), guilds[0])
+  }
   function reviewList(id, user) {
     workspaces.requireRole(id, user, ['admin', 'instructor'])
-    return { guildIds: workspaces.metadata(id).guildIds, applications: db.prepare('SELECT a.id,u.name,u.username,a.state,a.created_at AS createdAt,a.reason,a.invite_state AS inviteState,a.guild_id AS guildId FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? ORDER BY a.created_at DESC').all(id) }
+    return { guildIds: workspaces.metadata(id).guildIds, applications: db.prepare("SELECT a.id,u.name,u.username,a.state,a.created_at AS createdAt,a.reason,a.invite_state AS inviteState,a.guild_id AS guildId FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.purpose='student' ORDER BY a.created_at DESC").all(id) }
   }
   function review(id, applicationId, body, user) {
     workspaces.requireRole(id, user, ['admin', 'instructor'])
@@ -61,7 +71,7 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     db.exec('BEGIN IMMEDIATE')
     try {
       for (const row of db.prepare("SELECT * FROM lms_admissions WHERE user_id=? AND guild_id=? AND state='approved'").all(user.id, guildId)) {
-        db.prepare("INSERT OR IGNORE INTO lms_workspace_members VALUES(?,?,'student',?)").run(row.workspace_id, user.id, now())
+        if (row.purpose === 'student') db.prepare("INSERT OR IGNORE INTO lms_workspace_members VALUES(?,?,'student',?)").run(row.workspace_id, user.id, now())
         db.prepare("UPDATE lms_admissions SET state='joined',invite_code=NULL,invite_expires=NULL WHERE id=?").run(row.id)
       }
       db.exec('COMMIT')
@@ -93,5 +103,5 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     db.prepare('UPDATE lms_admissions SET invite_state=?,invite_code=?,invite_expires=?,claim_hash=NULL,lease_until=NULL WHERE id=?').run(input.success ? 'ready' : 'failed', input.success ? input.code : null, input.success ? now() + 23 * 3600000 : null, input.id)
     return { ok: true }
   }
-  return { catalogue, apply, own, reviewList, review, approved, renew, activate, authorized, poll, complete }
+  return { catalogue, apply, own, staffInvite, reviewList, review, approved, renew, activate, authorized, poll, complete }
 }

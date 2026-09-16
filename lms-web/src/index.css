@@ -559,3 +559,16 @@ tbody tr:last-child td { border-bottom: none; }
 .workspace-tabs button { flex: 1; padding: 9px 4px; border-radius: 8px; font-size: 11px; }
 .workspace-tabs button[aria-pressed="true"] { background: #edf3eb; color: #315b36; font-weight: 650; }
 .workspace-archive-notice { margin: 9px 3px 0; font-size: 11px; color: #677567; line-height: 1.6; }
+
+.mentor-guide { padding: 20px 0; border-bottom: 1px solid #e6e9e5; }
+.mentor-guide p { line-height: 1.8; margin: 12px 0; }
+.mentor-team-picker { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px 0; }
+.mentor-team-picker label { display: flex; align-items: center; gap: 8px; }
+.mentor-team-picker input { width: auto; }
+
+.mentor-panel { padding: 20px; }
+.mentor-panel > .card-heading { padding: 0; margin-bottom: 16px; }
+.mentor-panel > .modal-form { padding: 16px 0 0; }
+.mentor-panel > p { margin: 12px 0; line-height: 1.7; }
+.student-main > .tabs { flex-wrap: wrap; justify-content: flex-start; }
+.student-main > .tabs button { white-space: nowrap; }
