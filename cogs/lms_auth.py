@@ -15,7 +15,7 @@ import config
 log = logging.getLogger("asanAX.lms_auth")
 
 MESSAGES = {
-    200: "LMS 계정 인증이 완료됐습니다.",
+    200: "이 워크스페이스의 LMS 인증이 완료됐습니다.",
     403: "연결된 Discord 계정과 인증을 진행하는 서버를 확인해 주세요.",
     409: "이미 가입된 아이디 또는 Discord 계정입니다. 기존 계정으로 로그인해 주세요.",
     410: "사용했거나 만료된 코드입니다. 웹에서 인증 코드를 다시 발급받아 주세요.",
@@ -94,10 +94,10 @@ class LMSAuth(commands.Cog):
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             return 503, None
 
-    @app_commands.command(name="lms인증", description="웹에서 발급받은 코드로 본인의 LMS 회원가입을 인증합니다.")
+    @app_commands.command(name="lms인증", description="웹에서 발급받은 코드로 이 워크스페이스의 LMS 계정을 인증합니다.")
     @app_commands.describe(코드="LMS 회원가입 화면에 표시된 본인의 일회용 코드")
     @app_commands.guild_only()
-    @app_commands.checks.cooldown(5, 60, key=lambda interaction: interaction.user.id)
+    @app_commands.checks.cooldown(5, 60, key=lambda interaction: (interaction.guild_id, interaction.user.id))
     async def verify_registration(self, interaction: discord.Interaction, 코드: str):
         await self.begin_verification(interaction, 코드)
 

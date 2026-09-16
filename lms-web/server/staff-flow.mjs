@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { ApiError } from './store.mjs'
+import { workspaceVerified } from './workspace-verification.mjs'
 
 export const mentorGuides = [
   { id: 'assignments', title: '과제 생성', text: '아래 과제 만들기에서 과정, 제목, 마감일을 입력하세요. 과제는 선택한 과정 전체에 공개됩니다. 생성한 과제는 Discord 과제제출 패널에도 반영되며 수강생이 제출할 수 있습니다.' },
@@ -53,7 +54,7 @@ export function createStaffFlow(db, workspaces, onboarding, admissions, { now = 
   }
   function syncMentor(id, userId) {
     const profile = db.prepare('SELECT p.*,u.discord_id,u.verified_at FROM lms_staff_profiles p JOIN lms_users u ON u.id=p.user_id WHERE p.workspace_id=? AND p.user_id=?').get(id, userId)
-    if (!profile || profile.verified_at === null || !/^\d{17,20}$/.test(profile.discord_id)) return
+    if (!profile || !workspaceVerified(db, id, userId) || !/^\d{17,20}$/.test(profile.discord_id)) return
     if (workspaces.role(id, { id: userId }) !== 'instructor') return
     const target = workspaces.open(id).db
     const mentor = target.prepare('SELECT id FROM mentors WHERE discord_id=?').get(profile.discord_id)
@@ -64,6 +65,7 @@ export function createStaffFlow(db, workspaces, onboarding, admissions, { now = 
   function syncDiscord(discordId, guildId) {
     const rows = db.prepare('SELECT m.workspace_id,m.user_id FROM lms_workspace_members m JOIN lms_users u ON u.id=m.user_id JOIN lms_workspace_guilds g ON g.workspace_id=m.workspace_id WHERE u.discord_id=? AND g.guild_id=?').all(discordId, guildId)
     for (const row of rows) {
+      if (!workspaceVerified(db, row.workspace_id, row.user_id, guildId)) continue
       db.prepare('INSERT INTO lms_staff_connections VALUES(?,?,?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET discord_id=excluded.discord_id').run(row.workspace_id, row.user_id, discordId)
       syncMentor(row.workspace_id, row.user_id)
     }
@@ -72,9 +74,7 @@ export function createStaffFlow(db, workspaces, onboarding, admissions, { now = 
     workspaces.requireRole(id, user, ['admin', 'instructor'])
     const profile = db.prepare('SELECT name,expertise,bio,steps FROM lms_staff_profiles WHERE workspace_id=? AND user_id=?').get(id, user.id)
     const guildId = workspaces.metadata(id).guildIds[0] || ''
-    const identity = db.prepare('SELECT discord_id,verified_at,guild_id FROM lms_users WHERE id=?').get(user.id)
-    const connection = db.prepare('SELECT discord_id FROM lms_staff_connections WHERE workspace_id=? AND user_id=?').get(id, user.id)
-    const verified = Boolean(guildId && identity?.verified_at != null && (identity.guild_id === guildId || connection?.discord_id === identity.discord_id) && /^\d{17,20}$/.test(identity.discord_id))
+    const verified = Boolean(guildId && workspaceVerified(db, id, user.id, guildId))
     const invitation = admissions.own(user).find(a => a.workspaceId === id) || null
     return { profile: profile ? { ...profile, steps: JSON.parse(profile.steps) } : null, guildId, verified, invitation,
       ...workspaces.mentorScope(id, user.id), teams: workspaces.snapshot(id).teams.map(t => ({ id: t.id, name: t.name })), guides: mentorGuides }
@@ -148,6 +148,8 @@ export function createStaffFlow(db, workspaces, onboarding, admissions, { now = 
       db.prepare('DELETE FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').run(id, memberId)
       db.prepare('DELETE FROM lms_mentor_scopes WHERE workspace_id=? AND subject_id=?').run(id, memberId)
       db.prepare('DELETE FROM lms_staff_connections WHERE workspace_id=? AND user_id=?').run(id, memberId)
+      db.prepare('DELETE FROM lms_workspace_verifications WHERE workspace_id=? AND user_id=?').run(id, memberId)
+      db.prepare('DELETE FROM lms_registrations WHERE workspace_id=? AND user_id=?').run(id, memberId)
       db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE workspace_id=? AND username=? AND accepted_at IS NULL AND revoked_at IS NULL').run(now(), id, member.username)
       db.prepare("UPDATE lms_admissions SET state='rejected',invite_state='none',invite_code=NULL,invite_expires=NULL,claim_hash=NULL,lease_until=NULL,reason='워크스페이스 구성원에서 제외되었습니다.' WHERE workspace_id=? AND user_id=? AND purpose='staff'").run(id, memberId)
       db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(user.username, 'member.remove', `${id}/${memberId}`, JSON.stringify(member), null)

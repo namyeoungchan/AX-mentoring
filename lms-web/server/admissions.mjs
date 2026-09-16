@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { ApiError } from './store.mjs'
+import { workspaceVerified } from './workspace-verification.mjs'
 
 const digest = value => createHash('sha256').update(value).digest('hex')
 const snowflake = z.string().regex(/^\d{17,20}$/)
@@ -43,7 +44,7 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
   function own(user) {
     return db.prepare('SELECT a.id,a.workspace_id AS workspaceId,w.name AS workspaceName,a.state,a.created_at AS createdAt,a.reason,a.invite_state AS inviteState,a.invite_code AS inviteCode,a.invite_expires AS inviteExpires FROM lms_admissions a JOIN lms_workspaces w ON w.id=a.workspace_id WHERE a.user_id=? ORDER BY a.created_at DESC').all(user.id).map(row => {
       const { inviteCode, ...result } = row
-      return { ...result, inviteUrl: row.state === 'approved' && inviteCode && row.inviteExpires > now() ? `https://discord.gg/${inviteCode}` : null }
+      return { ...result, discordVerified: workspaceVerified(db, row.workspaceId, user.id), inviteUrl: row.state === 'approved' && inviteCode && row.inviteExpires > now() ? `https://discord.gg/${inviteCode}` : null }
     })
   }
   function staffInvite(id, user) {
@@ -71,7 +72,7 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
       const team = availableTeams(id, user).find(t => t.id === input.teamId)
       if (!team) throw new ApiError(422, '승인할 수강생의 담당 팀을 반드시 선택하세요.')
       const account = db.prepare('SELECT * FROM lms_users WHERE id=?').get(row.user_id)
-      syncLearner(row, team, account, row.state === 'joined')
+      syncLearner(row, team, account, row.state === 'joined' && workspaceVerified(db, id, account.id, input.guildId))
       if (needsTeam) {
         db.prepare('UPDATE lms_admissions SET team_id=?,reviewed_by=?,reviewed_at=? WHERE id=?').run(input.teamId, user.id, now(), row.id)
         return { ok: true }
@@ -113,9 +114,10 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     return { ok: true }
   }
   function activate(discordId, guildId) {
-    const user = db.prepare('SELECT * FROM lms_users WHERE discord_id=? AND guild_id=? AND verified_at IS NOT NULL').get(discordId, guildId)
+    const user = db.prepare('SELECT * FROM lms_users WHERE discord_id=?').get(discordId)
     if (!user) return
     const approvedRows = db.prepare("SELECT * FROM lms_admissions WHERE user_id=? AND guild_id=? AND state='approved'").all(user.id, guildId)
+      .filter(row => workspaceVerified(db, row.workspace_id, user.id, guildId))
     // Materialize the approved assignment before granting membership. This is
     // idempotent if a later registry write fails; no role is granted prematurely.
     for (const row of approvedRows.filter(a => a.purpose === 'student')) {

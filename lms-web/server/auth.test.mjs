@@ -250,13 +250,14 @@ test('student data uses verified identity and hides other students, courses, and
     put('scores', { id: 's1', studentId: 'u1', courseId: 'c1', item: '내 점수', score: 80, maximum: 100 })
     put('scores', { id: 's2', studentId: 'u2', courseId: 'c2', item: '다른 학생 점수', score: 90, maximum: 100 })
     put('attendance', { id: 'a1', studentId: 'u1', courseId: 'c1', date: '2026-09-16', period: 1, status: '출석', reason: '운영자 메모' })
-    const data = studentLearning(db, { discordId: member.discordId })
+    assert.deepEqual(studentLearning(db, { discordId: member.discordId, verified: true }).courses, [])
+    const data = studentLearning(db, { discordId: member.discordId }, true)
     assert.equal(data.courses[0].title, '본인 과정')
     assert.deepEqual(data.scores.map(row => row.item), ['내 점수'])
     for (const privateValue of ['다른 학생', '다른 과정', 'private@example.com', '운영자 메모']) assert.ok(!JSON.stringify(data).includes(privateValue))
-    assert.deepEqual(studentLearning(db, { discordId: '777456789012345678' }).courses, [])
+    assert.deepEqual(studentLearning(db, { discordId: '777456789012345678' }, true).courses, [])
     db.prepare("UPDATE lms_records SET data=json_set(data,'$.status','비활성') WHERE kind='learners' AND id='u1'").run()
-    assert.deepEqual(studentLearning(db, { discordId: member.discordId }).scores, [])
+    assert.deepEqual(studentLearning(db, { discordId: member.discordId }, true).scores, [])
   } finally { db.close(); rmSync(directory, { recursive: true }) }
 })
 

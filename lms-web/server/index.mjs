@@ -168,7 +168,7 @@ app.get('/api/me/learning', (req, res) => {
   if (req.account.role !== 'student') return res.status(403).json({ error: '수강생 계정으로 로그인하세요.' })
   const workspace = workspaces.list(req.account)[0]
   if (!workspace) return res.status(403).json({ error: '소속된 워크스페이스가 없습니다.' })
-  res.json(studentLearning(workspaces.open(workspace.id).db, req.account))
+  res.json(studentLearning(workspaces.open(workspace.id).db, req.account, workspace.discordVerified))
 })
 app.post('/api/logout', (req, res) => {
   auth.logout(sessionToken(req)); res.clearCookie('learningops_session', { path: '/api' }).json({ ok: true })
@@ -185,9 +185,14 @@ app.use('/api/workspaces/:workspaceId', (req, _res, next) => {
   next()
 })
 app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace))
+app.post('/api/workspaces/:workspaceId/me/verification', (req, res) => {
+  workspaces.requireRole(req.workspaceId, req.account, ['student'])
+  if (req.workspace.guildIds.length !== 1) throw new ApiError(409, '워크스페이스에 Discord 서버 하나를 연결해야 합니다.')
+  res.json(auth.issueVerification(req.account, req.workspace.guildIds[0]))
+})
 app.get('/api/workspaces/:workspaceId/me/learning', (req, res) => {
   workspaces.requireRole(req.workspaceId, req.account, ['student'])
-  res.json(studentLearning(workspaces.open(req.workspaceId).db, req.account))
+  res.json(studentLearning(workspaces.open(req.workspaceId).db, req.account, req.workspace.discordVerified))
 })
 app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
   workspaces.requireRole(req.workspaceId, req.account, ['instructor'])

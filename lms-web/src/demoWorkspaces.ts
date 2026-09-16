@@ -3,7 +3,7 @@ import branding from '../shared/branding.json'
 
 export type WorkspaceRole = 'admin' | 'instructor' | 'student'
 export const roleNames = { admin: '워크스페이스 관리자', instructor: '강사', student: '수강생' }
-export type WorkspaceMetadata = { id: string; name: string; description: string; sourceId: string; guildIds: string[]; role?: WorkspaceRole; archivedAt?: number | null }
+export type WorkspaceMetadata = { id: string; name: string; description: string; sourceId: string; guildIds: string[]; role?: WorkspaceRole; archivedAt?: number | null; discordVerified?: boolean }
 export type WorkspaceInput = { name: string; description: string; guildId: string }
 export const demoStorageKey = 'learningops-workspaces-demo-v2'
 export const emptyWorkspace: Workspace = { name: '', reminders: true, onboarding: true, qa: true, courses: [], learners: [], mentors: [], teams: [], attendance: [], scores: [], notices: [], files: [], submissions: [], sessions: [], assignments: [], servers: [], logs: [], mode: 'api' }

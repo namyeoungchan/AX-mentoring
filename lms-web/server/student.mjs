@@ -1,5 +1,6 @@
-// Ownership is resolved from the verified Discord ID, never from client IDs or names.
-export function studentLearning(db, user) {
+// Callers must supply verification for this workspace, not the global account flag.
+export function studentLearning(db, user, verified = false) {
+  if (!verified || !/^\d{17,20}$/.test(user.discordId || '')) return { enrollment: null, courses: [], attendance: [], scores: [], assignments: [] }
   const records = kind => db.prepare('SELECT data FROM lms_records WHERE kind=?').all(kind).map(row => JSON.parse(row.data))
   const learner = records('learners').find(row => row.discordId === user.discordId)
   const enrolled = learner && ['정상', '수료'].includes(learner.status)

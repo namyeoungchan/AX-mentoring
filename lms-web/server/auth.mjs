@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'no
 import { promisify } from 'node:util'
 import { z } from 'zod'
 import { ApiError } from './store.mjs'
+import { initializeVerification, tableExists, workspaceForGuild } from './workspace-verification.mjs'
 
 const derive = promisify(scrypt)
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -59,6 +60,8 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     db.exec('ALTER TABLE lms_users ADD COLUMN verified_at INTEGER; UPDATE lms_users SET verified_at=created_at')
   }
   if (!db.prepare('PRAGMA table_info(lms_registrations)').all().some(row => row.name === 'user_id')) db.exec('ALTER TABLE lms_registrations ADD COLUMN user_id TEXT')
+  if (!db.prepare('PRAGMA table_info(lms_registrations)').all().some(row => row.name === 'workspace_id')) db.exec('ALTER TABLE lms_registrations ADD COLUMN workspace_id TEXT')
+  initializeVerification(db)
   if (!db.prepare('PRAGMA table_info(lms_users)').all().some(row => row.name === 'platform_role')) db.exec("ALTER TABLE lms_users ADD COLUMN platform_role TEXT NOT NULL DEFAULT 'student' CHECK(platform_role IN ('admin','student'))")
 
   function hasAdmin() { return Boolean(db.prepare("SELECT 1 FROM lms_users WHERE platform_role='admin'").get()) }
@@ -112,8 +115,8 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     if (db.prepare('SELECT COUNT(*) AS count FROM lms_registrations').get().count >= 1000) throw new ApiError(503, '가입 요청이 많습니다. 잠시 후 다시 시도하세요.')
     const ticket = randomBytes(32).toString('hex')
     const value = challenge()
-    db.prepare(`INSERT INTO lms_registrations(ticket_hash,code_hash,username,name,password_hash,discord_id,guild_id,created_at,expires_at,renewed_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?)`).run(hash(ticket), hash(value.raw), input.username, input.name, passwordHash, input.discordId, targetGuild, now(), value.expiresAt, now())
+    db.prepare(`INSERT INTO lms_registrations(ticket_hash,code_hash,username,name,password_hash,discord_id,guild_id,created_at,expires_at,renewed_at,workspace_id)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(hash(ticket), hash(value.raw), input.username, input.name, passwordHash, input.discordId, targetGuild, now(), value.expiresAt, now(), workspaceForGuild(db, targetGuild))
     return { ticket, code: value.code, expiresAt: value.expiresAt }
   }
   async function signup(body, onCreated) {
@@ -135,12 +138,14 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
   }
   function issueVerification(user, targetGuild) {
     if (botToken.length < 32 || !guildAllowed(targetGuild)) throw new ApiError(503, '이 서버의 Discord 인증 연결을 확인하세요.')
-    limit('verification-code', user.id, 1, 60000)
+    const workspaceId = workspaceForGuild(db, targetGuild)
+    checkWorkspace({ workspace_id: workspaceId, guild_id: targetGuild, user_id: user.id })
+    limit('verification-code', `${user.id}:${workspaceId || targetGuild}`, 1, 60000)
     const stored = db.prepare('SELECT * FROM lms_users WHERE id=?').get(user.id)
     if (!stored) throw new ApiError(403, '개인 계정으로 로그인하세요.')
     const ticket = randomBytes(32).toString('hex'), value = challenge()
-    db.prepare('UPDATE lms_registrations SET expires_at=0 WHERE user_id=? AND verified_at IS NULL').run(user.id)
-    db.prepare('INSERT INTO lms_registrations(ticket_hash,code_hash,username,name,password_hash,discord_id,guild_id,created_at,expires_at,renewed_at,user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(hash(ticket), hash(value.raw), stored.username, stored.name, '', stored.discord_id, targetGuild, now(), value.expiresAt, now(), user.id)
+    db.prepare('UPDATE lms_registrations SET expires_at=0 WHERE user_id=? AND guild_id=? AND verified_at IS NULL').run(user.id, targetGuild)
+    db.prepare('INSERT INTO lms_registrations(ticket_hash,code_hash,username,name,password_hash,discord_id,guild_id,created_at,expires_at,renewed_at,user_id,workspace_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run(hash(ticket), hash(value.raw), stored.username, stored.name, '', stored.discord_id, targetGuild, now(), value.expiresAt, now(), user.id, workspaceId)
     return { ticket, code: value.code, expiresAt: value.expiresAt }
   }
   function pending(ticket) {
@@ -156,18 +161,32 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     requireEnabled()
     const row = pending(ticket)
     if (row.verified_at !== null) throw new ApiError(409, '이미 인증됐습니다. 로그인해 주세요.')
+    checkWorkspace(row)
     if (row.renewed_at + 60000 > now()) throw new ApiError(429, '코드는 1분에 한 번 재발급할 수 있습니다.')
+    if (row.user_id) limit('verification-code', `${row.user_id}:${row.workspace_id || row.guild_id}`, 1, 60000)
     if (!row.user_id) available(row.username, row.discord_id)
     const value = challenge()
+    if (row.user_id) db.prepare('UPDATE lms_registrations SET expires_at=0 WHERE user_id=? AND guild_id=? AND verified_at IS NULL').run(row.user_id, row.guild_id)
     db.prepare('UPDATE lms_registrations SET code_hash=?,expires_at=?,renewed_at=?,guild_id=? WHERE ticket_hash=?').run(hash(value.raw), value.expiresAt, now(), row.guild_id, row.ticket_hash)
     return { code: value.code, expiresAt: value.expiresAt }
   }
   function botAuthorized(header = '') { return botToken.length >= 32 && safeEqual(header, `Bearer ${botToken}`) }
+  function checkWorkspace(row) {
+    if (!tableExists(db, 'lms_workspace_guilds')) return // Standalone legacy authentication.
+    if (!row.workspace_id || workspaceForGuild(db, row.guild_id) !== row.workspace_id) throw new ApiError(403, '인증 코드를 발급한 워크스페이스의 서버가 아닙니다.')
+    if (db.prepare('SELECT archived_at FROM lms_workspaces WHERE id=?').get(row.workspace_id)?.archived_at != null) throw new ApiError(403, '보관된 워크스페이스에서는 인증할 수 없습니다.')
+    if (!row.user_id) return
+    const member = db.prepare('SELECT 1 FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').get(row.workspace_id, row.user_id)
+    const administrator = db.prepare("SELECT 1 FROM lms_users WHERE id=? AND platform_role='admin'").get(row.user_id)
+    const approved = tableExists(db, 'lms_admissions') && db.prepare("SELECT 1 FROM lms_admissions WHERE workspace_id=? AND user_id=? AND guild_id=? AND state='approved'").get(row.workspace_id, row.user_id, row.guild_id)
+    if (!member && !administrator && !approved) throw new ApiError(403, '이 워크스페이스의 초대 또는 가입 승인이 필요합니다.')
+  }
   function verificationRequest(body) {
     const input = verification.parse(body)
     if (botToken.length < 32 || !guildAllowed(input.guildId)) throw new ApiError(403, '인증이 허용된 Discord 서버가 아닙니다.')
     const row = db.prepare('SELECT * FROM lms_registrations WHERE code_hash=?').get(hash(input.code))
     if (!row || row.verified_at !== null || row.expires_at <= now()) throw new ApiError(410, '사용했거나 만료된 인증 코드입니다. 웹에서 코드를 확인해 주세요.')
+    checkWorkspace(row)
     const stored = row.user_id ? db.prepare('SELECT * FROM lms_users WHERE id=?').get(row.user_id) : null
     if (row.user_id && !stored) throw new ApiError(410, '가입 요청을 찾을 수 없습니다.')
     const identity = stored?.discord_id || row.discord_id
@@ -182,8 +201,12 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     db.exec('BEGIN IMMEDIATE')
     try {
       const row = verificationRequest(body)
+      const userId = row.user_id || randomUUID()
       if (row.user_id) db.prepare('UPDATE lms_users SET verified_at=?,guild_id=?,discord_id=? WHERE id=?').run(now(), row.guild_id, row.discord_id, row.user_id)
-      else db.prepare('INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,verified_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), row.username, row.name, row.password_hash, row.discord_id, row.guild_id, now(), now())
+      else db.prepare('INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,verified_at) VALUES(?,?,?,?,?,?,?,?)').run(userId, row.username, row.name, row.password_hash, row.discord_id, row.guild_id, now(), now())
+      if (row.workspace_id) db.prepare(`INSERT INTO lms_workspace_verifications VALUES(?,?,?,?,?)
+        ON CONFLICT(workspace_id,user_id,guild_id) DO UPDATE SET discord_id=excluded.discord_id,verified_at=excluded.verified_at`)
+        .run(row.workspace_id, userId, row.guild_id, row.discord_id, now())
       db.prepare('UPDATE lms_registrations SET verified_at=?,password_hash=? WHERE ticket_hash=?').run(now(), '', row.ticket_hash)
       db.exec('COMMIT')
       return { ok: true }

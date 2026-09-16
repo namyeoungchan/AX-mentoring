@@ -6,6 +6,7 @@ import { createRenderSync } from './render-sync.mjs'
 import { templateSchema } from './provision.mjs'
 import defaultLayout from '../shared/discord-defaults.json' with { type: 'json' }
 import branding from '../shared/branding.json' with { type: 'json' }
+import { migrateVerification, workspaceVerified } from './workspace-verification.mjs'
 
 const creation = z.object({ name: z.string().trim().min(1).max(60).transform(value => value.normalize('NFKC')), description: z.string().trim().max(300).default(''), guildId: z.union([z.string().regex(/^\d{17,20}$/), z.literal('')]).default('') }).strict()
 
@@ -61,6 +62,7 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
       }
     }
     db.prepare("INSERT OR IGNORE INTO lms_workspace_migrations VALUES('members-v1')").run()
+    migrateVerification(db)
     // Preserve any pre-existing ambiguous bindings for review instead of deleting data.
     // Such workspaces are excluded from bot discovery until their binding is resolved.
     if (!db.prepare('SELECT 1 FROM lms_workspace_guilds GROUP BY workspace_id HAVING COUNT(*)>1 LIMIT 1').get()) {
@@ -89,12 +91,12 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
   function requireAccess(id, user) {
     const meta = metadata(id)
     if (!canAccess(id, user)) throw new ApiError(403, '이 워크스페이스에 접근할 권한이 없습니다.')
-    return { ...meta, role: role(id, user) }
+    return { ...meta, role: role(id, user), discordVerified: workspaceVerified(db, id, user.id) }
   }
   function list(user, { includeArchived = false } = {}) {
     return db.prepare('SELECT id,archived_at FROM lms_workspaces ORDER BY created_at,rowid').all()
       .filter(row => (includeArchived || row.archived_at === null) && canAccess(row.id, user))
-      .map(row => ({ ...metadata(row.id), role: role(row.id, user) }))
+      .map(row => ({ ...metadata(row.id), role: role(row.id, user), discordVerified: workspaceVerified(db, row.id, user.id) }))
   }
   function setArchived(id, archived, user) {
     requireRole(id, user, ['admin'])

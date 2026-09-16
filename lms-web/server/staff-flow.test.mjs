@@ -17,7 +17,8 @@ const guildId = '555456789012345678', discordId = '655456789012345678'
 const secret = 'test-only-token-12345678901234567890'
 function fixture(t) {
   const folder = mkdtempSync(join(tmpdir(), 'staff-flow-')), dbPath = join(folder, 'main.db')
-  const store = createStore(dbPath), auth = createAuth(store.db, { botToken: secret, guildAllowed: () => true })
+  let currentTime = Date.now()
+  const store = createStore(dbPath), auth = createAuth(store.db, { botToken: secret, guildAllowed: () => true, now: () => currentTime })
   createRenderSync(store.db)
   const provision = createProvision(store.db, { token: secret })
   const workspaces = createWorkspaces({ store, dbPath, provision })
@@ -31,10 +32,15 @@ function fixture(t) {
     workspaces.acceptInvitation(invitation.token, user)
     return user
   }
+  const verify = (user, targetGuild = guildId) => {
+    currentTime += 61000
+    const challenge = auth.issueVerification(user, targetGuild)
+    auth.verify({ code: challenge.code, discordId, guildId: targetGuild })
+  }
   const setup = count => staff.setupGroups(workspace.id, { count, revision: staff.groups(workspace.id).revision }, admin)
   const connect = () => { workspaces.addServer(workspace.id, { guildId, templateRevision: workspaces.template(workspace.id).revision }); staff.enableTeams(workspace.id) }
   t.after(() => { workspaces.close(); store.db.close(); rmSync(folder, { recursive: true, force: true }) })
-  return { store, auth, workspaces, workspace, staff, admissions, onboarding, signup, setup, connect }
+  return { store, auth, workspaces, workspace, staff, admissions, onboarding, signup, setup, connect, verify }
 }
 
 test('workspace administrator joins before a Discord server exists and invites scoped mentors without platform privileges', async t => {
@@ -101,10 +107,10 @@ test('mentor profile queues only their guild invite, verified identity registers
 })
 
 test('changing mentor teams changes bot roles and LMS scope; foreign teams and out-of-scope edits are rejected', async t => {
-  const { store, workspace, workspaces, onboarding, signup, setup, connect } = fixture(t)
+  const { workspace, workspaces, onboarding, signup, setup, connect, verify } = fixture(t)
   const { teams, courseId } = setup(2); connect()
   const user = await signup('scoped.mentor', 'instructor', { mentorType: 'group', teamIds: [teams[0].id] })
-  store.db.prepare('UPDATE lms_users SET discord_id=?,verified_at=1 WHERE id=?').run(discordId, user.id)
+  verify(user)
   const write = changes => workspaces.mutate(workspace.id, { revision: workspaces.snapshot(workspace.id).revision, changes }, 'test')
   for (const [index, team] of teams.entries()) write([{ kind: 'learners', value: { id: `l${index}`, name: '학습자', email: `l${index}@example.com`, courseId, team: team.name, status: '정상', discordId: '' } }])
   assert.deepEqual(workspaces.teaching(workspace.id, user).learners.map(l => l.id), ['l0'])
@@ -126,13 +132,15 @@ test('changing mentor teams changes bot roles and LMS scope; foreign teams and o
 })
 
 test('member editing is workspace scoped, updates mentor identity, and prevents administrator escalation', async t => {
-  const { store, staff, workspace, workspaces, signup, setup, connect } = fixture(t)
+  const { store, staff, workspace, workspaces, signup, setup, connect, verify } = fixture(t)
   const { teams } = setup(2); connect()
   const owner = await signup('edit.owner', 'admin'), mentor = await signup('edit.mentor')
-  store.db.prepare('UPDATE lms_users SET discord_id=?,verified_at=1 WHERE id=?').run(discordId, mentor.id)
+  staff.profile(workspace.id, { name: '인증 전', expertise: 'AI' }, mentor)
+  verify(mentor)
   staff.profile(workspace.id, { name: '기존 활동명', expertise: 'AI' }, mentor)
-  const other = workspaces.create({ name: '다른 워크스페이스' })
+  const other = workspaces.create({ name: '다른 워크스페이스', guildId: '755456789012345678' })
   workspaces.acceptInvitation(workspaces.invite(other.id, { username: mentor.username, role: 'instructor' }, admin).token, mentor)
+  verify(mentor, '755456789012345678')
   staff.profile(other.id, { name: '다른 활동명', expertise: '개발' }, mentor)
   const update = { name: '수정된 활동명', expertise: '데이터', role: 'instructor', mentorType: 'group', teamIds: [teams[1].id] }
   assert.throws(() => staff.editMember(workspace.id, mentor.id, { ...update, role: 'admin' }, owner), { status: 403 })
@@ -152,13 +160,15 @@ test('member editing is workspace scoped, updates mentor identity, and prevents 
 })
 
 test('removal revokes only one membership and pending staff invites, preserves history, and closes booking access', async t => {
-  const { store, staff, workspace, workspaces, signup, setup, connect, admissions, onboarding } = fixture(t)
+  const { store, staff, workspace, workspaces, signup, setup, connect, admissions, onboarding, verify } = fixture(t)
   setup(1); connect()
   const owner = await signup('remove.owner', 'admin'), mentor = await signup('remove.mentor')
-  store.db.prepare('UPDATE lms_users SET discord_id=?,verified_at=1 WHERE id=?').run(discordId, mentor.id)
+  staff.profile(workspace.id, { name: '인증 전', expertise: 'AI' }, mentor)
+  verify(mentor)
   staff.profile(workspace.id, { name: '멘토', expertise: '개발' }, mentor)
-  const other = workspaces.create({ name: '별도 운영' })
+  const other = workspaces.create({ name: '별도 운영', guildId: '755456789012345678' })
   workspaces.acceptInvitation(workspaces.invite(other.id, { username: mentor.username, role: 'instructor' }, admin).token, mentor)
+  verify(mentor, '755456789012345678')
   staff.profile(other.id, { name: '별도 멘토', expertise: '개발' }, mentor)
   const target = workspaces.open(workspace.id).db, mentorId = target.prepare('SELECT id FROM mentors').get().id
   target.prepare("INSERT INTO slots(mentor_id,start_time,end_time,label) VALUES(?,'2030-01-01T12:00:00','2030-01-01T13:00:00','보존할 예약')").run(mentorId)
@@ -188,6 +198,8 @@ test('removal revokes only one membership and pending staff invites, preserves h
   workspaces.acceptInvitation(fresh.token, mentor)
   staff.profile(workspace.id, { name: '재초대 멘토', expertise: 'AI' }, mentor)
   assert.equal(target.prepare('SELECT COUNT(*) AS n FROM mentors').get().n, 1)
+  assert.equal(target.prepare('SELECT is_active FROM mentors').get().is_active, 0)
+  verify(mentor); staff.syncDiscord(discordId, guildId)
   assert.equal(target.prepare('SELECT is_active FROM mentors').get().is_active, 1)
   assert.equal(target.prepare('SELECT is_active FROM slots').get().is_active, 0)
 })

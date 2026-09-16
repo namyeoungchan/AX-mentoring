@@ -11,7 +11,7 @@
     "sync:setup": "node scripts/setup-render-sync.mjs",
     "bot:setup": "node scripts/setup-bot-integrations.mjs",
     "account:reset": "node scripts/reset-account.mjs",
-    "test": "node --test server/store.test.mjs server/render-sync.test.mjs server/auth.test.mjs server/provision.test.mjs server/workspaces.test.mjs server/admissions.test.mjs server/origins.test.mjs server/onboarding.test.mjs server/bot-storage.test.mjs server/staff-flow.test.mjs",
+    "test": "node --test server/store.test.mjs server/render-sync.test.mjs server/auth.test.mjs server/provision.test.mjs server/workspaces.test.mjs server/admissions.test.mjs server/origins.test.mjs server/onboarding.test.mjs server/bot-storage.test.mjs server/staff-flow.test.mjs server/workspace-verification.test.mjs",
     "test:e2e": "npm run build && playwright test",
     "test:pages": "playwright test --config playwright.pages.config.ts",
     "build:pages": "node scripts/build-pages.mjs",

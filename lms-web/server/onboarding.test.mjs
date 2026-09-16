@@ -14,7 +14,7 @@ const guildId = '123456789012345678'
 const course = { id: 'c1', title: '교육 과정', category: 'AX', description: '', progress: 0, learners: 0, weeks: '4주', mentor: '', theme: 'green', status: '진행 중', code: 'COURSE', cohort: '1기', guildId, startDate: '2026-09-01', endDate: '2026-12-01' }
 function fixture(t) {
   const folder = mkdtempSync(join(tmpdir(), 'lms-onboarding-')), dbPath = join(folder, 'main.db')
-  const store = createStore(dbPath), auth = createAuth(store.db)
+  const store = createStore(dbPath), auth = createAuth(store.db, { botToken: 'test-key-123456789012345678901234567890', guildAllowed: () => true })
   createRenderSync(store.db)
   const provision = createProvision(store.db, { token: 'test-key-123456789012345678901234567890' })
   const workspaces = createWorkspaces({ store, dbPath, provision })
@@ -49,8 +49,8 @@ test('teams and verified memberships drive roles; rename, reassignment and remov
   write('learners', learner)
   onboarding.save(workspace.id, { ...configuration(), enabled: true, courseIds: ['c1'] })
   assert.deepEqual(onboarding.poll({ guildIds: [guildId] }).configs[0].participants, [])
-  store.db.prepare('UPDATE lms_users SET verified_at=1 WHERE id=?').run(user.id)
   store.db.prepare('INSERT INTO lms_workspace_members VALUES(?,?,?,?)').run(workspace.id, user.id, 'student', 1)
+  auth.verify({ code: auth.issueVerification(user, guildId).code, discordId: user.discordId, guildId })
   const original = onboarding.poll({ guildIds: [guildId] }).configs[0]
   assert.equal(original.participants[0].teamId, 't1')
   assert.equal(original.teams.length, 2)

@@ -191,6 +191,7 @@ test('verified accounts need an invitation and roles belong to individual worksp
 
 test('invitations bind account and role, are hashed, single-use, revocable and cannot escalate staff permissions', async t => {
   const { manager, auth, store } = fixture(t)
+  manager.addServer('asan-ax', { guildId, templateRevision: manager.template('asan-ax').revision })
   const member = { username: 'workspace.owner', name: '관리자', password: 'owner-password-1234', discordId: '655456789012345678' }
   const pending = await auth.register(member)
   auth.verify({ code: pending.code, discordId: member.discordId, guildId })
