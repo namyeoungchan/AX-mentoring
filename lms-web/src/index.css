@@ -680,3 +680,41 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
   .workspace-start-action { grid-column: 1 / -1; }
   .workspace-start-action button { min-height: 44px; }
 }
+
+.assignment-management { overflow: hidden; }
+.assignment-management > .card-heading { gap: 16px; flex-wrap: wrap; }
+.assignment-overview { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; padding: 20px 24px; color: #637267; font-size: 12px; }
+.assignment-overview strong { color: #315c48; }
+.assignment-overview small { margin-left: auto; font-size: 11px; }
+.assignment-item { border-top: 1px solid #e5eae4; }
+.assignment-summary { display: flex; align-items: center; gap: 20px; padding: 18px 24px; }
+.assignment-expand { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1; text-align: left; border: 0; background: none; padding: 4px 0; color: inherit; cursor: pointer; }
+.assignment-expand:focus-visible { outline: 2px solid #3f7d68; outline-offset: 6px; border-radius: 4px; }
+.assignment-caret { flex: 0 0 auto; color: #728578; transition: transform .18s ease; }
+.assignment-expand[aria-expanded="true"] .assignment-caret { transform: rotate(90deg); }
+.assignment-title { flex: 1; min-width: 0; }
+.assignment-title strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
+.assignment-title small { display: block; margin-top: 6px; font-size: 11px; color: #748077; }
+.assignment-count { flex-shrink: 0; text-align: right; font-size: 12px; }
+.assignment-count strong { color: #315c48; }
+.assignment-count small { display: block; font-size: 10px; color: #7c887e; margin-top: 5px; }
+.assignment-controls { display: flex; align-items: center; gap: 14px; }
+.assignment-item.is-open > .assignment-summary { background: #f4f7f1; }
+.assignment-details { padding-bottom: 12px; background: #fafcf8; }
+.assignment-details-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 24px; }
+.assignment-details-heading > span { display: flex; align-items: center; gap: 8px; color: #5c6f60; font-size: 12px; }
+.assignment-details th { background: transparent; }
+.assignment-details td { vertical-align: top; }
+.assignment-no-submissions { padding: 20px 24px 28px; margin: 0; color: #7c887e; font-size: 13px; text-align: center; }
+@media (max-width: 600px) {
+  .assignment-management > .card-heading > .button { width: 100%; justify-content: center; min-height: 44px; }
+  .assignment-overview { padding: 16px; gap: 12px; }
+  .assignment-overview small { width: 100%; margin: 0; line-height: 1.7; }
+  .assignment-summary { flex-wrap: wrap; padding: 16px; gap: 12px; }
+  .assignment-expand { flex-basis: 100%; min-height: 44px; gap: 10px; }
+  .assignment-controls { width: 100%; justify-content: flex-end; }
+  .assignment-controls .button, .assignment-details-heading .button { min-height: 40px; }
+  .assignment-details-heading { padding: 16px; }
+  .assignment-details table { min-width: 650px; }
+}
+@media (prefers-reduced-motion: reduce) { .assignment-caret { transition: none; } }

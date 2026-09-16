@@ -1,0 +1,74 @@
+import { test, expect } from '@playwright/test'
+import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+
+test('assignment carets reveal submissions and CSV downloads include complete scoped records', async ({ page, request }) => {
+  const login = await (await request.post('/api/login', { data: { password: 'test-only-password-1234' } })).json()
+  const headers = { Authorization: `Bearer ${login.token}` }
+  const botHeaders = { Authorization: 'Bearer test-only-provision-token-12345678901234567890' }
+  async function seed(name: string, guildId: string, hidden = false) {
+    const workspace = await (await request.post('/api/workspaces', { headers, data: { name, guildId } })).json()
+    const state = await (await request.get(`/api/workspaces/${workspace.id}/bot-data`, { headers })).json()
+    const tables = Object.fromEntries(state.tables.map((t: { key: string }) => [t.key, []]))
+    tables.assignments = [1, 2, 3].map(id => ({ id, week: id, title: hidden ? '다른 워크스페이스 비공개 과제' : ['기획서 제출', '최종 발표', '아직 미제출'][id - 1], description: '', due_date: '2026-10-01', type: 'team', created_at: '2026-09-16 00:00:00', is_active: 1, fields: '["내용"]' }))
+    tables.submissions = [
+      { id: 1, assignment_id: 1, user_id: '555456789012345678', user_name: hidden ? '외부 사용자' : '=SUM(1,2)', team: '1조', content: JSON.stringify({ '핵심 내용': '첫 줄, "인용"\n둘째 줄' }), link: 'https://example.com/project', submitted_at: '2026-09-16 00:00:00' },
+      { id: 2, assignment_id: 2, user_id: '555456789012345679', user_name: '김학생', team: '2조', content: '일반 텍스트 제출', link: '', submitted_at: '2026-09-16 01:00:00' },
+    ]
+    const archive = JSON.stringify({ version: 1, guildId, tables, settings: { channels: {}, teams: [], qaUnansweredHours: 24 }, runtime: [] })
+    const checksum = createHash('sha256').update(archive).digest('hex')
+    expect((await request.post('/api/integrations/discord/storage/bootstrap', { headers: botHeaders, data: { guildId, archive, checksum } })).status()).toBe(200)
+    return workspace
+  }
+  const workspace = await seed('과제 다운로드 테스트', '763456789012345678')
+  await seed('다른 워크스페이스', '763456789012345679', true)
+  await page.goto(`/?workspace=${workspace.id}#assignments`)
+  await page.getByRole('button', { name: '관리자 로그인', exact: true }).click()
+  await page.getByLabel('관리자 비밀번호').fill('test-only-password-1234')
+  await page.getByRole('button', { name: '로그인', exact: true }).click()
+  const toggle = page.getByRole('button', { name: '기획서 제출 제출 현황', exact: true })
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await toggle.focus()
+  await page.keyboard.press('Enter')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  const region = page.getByRole('region', { name: '기획서 제출 제출 내역', exact: true })
+  await expect(region).toContainText('핵심 내용: 첫 줄, "인용"')
+  await expect(region).toContainText('09:00:00')
+  await expect(region.getByRole('link', { name: '제출물 열기' })).toHaveAttribute('href', 'https://example.com/project')
+  await page.getByRole('button', { name: '기획서 제출 마감하기', exact: true }).click()
+  await expect(page.getByRole('button', { name: '기획서 제출 다시 열기', exact: true })).toBeVisible()
+  await expect(region).toBeVisible()
+  const perDownload = page.waitForEvent('download')
+  await region.getByRole('button', { name: '이 과제 다운로드' }).click()
+  const perFile = await perDownload
+  const perCsv = await readFile((await perFile.path())!, 'utf8')
+  expect(perFile.suggestedFilename()).toBe('기획서 제출_제출내역.csv')
+  expect(perCsv).toContain('"\'=SUM(1,2)"')
+  expect(perCsv).toContain('첫 줄, ""인용""\n둘째 줄')
+  expect(perCsv).not.toContain('최종 발표')
+  await page.getByLabel('현재 화면 검색').fill('기획서')
+  await expect(page.getByRole('button', { name: '최종 발표 제출 현황', exact: true })).toHaveCount(0)
+  const allDownload = page.waitForEvent('download')
+  await page.getByRole('button', { name: '전체 내역 다운로드' }).click()
+  const allFile = await allDownload
+  const allCsv = await readFile((await allFile.path())!, 'utf8')
+  expect(allCsv.startsWith('\uFEFF')).toBe(true)
+  expect(allCsv).toContain('기획서 제출')
+  expect(allCsv).toContain('최종 발표')
+  expect(allCsv).toContain('일반 텍스트 제출')
+  expect(allCsv).not.toContain('다른 워크스페이스 비공개 과제')
+  expect(allCsv).not.toContain('외부 사용자')
+  await page.getByLabel('현재 화면 검색').fill('')
+  await page.getByRole('button', { name: '아직 미제출 제출 현황', exact: true }).click()
+  const empty = page.getByRole('region', { name: '아직 미제출 제출 내역', exact: true })
+  await expect(empty).toContainText('아직 제출된 내역이 없습니다.')
+  await expect(empty.getByRole('button', { name: '이 과제 다운로드' })).toBeDisabled()
+  for (const width of [1440, 390, 360]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/assignment-submissions-${width}.png`, fullPage: true, animations: 'disabled' })
+  }
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(region).not.toBeVisible()
+})
