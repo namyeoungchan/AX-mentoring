@@ -19,7 +19,7 @@ test('imported bot data is managed on the web, visible to the bot and backed up 
   await page.getByLabel('관리자 비밀번호').fill('test-only-password-1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   await expect(page.getByRole('heading', { name: '봇 데이터 · 운영', exact: true })).toBeVisible()
-  await expect(page.getByText('웹 저장소 사용', { exact: true })).toBeVisible()
+  await expect(page.getByText('이관 완료', { exact: true })).toBeVisible()
   await expect(page.getByRole('cell', { name: '기존 멘토', exact: true })).toBeVisible()
   await page.getByLabel('Discord 사용자 ID', { exact: true }).fill('666456789012345678')
   await page.getByLabel('이름', { exact: true }).fill('웹에서 등록')

@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView
 """
 Persistent mentor panel — lives in a channel, survives bot restarts.
 Each button opens an ephemeral slot-select flow for that mentor.
@@ -13,7 +14,7 @@ def _chunk(lst: list, size: int) -> list[list]:
     return [lst[i : i + size] for i in range(0, len(lst), size)]
 
 
-class MentorPanelView(discord.ui.View):
+class MentorPanelView(WorkspaceView):
     """
     Persistent view — timeout=None so it works after bot restarts.
     Buttons are rebuilt from the live mentors list each time the panel is refreshed.

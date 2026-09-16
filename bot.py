@@ -7,7 +7,7 @@ from discord.ext import commands
 
 import config
 import database
-from ui.mentor_panel import MentorPanelView
+from workspace_context import WorkspaceTree
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,6 +16,7 @@ logging.basicConfig(
 log = logging.getLogger("asanAX")
 
 COGS = [
+    "cogs.workspace_runtime",
     "cogs.error_handler",
     "cogs.booking",
     "cogs.admin",
@@ -39,7 +40,8 @@ class AsanAXBot(commands.Bot):
         intents = discord.Intents.default()
         intents.members = True          # on_member_join (onboarding)
         intents.message_content = True  # on_message (self-intro detection)
-        super().__init__(command_prefix="!", intents=intents)
+        super().__init__(command_prefix="!", intents=intents, tree_cls=WorkspaceTree)
+        self.manages_workspace_commands = True
 
     async def setup_hook(self) -> None:
         db_dir = os.path.dirname(config.DB_PATH)
@@ -53,20 +55,6 @@ class AsanAXBot(commands.Bot):
         for cog in COGS:
             await self.load_extension(cog)
             log.info("Loaded cog: %s", cog)
-
-        guild = discord.Object(id=config.GUILD_ID)
-        self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
-        log.info("Slash commands synced to guild %d", config.GUILD_ID)
-
-        if config.SYNC_GLOBALLY:
-            await self.tree.sync()
-            log.info("Slash commands synced globally")
-
-        # Restore persistent panel views so buttons work after restart
-        mentors = await database.get_mentors()
-        self.add_view(MentorPanelView(mentors))
-        log.info("Persistent panel view registered")
 
         # Optional outbound sync; a configuration error must not stop the bot.
         if os.getenv("LEARNINGOPS_SYNC_URL") and os.getenv("LEARNINGOPS_SYNC_TOKEN"):

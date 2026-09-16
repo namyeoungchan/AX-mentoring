@@ -82,7 +82,10 @@ class LMSOnboarding(commands.Cog):
 
     async def cog_load(self):
         await self.store.initialize()
-        self.configs = await self.store.all("0", "config")
+        # Web configuration is polled after gateway readiness. A web outage must
+        # not block setup_hook and prevent the common bot from connecting.
+        if not config.managed_storage:
+            self.configs = await self.store.all("0", "config")
         for guild_id in self.configs:
             self.view(guild_id)
         if self.url:

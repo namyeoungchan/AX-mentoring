@@ -1,7 +1,7 @@
 # Optional separate web receiver. Do not replace the existing worker's render.yaml.
 services:
   - type: web
-    name: ax-lms
+    name: ax-learningops-web
     runtime: docker
     plan: starter
     dockerfilePath: ./lms-web/Dockerfile
@@ -23,14 +23,12 @@ services:
       - key: ADMIN_PASSWORD
         generateValue: true
       - key: ALLOWED_ORIGINS
-        value: https://asanax-learningops-web.onrender.com,https://namyeoungchan.github.io
+        value: https://ax-learningops-web.onrender.com,https://namyeoungchan.github.io
       - key: LEARNINGOPS_SYNC_TOKEN
         sync: false
       - key: LEARNINGOPS_SOURCE_ID
         value: asan-ax
       - key: LEARNINGOPS_AUTH_TOKEN
-        sync: false
-      - key: LEARNINGOPS_AUTH_GUILD_ID
         sync: false
       - key: LEARNINGOPS_PROVISION_TOKEN
         sync: false

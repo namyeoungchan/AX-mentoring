@@ -31,9 +31,9 @@ export function useWorkspace() {
     try {
       const demo = demoMode ? readDemoWorkspaces() : null
       const user: Account | null = demo ? null : (await request('auth/me', { signal })).user
-      const list: WorkspaceMetadata[] = demo ? demo.workspaces : (await request('workspaces', { signal })).workspaces
+      const list: WorkspaceMetadata[] = demo ? demo.workspaces : (await request('workspaces?includeArchived=true', { signal })).workspaces
       const preferred = requestedId || preferredWorkspace() || active.current
-      const id = list.some(w => w.id === preferred) ? preferred : list[0]?.id || ''
+      const id = list.some(w => w.id === preferred) ? preferred : list.find(w => w.archivedAt == null)?.id || ''
       const role = demo ? 'admin' : list.find(w => w.id === id)?.role
       const result = demo ? demo.data[id] : id ? await workspaceRequest(id, role === 'admin' ? 'workspace' : role === 'instructor' ? 'teaching' : 'me/learning', { signal }) : null
       if (version !== generation.current) return
@@ -97,6 +97,27 @@ export function useWorkspace() {
     try { const result = await request(admin ? 'login' : 'auth/login', { method: 'POST', body: JSON.stringify(admin ? { password } : { username, password }) }); setSessionToken(result.token || ''); await refresh() }
     catch (e) { setError((e as Error).message) }
   }
+  async function setWorkspaceArchived(id: string, archived: boolean) {
+    if (locked.current || loggingOut.current) return false
+    const version = generation.current
+    locked.current = true; setSaving(true); setError('')
+    try {
+      let updated: WorkspaceMetadata
+      if (demoMode) {
+        const saved = readDemoWorkspaces(), current = saved.workspaces.find(w => w.id === id)
+        if (!current) throw new Error('워크스페이스를 찾을 수 없습니다.')
+        updated = { ...current, archivedAt: archived ? current.archivedAt ?? Date.now() : null }
+        saved.workspaces = saved.workspaces.map(w => w.id === id ? updated : w)
+        localStorage.setItem(demoStorageKey, JSON.stringify(saved))
+      } else updated = await workspaceRequest(id, archived ? 'archive' : 'restore', { method: 'POST', body: '{}' })
+      if (loggingOut.current || version !== generation.current) return false
+      setWorkspaces(list => list.map(w => w.id === id ? updated : w))
+      // Keep the current view open so the result and restore action remain visible.
+      // A future visit without an explicit selection chooses an active workspace.
+      return true
+    } catch (e) { setError((e as Error).message); return false }
+    finally { locked.current = false; setSaving(false) }
+  }
   async function logout() {
     if (loggingOut.current) return
     loggingOut.current = true
@@ -111,5 +132,5 @@ export function useWorkspace() {
   }
   function enterDemo() { const url = new URL(location.href); url.searchParams.set('demo', '1'); url.hash = 'dashboard'; location.assign(url.href) }
   function leaveDemo() { const url = new URL(location.href); url.searchParams.delete('demo'); url.hash = 'login'; location.assign(url.href) }
-  return { data, update, loading, saving, error, authRequired, account, learning, refresh: () => refresh(), login, logout, enterDemo, leaveDemo, workspaces, activeId, activeRole: demoMode ? 'admin' : workspaces.find(w => w.id === activeId)?.role, selectWorkspace: (id: string) => refresh(id), createWorkspace }
+  return { data, update, loading, saving, error, authRequired, account, learning, refresh: () => refresh(), login, logout, enterDemo, leaveDemo, workspaces, activeId, activeRole: demoMode ? 'admin' : workspaces.find(w => w.id === activeId)?.role, selectWorkspace: (id: string) => refresh(id), createWorkspace, setWorkspaceArchived }
 }

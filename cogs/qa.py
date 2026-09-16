@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView, each_workspace, guild_event
 """
 Q&A 포럼 채널 관리
 
@@ -26,7 +27,7 @@ def _get_tag(channel: discord.ForumChannel, name: str) -> discord.ForumTag | Non
 
 # ── View ───────────────────────────────────────────────────────────────────────
 
-class ResolvedView(discord.ui.View):
+class ResolvedView(WorkspaceView):
     """Persistent view with a single '해결됨' button posted in every Q&A thread."""
 
     def __init__(self) -> None:
@@ -47,7 +48,7 @@ class ResolvedView(discord.ui.View):
         # Permission check: OP or staff roles
         is_op = thread.owner_id == interaction.user.id
         is_staff = any(
-            r.id in config.QA_NOTIFY_ROLE_IDS
+            r.id in config.current().QA_NOTIFY_ROLE_IDS
             for r in getattr(interaction.user, "roles", [])
         )
         if not is_op and not is_staff:
@@ -107,8 +108,9 @@ class QA(commands.Cog):
     # ── New thread ────────────────────────────────────────────────────────────
 
     @commands.Cog.listener()
+    @guild_event
     async def on_thread_create(self, thread: discord.Thread) -> None:
-        if thread.parent_id != config.QA_FORUM_CHANNEL_ID:
+        if thread.parent_id != config.current().QA_FORUM_CHANNEL_ID:
             return
 
         forum = thread.parent
@@ -152,6 +154,7 @@ class QA(commands.Cog):
     # ── Unanswered alert task ─────────────────────────────────────────────────
 
     @tasks.loop(hours=1)
+    @each_workspace
     async def check_unanswered(self) -> None:
         try:
             await self._alert_unanswered()
@@ -163,17 +166,17 @@ class QA(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def _alert_unanswered(self) -> None:
-        forum = self.bot.get_channel(config.QA_FORUM_CHANNEL_ID)
-        if not isinstance(forum, discord.ForumChannel):
+        forum = self.bot.get_channel(config.current().QA_FORUM_CHANNEL_ID)
+        if not isinstance(forum, discord.ForumChannel) or forum.guild.id != config.current().GUILD_ID:
             return
 
-        threshold = datetime.now(timezone.utc) - timedelta(hours=config.QA_UNANSWERED_HOURS)
+        threshold = datetime.now(timezone.utc) - timedelta(hours=config.current().QA_UNANSWERED_HOURS)
         unresolved_tag = _get_tag(forum, TAG_UNRESOLVED)
 
         # Collect all members with notify roles
         guild = forum.guild
         notify_members: set[discord.Member] = set()
-        for role_id in config.QA_NOTIFY_ROLE_IDS:
+        for role_id in config.current().QA_NOTIFY_ROLE_IDS:
             role = guild.get_role(role_id)
             if role:
                 notify_members.update(role.members)
@@ -206,7 +209,7 @@ class QA(commands.Cog):
                 value=f"<t:{int(thread.created_at.timestamp())}:R>",
                 inline=True,
             )
-            embed.set_footer(text=f"{config.QA_UNANSWERED_HOURS}시간 이상 미답변 · 아산 AX")
+            embed.set_footer(text=f"{config.current().QA_UNANSWERED_HOURS}시간 이상 미답변 · 아산 AX")
 
             for member in notify_members:
                 try:

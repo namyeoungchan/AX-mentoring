@@ -17,11 +17,5 @@ for (const key of ['ADMIN_PASSWORD', 'LEARNINGOPS_AUTH_TOKEN', 'LEARNINGOPS_PROV
     console.log(`${key}: 기존 값을 유지합니다.`)
   }
 }
-const botEnv = resolve(root, '../.env')
-const botSettings = existsSync(botEnv) ? parse(readFileSync(botEnv, 'utf8')) : {}
-if (!settings.LEARNINGOPS_AUTH_GUILD_ID && /^\d{17,20}$/.test(botSettings.GUILD_ID || '')) {
-  appendFileSync(file, `\nLEARNINGOPS_AUTH_GUILD_ID=${botSettings.GUILD_ID}\n`)
-} else if (!settings.LEARNINGOPS_AUTH_GUILD_ID) {
-  console.log('LEARNINGOPS_AUTH_GUILD_ID에 가입을 허용할 실제 Discord 서버 ID를 설정하세요.')
-}
+console.log('웹에서 워크스페이스와 Discord 서버를 1:1로 연결하세요. 고정 GUILD_ID는 필요하지 않습니다.')
 console.log('API를 재시작하고, 봇의 Render 환경변수에 각 전용 키와 HTTPS API 주소를 설정하세요. Discord에 접속하거나 채널을 생성하지 않았습니다.')

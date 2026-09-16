@@ -1,3 +1,4 @@
+from workspace_context import each_workspace
 """Optional outbound, read-only LearningOps snapshot publisher for Render workers."""
 import asyncio
 import logging
@@ -76,22 +77,23 @@ class LearningOpsSync(commands.Cog):
         self.publish.cancel()
 
     @tasks.loop(seconds=60)
+    @each_workspace
     async def publish(self):
         try:
             # A reconnect does not create another publisher task.
             from storage_client import client
-            snapshot = await client.request('snapshot', {'guildId': str(config.GUILD_ID)}) if client else await read_snapshot(config.DB_PATH)
-            guild = self.bot.get_guild(config.GUILD_ID)
+            snapshot = await client.request('snapshot', {'guildId': str(config.current().GUILD_ID)}) if client else await read_snapshot(config.DB_PATH)
+            guild = self.bot.get_guild(config.current().GUILD_ID)
             latency = self.bot.latency
             snapshot.update({
                 # The API routes by the bound Discord guild. No per-workspace bot setting.
-                "name": os.getenv("LEARNINGOPS_SOURCE_NAME", "아산 AX"),
+                "name": guild.name if guild else "AX LearningOps",
                 "capturedAt": datetime.now(timezone.utc).isoformat(),
                 "bot": {
                     "name": str(self.bot.user) if self.bot.user else "asanAX",
                     "ready": self.bot.is_ready(),
                     "latencyMs": round(latency * 1000) if math.isfinite(latency) else None,
-                    "guildId": str(config.GUILD_ID),
+                    "guildId": str(config.current().GUILD_ID),
                     "guildName": guild.name if guild else None,
                     "memberCount": guild.member_count if guild else None,
                 },

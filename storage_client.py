@@ -1,4 +1,4 @@
-"""Switch the legacy bot to web-owned storage after a verified, lossless import."""
+"""Route each Discord guild to web-owned storage and import its legacy DB once."""
 import asyncio
 import functools
 import hashlib
@@ -6,7 +6,6 @@ import inspect
 import json
 import logging
 import os
-import sys
 import uuid
 
 import aiohttp
@@ -35,7 +34,15 @@ class WebStorage:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=35)) as session:
                 async with session.post(f'{self.url}/{operation}', json=body, headers={'Authorization': f'Bearer {self.token}'}, allow_redirects=False) as response:
                     if response.status != 200:
-                        raise StorageUnavailable(f'웹 데이터 연결 오류 (HTTP {response.status}). 웹의 봇 데이터 이관 상태를 확인하세요.')
+                        guidance = '웹의 봇 데이터 이관 상태를 확인하세요.'
+                        if response.status == 403:
+                            guidance = (
+                                '웹에서 이 Discord 서버와 워크스페이스의 1:1 연결을 확인하세요. '
+                                '웹 서비스의 NODE_ENV=production 및 봇의 LEARNINGOPS_PROVISION_URL도 확인하세요.'
+                            )
+                        elif response.status == 401:
+                            guidance = '봇과 웹 서비스의 LEARNINGOPS_PROVISION_TOKEN이 같은지 확인하세요.'
+                        raise StorageUnavailable(f'웹 데이터 연결 오류 (HTTP {response.status}, 작업={operation}). {guidance}')
                     return await response.json()
         except StorageUnavailable:
             raise
@@ -54,23 +61,7 @@ class WebStorage:
 
     async def refresh_settings(self):
         status = await self.request('status', {'guildId': self.guild_id})
-        config.TEAM_MEMBERS = status.get('teamMembers')
-        settings = status.get('settings')
-        if settings:
-            for name, value in settings['channels'].items():
-                if name in SETTING_NAMES:
-                    setattr(config, name, int(value) if value else (None if name == 'ONBOARDING_COMPLETE_ROLE_ID' else 0))
-            config.QA_UNANSWERED_HOURS = settings['qaUnansweredHours']
-            if 'qaNotifyRoleIds' in settings:
-                config.QA_NOTIFY_ROLE_IDS[:] = [int(value) for value in settings['qaNotifyRoleIds']]
-            config.TEAM_CHANNELS.clear()
-            config.TEAM_CHANNELS.update({t['name']: int(t['channelId']) if t['channelId'] else 0 for t in settings['teams']})
-            for module_name in ('cogs.assignment', 'cogs.peer_eval', 'cogs.onboarding'):
-                module = sys.modules.get(module_name)
-                if module and hasattr(module, 'TEAMS'):
-                    module.TEAMS[:] = config.TEAM_CHANNELS.keys()
-            if 'cogs.admin' in sys.modules:
-                sys.modules['cogs.admin'].ADMIN_ROLE_ID = config.ADMIN_ROLE_ID
+        config.install_workspace(self.guild_id, status)
         return status
 
 
@@ -101,28 +92,113 @@ async def export_archive(path, guild_id):
     return {'guildId': str(guild_id), 'archive': archive, 'checksum': hashlib.sha256(archive.encode()).hexdigest()}
 
 
-async def connect_web_storage():
-    global client
-    endpoint, token = os.getenv('LEARNINGOPS_PROVISION_URL', '').strip(), os.getenv('LEARNINGOPS_PROVISION_TOKEN', '').strip()
-    if not endpoint or len(token) < 32:
-        log.warning('Web storage not configured; set the provision URL and token to migrate the existing bot data')
-        return
-    candidate = WebStorage(endpoint, token, config.GUILD_ID)
-    archive = None
-    # This runs before loading cogs or connecting to Discord: no local writes race the import.
-    while True:
+async def legacy_source_guild(path):
+    """Identify the old DB's owner once; never copy it to each discovered server."""
+    async with aiosqlite.connect(path) as db:
+        await db.execute('PRAGMA query_only=ON')
+        has_data = False
+        for table in TABLES:
+            async with db.execute(f'SELECT 1 FROM {table} LIMIT 1') as rows:
+                has_data = has_data or await rows.fetchone() is not None
+        if not has_data:
+            return None
+        owners = set()
+        for table in ('panels', 'onboarding_progress'):
+            async with db.execute(f'SELECT DISTINCT guild_id FROM {table}') as rows:
+                owners.update(int(row[0]) for row in await rows.fetchall() if row[0])
+    explicit = config.LEGACY_IMPORT_GUILD_ID
+    if explicit and (not owners or owners == {explicit}):
+        return explicit
+    if not explicit and len(owners) == 1:
+        return owners.pop()
+    # Old deployments can still identify an otherwise unlabelled local archive.
+    if not explicit and not owners and config.GUILD_ID:
+        return config.GUILD_ID
+    raise StorageUnavailable('기존 로컬 DB의 원본 서버를 확정할 수 없습니다. LEGACY_IMPORT_GUILD_ID로 일회성 이관 대상을 지정하세요.')
+
+
+class WorkspaceStorage:
+    def __init__(self, endpoint, token):
+        self.transport = None
+        self.ready = {}
+        self.clients = {}
+        self.legacy_guild_id = None
+        self.legacy_checked = False
+        self.archive = None
+        if endpoint and len(token) >= 32:
+            try:
+                self.transport = WebStorage(endpoint, token, 0)
+            except ValueError:
+                log.error('Invalid LEARNINGOPS_PROVISION_URL; Discord can connect but workspace storage is unavailable')
+        else:
+            log.warning('Set LEARNINGOPS_PROVISION_URL and LEARNINGOPS_PROVISION_TOKEN to enable workspace storage')
+
+    async def request(self, operation, body):
+        if not self.transport:
+            raise StorageUnavailable('웹 저장소 연결 설정이 필요합니다.')
+        return await self.transport.request(operation, body)
+
+    async def refresh(self, guild_ids):
+        if not self.legacy_checked:
+            try:
+                self.legacy_guild_id = await legacy_source_guild(config.DB_PATH)
+            except StorageUnavailable as error:
+                # The archive is preserved for an explicit import; never guess its destination.
+                log.warning('%s 공통 봇의 다른 워크스페이스 연결은 계속합니다.', error)
+            self.legacy_checked = True
         try:
-            status = await candidate.request('status', {'guildId': candidate.guild_id})
-            if not status['migrated']:
-                archive = archive or await export_archive(config.DB_PATH, config.GUILD_ID)
-                status = await candidate.request('bootstrap', archive)
-                if not status['migrated'] or status['checksum'] != archive['checksum']:
+            result = await self.request('registry', {'guildIds': [str(gid) for gid in guild_ids]})
+        except Exception:
+            self.ready = {}
+            raise
+        self.ready = {}
+        allowed = set(map(int, guild_ids))
+        states = {int(row['guildId']): row for row in result['workspaces'] if int(row['guildId']) in allowed}
+        ready = {}
+        for guild_id, status in states.items():
+            if guild_id == self.legacy_guild_id and not status['migrated']:
+                continue
+            config.install_workspace(guild_id, status)
+            ready[guild_id] = status
+        self.ready = ready
+        for failure in result.get('unavailable', []):
+            log.warning('Workspace storage unavailable: guild=%s reason=%s', failure['guildId'], failure['code'])
+        # Publish other ready workspaces before attempting the one legacy import.
+        if self.legacy_guild_id in states and self.legacy_guild_id not in ready:
+            try:
+                self.archive = self.archive or await export_archive(config.DB_PATH, self.legacy_guild_id)
+                status = await self.request('bootstrap', self.archive)
+                if not status['migrated'] or status['checksum'] != self.archive['checksum']:
                     raise StorageUnavailable('이관 원본 검증에 실패했습니다.')
-            await candidate.refresh_settings()
-            break
-        except StorageUnavailable as error:
-            log.warning('%s Local database is preserved; waiting before accepting new Discord writes.', error)
-            await asyncio.sleep(30)
+                status = await self.request('status', {'guildId': str(self.legacy_guild_id)})
+                config.install_workspace(self.legacy_guild_id, status)
+                self.ready[self.legacy_guild_id] = status
+                log.info('Legacy bot data imported into workspace %s', status['workspaceId'])
+            except Exception as error:
+                reason = str(error) if isinstance(error, StorageUnavailable) else type(error).__name__
+                log.warning('Legacy import pending for guild %s (%s); other workspaces remain available', self.legacy_guild_id, reason)
+
+    async def refresh_settings(self, guild_id):
+        status = await self.request('status', {'guildId': str(guild_id)})
+        config.install_workspace(guild_id, status)
+        if int(guild_id) in self.ready:
+            self.ready[int(guild_id)] = status
+        return status
+
+    async def call(self, operation, args, kwargs):
+        guild_id = config.workspace_guild.get()
+        if guild_id not in self.ready:
+            raise StorageUnavailable('이 Discord 서버의 워크스페이스 저장소가 준비되지 않았습니다.')
+        if guild_id not in self.clients:
+            self.clients[guild_id] = WebStorage(self.transport.url.rsplit('/', 1)[0] + '/provision', self.transport.token, guild_id)
+        return await self.clients[guild_id].call(operation, args, kwargs)
+
+
+async def connect_web_storage():
+    """Install routing immediately. Network checks run only after Discord connects."""
+    global client
+    config.managed_storage = True
+    client = WorkspaceStorage(os.getenv('LEARNINGOPS_PROVISION_URL', '').strip(), os.getenv('LEARNINGOPS_PROVISION_TOKEN', '').strip())
     import database
     for name, fn in inspect.getmembers(database, inspect.iscoroutinefunction):
         if name.startswith('_') or name == 'init_db' or fn.__module__ != 'database':
@@ -130,8 +206,7 @@ async def connect_web_storage():
         def wrap(original, operation):
             @functools.wraps(original)
             async def remote(*args, **kwargs):
-                return await candidate.call(operation, args, kwargs)
+                return await client.call(operation, args, kwargs)
             return remote
         setattr(database, name, wrap(fn, name))
-    client = candidate
-    log.info('Bot storage migrated to web workspace %s; local database retained as backup', status['workspaceId'])
+    return client

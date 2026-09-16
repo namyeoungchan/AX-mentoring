@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceModal
 from datetime import datetime, date, timedelta
 
 import discord
@@ -6,7 +7,6 @@ from discord.ext import commands
 
 import config
 import database
-from config import ADMIN_ROLE_ID
 from ui import embeds
 from ui.confirm_view import AdminSlotRemoveView
 from ui.mentor_panel import MentorPanelView, build_panel_embed
@@ -18,11 +18,11 @@ def is_admin():
     async def predicate(interaction: discord.Interaction) -> bool:
         if not isinstance(interaction.user, discord.Member):
             return False
-        return any(r.id == ADMIN_ROLE_ID for r in interaction.user.roles)
+        return interaction.user.guild_permissions.administrator or any(r.id == config.current().ADMIN_ROLE_ID for r in interaction.user.roles)
     return app_commands.check(predicate)
 
 
-class SlotAddModal(discord.ui.Modal, title="슬롯 추가"):
+class SlotAddModal(WorkspaceModal, title="슬롯 추가"):
     label_input = discord.ui.TextInput(
         label="표시 이름",
         placeholder="예: 5/30 오후 2시 (1시간)",
@@ -78,7 +78,7 @@ class SlotAddModal(discord.ui.Modal, title="슬롯 추가"):
         await refresh_all_panels(self.bot)
 
 
-class MentorAddModal(discord.ui.Modal, title="멘토 등록"):
+class MentorAddModal(WorkspaceModal, title="멘토 등록"):
     name_input = discord.ui.TextInput(label="멘토 이름", max_length=50)
     bio_input = discord.ui.TextInput(
         label="소개",
@@ -545,7 +545,7 @@ class Admin(commands.Cog):
     async def onboarding_panel(self, interaction: discord.Interaction) -> None:
         from cogs.onboarding import OnboardingView, _welcome_embed
 
-        channel = self.bot.get_channel(config.ONBOARDING_CHANNEL_ID)
+        channel = interaction.guild.get_channel(config.current().ONBOARDING_CHANNEL_ID) if interaction.guild else None
         if not channel or not isinstance(channel, discord.TextChannel):
             await interaction.response.send_message(
                 embed=embeds.error_embed("온보딩 채널을 찾을 수 없습니다. ONBOARDING_CHANNEL_ID를 확인하세요."),
@@ -611,14 +611,7 @@ class Admin(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        # Reset DB state so the test can run cleanly
-        import aiosqlite
-        from config import DB_PATH
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "DELETE FROM onboarding_progress WHERE user_id = ?", (str(member.id),)
-            )
-            await db.commit()
+        await database.reset_onboarding(str(member.id), str(interaction.guild_id))
 
         await cog.on_member_join(member)
 

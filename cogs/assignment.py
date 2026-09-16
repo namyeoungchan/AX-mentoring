@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView, WorkspaceModal, each_workspace
 """
 과제 시스템 v2
 - 관리자: 과제 대시보드 채널에 패널 게시 → [➕ 팀 과제 생성] / [➕ 개인 과제 생성] 버튼으로 생성
@@ -22,7 +23,8 @@ from ui.embeds import fmt_kst, KST
 
 log = logging.getLogger("asanAX.assignment")
 
-TEAMS = list(config.TEAM_CHANNELS.keys())  # 단일 출처: config.TEAM_CHANNELS
+def teams():
+    return list(config.current().TEAM_CHANNELS)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -31,7 +33,7 @@ def _is_admin(interaction: discord.Interaction) -> bool:
     member = interaction.user
     if not isinstance(member, discord.Member):
         return False
-    return any(r.id == config.ADMIN_ROLE_ID for r in member.roles)
+    return member.guild_permissions.administrator or any(r.id == config.current().ADMIN_ROLE_ID for r in member.roles)
 
 
 def _parse_fields(raw: str | None) -> list[str]:
@@ -85,7 +87,7 @@ async def build_dashboard_embeds() -> list[discord.Embed]:
         embed.add_field(name="제출 항목", value=" · ".join(field_names), inline=False)
 
         lines = []
-        for team in TEAMS:
+        for team in teams():
             team_subs = by_team.get(team, [])
             if team_subs:
                 names = ", ".join(s["user_name"] for s in team_subs[:3])
@@ -110,7 +112,7 @@ async def refresh_dashboard(bot: commands.Bot) -> None:
     panel = await database.get_assignment_panel("dashboard")
     if not panel:
         return
-    guild = bot.get_guild(config.GUILD_ID)
+    guild = bot.get_guild(config.current().GUILD_ID)
     if not guild:
         return
     ch = guild.get_channel(int(panel["channel_id"]))
@@ -127,7 +129,7 @@ async def refresh_dashboard(bot: commands.Bot) -> None:
 
 # ── Admin: Assignment creation modal ──────────────────────────────────────────
 
-class CreateAssignmentModal(discord.ui.Modal):
+class CreateAssignmentModal(WorkspaceModal):
     week_input = discord.ui.TextInput(
         label="주차",
         placeholder="1",
@@ -300,7 +302,7 @@ async def build_excel(assignment_id: int | None = None) -> tuple[io.BytesIO, str
 
 # ── Admin: Edit assignment modal ──────────────────────────────────────────────
 
-class EditAssignmentModal(discord.ui.Modal):
+class EditAssignmentModal(WorkspaceModal):
     def __init__(self, bot: commands.Bot, assignment: dict) -> None:
         super().__init__(title="과제 수정")
         self.bot = bot
@@ -385,7 +387,7 @@ class EditAssignmentModal(discord.ui.Modal):
 
 # ── Admin: Delete confirmation ────────────────────────────────────────────────
 
-class DeleteConfirmView(discord.ui.View):
+class DeleteConfirmView(WorkspaceView):
     def __init__(self, bot: commands.Bot, assignment: dict) -> None:
         super().__init__(timeout=60)
         self.bot = bot
@@ -418,7 +420,7 @@ class DeleteConfirmView(discord.ui.View):
 
 # ── Admin: Generic assignment action select ───────────────────────────────────
 
-class AssignmentActionSelectView(discord.ui.View):
+class AssignmentActionSelectView(WorkspaceView):
     """Reused for both edit and delete flows."""
 
     def __init__(self, bot: commands.Bot, assignments: list[dict], action: str) -> None:
@@ -499,7 +501,7 @@ def _build_submission_page(assignment: dict, subs: list[dict], page: int, per_pa
     return embeds
 
 
-class SubmissionDetailView(discord.ui.View):
+class SubmissionDetailView(WorkspaceView):
     PER_PAGE = 4  # header + 4 submissions = 5 embeds (Discord max 10)
 
     def __init__(self, assignment: dict, subs: list[dict], page: int = 0) -> None:
@@ -530,7 +532,7 @@ class SubmissionDetailView(discord.ui.View):
         await interaction.response.edit_message(embeds=self.build_embeds(), view=self)
 
 
-class SubmissionAssignmentSelectView(discord.ui.View):
+class SubmissionAssignmentSelectView(WorkspaceView):
     def __init__(self, bot: commands.Bot, assignments: list[dict]) -> None:
         super().__init__(timeout=60)
         self.bot = bot
@@ -546,7 +548,8 @@ class SubmissionAssignmentSelectView(discord.ui.View):
             placeholder="제출 내역을 볼 과제를 선택하세요",
             min_values=1,
             max_values=1,
-            options=options,
+            options=options or [discord.SelectOption(label="등록된 과제가 없습니다", value="unconfigured")],
+            disabled=not options,
         )
         select.callback = self._on_select
         self.add_item(select)
@@ -576,7 +579,7 @@ class SubmissionAssignmentSelectView(discord.ui.View):
 
 # ── Admin: Dashboard panel view (persistent) ──────────────────────────────────
 
-class AdminDashboardView(discord.ui.View):
+class AdminDashboardView(WorkspaceView):
     """Survives bot restarts via custom_id."""
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -796,7 +799,7 @@ class AdminDashboardView(discord.ui.View):
 
 # ── Student: Dynamic submit modal ─────────────────────────────────────────────
 
-class DynamicSubmitModal(discord.ui.Modal):
+class DynamicSubmitModal(WorkspaceModal):
     """Fields are built dynamically from assignment's fields config."""
 
     def __init__(self, bot: commands.Bot, assignment: dict, team: str) -> None:
@@ -832,10 +835,10 @@ class DynamicSubmitModal(discord.ui.Modal):
         from storage_client import client
         if client:
             await client.refresh_settings()
-        if config.TEAM_MEMBERS is not None:
+        if config.current().TEAM_MEMBERS is not None:
             user_id = str(interaction.user.id)
-            team = config.TEAM_MEMBERS.get(user_id)
-            if user_id not in config.TEAM_MEMBERS or (self.assignment['type'] == 'team' and not team):
+            team = config.current().TEAM_MEMBERS.get(user_id)
+            if user_id not in config.current().TEAM_MEMBERS or (self.assignment['type'] == 'team' and not team):
                 await interaction.followup.send('웹의 승인·과정 등록·팀 배정을 확인하세요.', ephemeral=True)
                 return
             self.team = team if self.assignment['type'] == 'team' else '개인'
@@ -883,18 +886,19 @@ class DynamicSubmitModal(discord.ui.Modal):
 
 # ── Student: Team select ──────────────────────────────────────────────────────
 
-class TeamSelectView(discord.ui.View):
+class TeamSelectView(WorkspaceView):
     def __init__(self, bot: commands.Bot, assignment: dict) -> None:
         super().__init__(timeout=120)
         self.bot = bot
         self.assignment = assignment
 
-        options = [discord.SelectOption(label=t, value=t, emoji="👥") for t in TEAMS]
+        options = [discord.SelectOption(label=t, value=t, emoji="👥") for t in teams()[:25]]
         select = discord.ui.Select(
             placeholder="소속 팀을 선택하세요",
             min_values=1,
             max_values=1,
-            options=options,
+            options=options or [discord.SelectOption(label="웹에서 팀을 먼저 설정하세요", value="unconfigured")],
+            disabled=not options,
         )
         select.callback = self._on_team_select
         self.add_item(select)
@@ -910,7 +914,7 @@ class TeamSelectView(discord.ui.View):
 
 # ── Student: Assignment select (multiple active) ──────────────────────────────
 
-class AssignmentSelectView(discord.ui.View):
+class AssignmentSelectView(WorkspaceView):
     def __init__(self, bot: commands.Bot, assignments: list[dict]) -> None:
         super().__init__(timeout=120)
         self.bot = bot
@@ -927,7 +931,8 @@ class AssignmentSelectView(discord.ui.View):
             placeholder="제출할 과제를 선택하세요",
             min_values=1,
             max_values=1,
-            options=options,
+            options=options or [discord.SelectOption(label="등록된 과제가 없습니다", value="unconfigured")],
+            disabled=not options,
         )
         select.callback = self._on_select
         self.add_item(select)
@@ -976,18 +981,18 @@ def build_submit_embed():
 
 
 async def start_web_submission(bot, interaction, assignment):
-    if config.TEAM_MEMBERS is None:
+    if config.current().TEAM_MEMBERS is None:
         return False
     user_id = str(interaction.user.id)
-    team = config.TEAM_MEMBERS.get(user_id)
-    if user_id not in config.TEAM_MEMBERS or (assignment['type'] == 'team' and not team):
+    team = config.current().TEAM_MEMBERS.get(user_id)
+    if user_id not in config.current().TEAM_MEMBERS or (assignment['type'] == 'team' and not team):
         await interaction.response.send_message('웹의 가입 승인·과정 등록·팀 배정을 확인하세요.', ephemeral=True)
     else:
         await interaction.response.send_modal(DynamicSubmitModal(bot, assignment, team if assignment['type'] == 'team' else '개인'))
     return True
 
 
-class SubmitPanelView(discord.ui.View):
+class SubmitPanelView(WorkspaceView):
     """Survives bot restarts via custom_id."""
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -1077,6 +1082,7 @@ class Assignment(commands.Cog):
     # Runs daily at 09:00 KST (00:00 UTC)
 
     @tasks.loop(time=datetime.time(hour=0, minute=0, tzinfo=datetime.timezone.utc))
+    @each_workspace
     async def deadline_reminder(self) -> None:
         # Tomorrow in KST = today UTC+9 + 1 day
         tomorrow_kst = (
@@ -1089,7 +1095,7 @@ class Assignment(commands.Cog):
         if not assignments:
             return
 
-        guild = self.bot.get_guild(config.GUILD_ID)
+        guild = self.bot.get_guild(config.current().GUILD_ID)
         if not guild:
             return
 
@@ -1097,7 +1103,7 @@ class Assignment(commands.Cog):
             subs = await database.get_submissions(assignment["id"])
             submitted_teams = {s["team"] for s in subs}
 
-            for team, channel_id in config.TEAM_CHANNELS.items():
+            for team, channel_id in config.current().TEAM_CHANNELS.items():
                 if team in submitted_teams:
                     continue  # already submitted
                 if await database.is_assignment_reminder_sent(assignment["id"], team):
@@ -1143,7 +1149,7 @@ class Assignment(commands.Cog):
             message = await manager.publish('submit')
             await interaction.followup.send('제출 패널을 갱신하고 고정했습니다.' if message else '웹의 제출 채널 설정을 확인하세요.', ephemeral=True)
             return
-        ch = interaction.guild.get_channel(config.ASSIGNMENT_SUBMIT_CHANNEL_ID)  # type: ignore[union-attr]
+        ch = interaction.guild.get_channel(config.current().ASSIGNMENT_SUBMIT_CHANNEL_ID)  # type: ignore[union-attr]
         if not ch or not isinstance(ch, discord.TextChannel):
             await interaction.followup.send("과제제출 채널을 찾을 수 없습니다.", ephemeral=True)
             return
@@ -1189,7 +1195,7 @@ class Assignment(commands.Cog):
             message = await manager.publish('dashboard')
             await interaction.followup.send('과제 대시보드를 갱신하고 고정했습니다.' if message else '웹의 대시보드 채널 설정을 확인하세요.', ephemeral=True)
             return
-        ch = interaction.guild.get_channel(config.ASSIGNMENT_DASHBOARD_CHANNEL_ID)  # type: ignore[union-attr]
+        ch = interaction.guild.get_channel(config.current().ASSIGNMENT_DASHBOARD_CHANNEL_ID)  # type: ignore[union-attr]
         if not ch or not isinstance(ch, discord.TextChannel):
             await interaction.followup.send("과제 대시보드 채널을 찾을 수 없습니다.", ephemeral=True)
             return

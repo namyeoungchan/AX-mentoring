@@ -105,7 +105,7 @@ class LMSAuth(commands.Cog):
                                         ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
 
     async def sync_verification(self, guild):
-        if not self.url or guild.id == config.GUILD_ID or guild.id in self.synced_guilds:
+        if getattr(self.bot, 'manages_workspace_commands', False) or not self.url or guild.id in self.synced_guilds:
             return
         try:
             target = discord.Object(id=guild.id)

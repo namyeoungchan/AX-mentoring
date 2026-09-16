@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView
 """Step 1: User selects a date from available dates."""
 from datetime import date as date_cls
 
@@ -13,7 +14,7 @@ def _date_label(ds: str) -> str:
     return f"{d.month}/{d.day} ({WEEKDAYS[d.weekday()]})"
 
 
-class DateSelectView(discord.ui.View):
+class DateSelectView(WorkspaceView):
     def __init__(self, mentor: dict, dates: list[str]) -> None:
         super().__init__(timeout=120)
         self.mentor = mentor

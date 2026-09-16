@@ -1,3 +1,4 @@
+from workspace_context import each_workspace, guild_event
 """Restore and refresh the existing bot's declared channel dashboards."""
 import asyncio
 import datetime
@@ -40,9 +41,9 @@ class AutoPanels(commands.Cog):
     async def resolve_channel(self, guild, kind):
         spec = PANEL_OBJECTS[kind]
         binding = await self.store.get(guild.id, "panel-channel", spec.template_id)
-        # A web-created binding wins over the original single-server constants.
+        # Live channels come from this workspace's web settings.
         from storage_client import client
-        configured = getattr(config, spec.channel_setting, 0) if client else (binding["id"] if binding else getattr(config, spec.channel_setting, 0))
+        configured = getattr(config.current(), spec.channel_setting, 0) if client else (binding["id"] if binding else getattr(config.current(), spec.channel_setting, 0))
         channel = guild.get_channel(int(configured)) if configured else None
         if configured:
             return channel if isinstance(channel, discord.TextChannel) else None
@@ -58,8 +59,6 @@ class AutoPanels(commands.Cog):
         return matches[0] if len(matches) == 1 else None
 
     async def bind_channels(self, guild, items, results):
-        if guild.id != config.GUILD_ID:
-            return  # The existing bot DB has no per-workspace partition.
         actual = {row["id"]: int(row["discordId"]) for row in results}
         changed = {}
         for spec in PANEL_OBJECTS.values():
@@ -70,8 +69,10 @@ class AutoPanels(commands.Cog):
         from storage_client import client
         if client and changed:
             await client.request('bind-panels', {'guildId': str(guild.id), 'channels': changed})
-            await client.refresh_settings()
-        await self.sync_once(force=True)
+            await client.refresh_settings(guild.id)
+        if not config.managed_storage or guild.id in getattr(client, 'ready', {}):
+            with config.guild_scope(guild.id):
+                await self.sync_once(force=True)
 
     async def build(self, guild, kind, days=None):
         if kind == "dashboard":
@@ -105,7 +106,7 @@ class AutoPanels(commands.Cog):
         raise ValueError("Unknown panel object")
 
     async def publish(self, kind, channel=None, force=True, days=None):
-        guild = self.bot.get_guild(config.GUILD_ID)
+        guild = self.bot.get_guild(config.current().GUILD_ID)
         if not guild or (channel and channel.guild.id != guild.id):
             return None
         if kind not in PANEL_OBJECTS:
@@ -133,7 +134,7 @@ class AutoPanels(commands.Cog):
             return message
 
     async def sync_once(self, force=False):
-        if not self.bot.get_guild(config.GUILD_ID):
+        if not self.bot.get_guild(config.current().GUILD_ID):
             return
         for kind in PANEL_OBJECTS:
             try:
@@ -144,14 +145,8 @@ class AutoPanels(commands.Cog):
                 log.exception("Automatic panel update failed: object=%s", kind)
 
     @tasks.loop(seconds=60)
+    @each_workspace
     async def worker(self):
-        from storage_client import client, StorageUnavailable
-        if client:
-            try:
-                await client.refresh_settings()
-            except StorageUnavailable:
-                log.warning('Automatic panels waiting for web storage')
-                return
         await self.sync_once()
 
     @worker.before_loop
@@ -159,13 +154,15 @@ class AutoPanels(commands.Cog):
         await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
+    @guild_event
     async def on_guild_join(self, guild):
-        if guild.id == config.GUILD_ID:
+        if guild.id == config.current().GUILD_ID:
             await self.sync_once(force=True)
 
     @commands.Cog.listener()
+    @guild_event
     async def on_guild_channel_create(self, channel):
-        if channel.guild.id == config.GUILD_ID:
+        if channel.guild.id == config.current().GUILD_ID:
             await self.sync_once()
 
 

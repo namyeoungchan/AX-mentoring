@@ -79,7 +79,9 @@ app.post('/api/invitations/preview', (req, res) => {
 })
 app.post('/api/auth/register', async (req, res) => {
   auth.limit('registration-ip', req.ip, 10, 3600000)
-  res.status(201).json(await auth.register(req.body))
+  const { invitationToken, ...input } = req.body || {}
+  const guildId = invitationToken ? workspaces.invitationGuild(invitationToken, input.username) : process.env.LEARNINGOPS_AUTH_GUILD_ID || ''
+  res.status(201).json(await auth.register(input, guildId))
 })
 app.post('/api/auth/registration/status', (req, res) => {
   auth.limit('status-ip', req.ip, 120, 60000)
@@ -116,6 +118,7 @@ app.post('/api/integrations/discord/onboarding/:operation', (req, res) => {
 })
 app.post('/api/integrations/discord/storage/:operation', async (req, res) => {
   if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
+  if (req.params.operation === 'registry') return res.json(botStorage.registry(req.body))
   if (req.params.operation === 'status') return res.json(botStorage.status(req.body?.guildId))
   if (req.params.operation === 'snapshot') return res.json(botStorage.snapshot(req.body?.guildId))
   if (req.params.operation === 'bootstrap') return res.json(botStorage.bootstrap(req.body))
@@ -166,7 +169,7 @@ const requireAdmin = (req, res, next) => {
   if (req.account.role !== 'admin') return res.status(403).json({ error: '관리자 권한이 필요합니다.' })
   next()
 }
-app.get('/api/workspaces', (req, res) => res.json({ workspaces: workspaces.list(req.account) }))
+app.get('/api/workspaces', (req, res) => res.json({ workspaces: workspaces.list(req.account, { includeArchived: req.query.includeArchived === 'true' }) }))
 app.post('/api/workspaces', requireAdmin, (req, res) => res.status(201).json(workspaces.create(req.body)))
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => {
   req.workspaceId = req.params.workspaceId
@@ -186,6 +189,8 @@ app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admiss
 app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res.json(admissions.review(req.workspaceId, req.params.id, req.body, req.account)))
 app.patch('/api/workspaces/:workspaceId/teaching', (req, res) => res.json(workspaces.teach(req.workspaceId, req.body, req.account)))
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
+app.post('/api/workspaces/:workspaceId/archive', (req, res) => res.json(workspaces.setArchived(req.workspaceId, true, req.account)))
+app.post('/api/workspaces/:workspaceId/restore', (req, res) => res.json(workspaces.setArchived(req.workspaceId, false, req.account)))
 app.get('/api/workspaces/:workspaceId/members', (req, res) => res.json(workspaces.members(req.workspaceId, req.account)))
 app.get('/api/workspaces/:workspaceId/bot-data', (req, res) => res.json(botStorage.state(req.workspaceId)))
 app.get('/api/workspaces/:workspaceId/bot-data/table/:table', (req, res) => res.json(botStorage.table(req.workspaceId, req.params.table, req.query.page)))

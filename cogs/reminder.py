@@ -1,3 +1,4 @@
+from workspace_context import each_workspace
 """
 Background task: sends DM reminders for approved mentoring sessions.
 Checks every 5 minutes. Sends reminders at:
@@ -36,6 +37,7 @@ class Reminder(commands.Cog):
         self.check_reminders.cancel()
 
     @tasks.loop(minutes=5)
+    @each_workspace
     async def check_reminders(self) -> None:
         try:
             await self._run()

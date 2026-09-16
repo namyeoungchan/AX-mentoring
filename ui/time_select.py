@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView
 """Step 2: User selects a time slot for the chosen date."""
 import discord
 import database
@@ -9,7 +10,7 @@ def _hm(iso: str) -> str:
     return iso[11:16]
 
 
-class TimeSelectView(discord.ui.View):
+class TimeSelectView(WorkspaceView):
     def __init__(self, mentor: dict, selected_date: str, slots: list[dict]) -> None:
         super().__init__(timeout=120)
         self.mentor = mentor

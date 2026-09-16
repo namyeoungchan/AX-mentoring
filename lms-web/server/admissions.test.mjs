@@ -86,3 +86,14 @@ test('worker claims expire and cannot be replayed; expired invitations can be re
   admissions.renew(application.id, user)
   assert.equal(admissions.own(user)[0].inviteState, 'queued')
 })
+
+test('archived workspaces leave the public catalogue and reject new applications until restored', async t => {
+  const { manager, admissions, auth } = fixture(t)
+  const { user } = await auth.signup(input, () => {})
+  manager.setArchived('asan-ax', true, admin)
+  assert.equal(admissions.catalogue().some(row => row.id === 'asan-ax'), false)
+  assert.throws(() => admissions.apply('asan-ax', user), { status: 409 })
+  manager.setArchived('asan-ax', false, admin)
+  assert.ok(admissions.catalogue().some(row => row.id === 'asan-ax'))
+  assert.equal(admissions.apply('asan-ax', user).state, 'pending')
+})

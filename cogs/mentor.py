@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView
 """
 멘토 자기관리 명령어
 - /mentor block   : 예약 불가일 지정 (본인만)
@@ -25,7 +26,7 @@ async def _get_mentor(discord_id: str) -> dict | None:
     return await database.get_mentor_by_discord_id(discord_id)
 
 
-class BlockDateView(discord.ui.View):
+class BlockDateView(WorkspaceView):
     """Select menu showing next 30 days — mentor picks dates to block."""
 
     def __init__(self, mentor: dict, blocked: list[str]) -> None:
@@ -79,7 +80,7 @@ class BlockDateView(discord.ui.View):
         await refresh_all_panels(interaction.client)
 
 
-class UnblockDateView(discord.ui.View):
+class UnblockDateView(WorkspaceView):
     """Select menu showing currently blocked dates to unblock."""
 
     def __init__(self, mentor: dict, blocked: list[str]) -> None:
@@ -125,7 +126,7 @@ class UnblockDateView(discord.ui.View):
         await refresh_all_panels(interaction.client)
 
 
-class BlockWeekdayView(discord.ui.View):
+class BlockWeekdayView(WorkspaceView):
     """Select menu for blocking recurring weekdays."""
 
     def __init__(self, mentor: dict, blocked_weekdays: list[int]) -> None:

@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView, each_workspace
 """
 팀 채널 참여도 대시보드
 - 관리자: /참여도 명령어로 과제 대시보드 채널에 고정 패널 게시
@@ -28,7 +29,7 @@ def _is_admin(interaction: discord.Interaction) -> bool:
     member = interaction.user
     if not isinstance(member, discord.Member):
         return False
-    return any(r.id == config.ADMIN_ROLE_ID for r in member.roles)
+    return member.guild_permissions.administrator or any(r.id == config.current().ADMIN_ROLE_ID for r in member.roles)
 
 
 # ── Stats collection ──────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ async def collect_participation(
     """
     stats: dict[str, dict[int, tuple[str, int]]] = {}
 
-    for team, channel_id in config.TEAM_CHANNELS.items():
+    for team, channel_id in config.current().TEAM_CHANNELS.items():
         counts: dict[int, tuple[str, int]] = {}
         ch = guild.get_channel(channel_id)
         if not ch or not isinstance(ch, discord.TextChannel):
@@ -102,7 +103,7 @@ def build_participation_embed(
 
     # ── 팀별 인원 순위 ─────────────────────────────────────────────────────────
     medals = ["🥇", "🥈", "🥉"]
-    for team in config.TEAM_CHANNELS:
+    for team in config.current().TEAM_CHANNELS:
         counts = stats.get(team, {})
         if not counts:
             embed.add_field(name=f"👥 {team}", value="메시지 없음", inline=False)
@@ -151,7 +152,7 @@ async def refresh_participation_panel(bot: commands.Bot, days: int | None = None
     panel = await database.get_assignment_panel(PANEL_TYPE)
     if not panel:
         return False
-    guild = bot.get_guild(config.GUILD_ID)
+    guild = bot.get_guild(config.current().GUILD_ID)
     if not guild:
         return False
     ch = guild.get_channel(int(panel["channel_id"]))
@@ -180,7 +181,7 @@ async def refresh_participation_panel(bot: commands.Bot, days: int | None = None
 
 # ── Panel view (persistent) ───────────────────────────────────────────────────
 
-class ParticipationPanelView(discord.ui.View):
+class ParticipationPanelView(WorkspaceView):
     """Survives bot restarts via custom_id."""
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -241,6 +242,7 @@ class Participation(commands.Cog):
 
     # ── 매일 09:00 KST (00:00 UTC) 자동 갱신 ──────────────────────────────────
     @tasks.loop(time=datetime.time(hour=0, minute=0, tzinfo=datetime.timezone.utc))
+    @each_workspace
     async def daily_refresh(self) -> None:
         refreshed = await refresh_participation_panel(self.bot)
         if refreshed:
@@ -273,7 +275,7 @@ class Participation(commands.Cog):
             await interaction.followup.send('참여도 대시보드를 갱신하고 고정했습니다.' if message else '웹의 대시보드 채널 설정을 확인하세요.', ephemeral=True)
             return
 
-        ch = guild.get_channel(config.ASSIGNMENT_DASHBOARD_CHANNEL_ID)
+        ch = guild.get_channel(config.current().ASSIGNMENT_DASHBOARD_CHANNEL_ID)
         if not ch or not isinstance(ch, discord.TextChannel):
             await interaction.response.send_message(
                 "과제 대시보드 채널을 찾을 수 없습니다.", ephemeral=True

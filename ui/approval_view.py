@@ -1,10 +1,11 @@
+from workspace_context import WorkspaceView, WorkspaceModal
 """Mentor DM approval view — sent when a user requests a mentoring session."""
 import discord
 import database
 from ui import embeds
 
 
-class RejectModal(discord.ui.Modal, title="신청 반려"):
+class RejectModal(WorkspaceModal, title="신청 반려"):
     reason = discord.ui.TextInput(
         label="반려 사유",
         style=discord.TextStyle.paragraph,
@@ -62,7 +63,7 @@ class RejectModal(discord.ui.Modal, title="신청 반려"):
         await refresh_all_panels(interaction.client)
 
 
-class ApprovalView(discord.ui.View):
+class ApprovalView(WorkspaceView):
     """Sent to mentor's DM. timeout=7 days."""
 
     def __init__(self, slot: dict, mentor: dict, booking_user_id: str, booking_user_name: str) -> None:

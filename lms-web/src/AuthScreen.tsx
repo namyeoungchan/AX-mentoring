@@ -4,7 +4,7 @@ import { apiRequest, demoMode, serviceUnavailable, setSessionToken } from './api
 
 type Mode = 'login' | 'signup' | 'admin' | 'setup'
 type Challenge = { ticket: string; code: string; expiresAt: number; state: 'pending' | 'verified' | 'expired' }
-export default function AuthScreen({ login, error, enterDemo, registered, staffInvitation = false }: { registered: () => Promise<void>; staffInvitation?: boolean; login: (username: string, password: string, admin?: boolean) => Promise<void>; error: string; enterDemo: () => void }) {
+export default function AuthScreen({ login, error, enterDemo, registered, staffInvitation = false, invitationToken = '' }: { registered: () => Promise<void>; staffInvitation?: boolean; invitationToken?: string; login: (username: string, password: string, admin?: boolean) => Promise<void>; error: string; enterDemo: () => void }) {
   const [mode, setMode] = useState<Mode>(location.hash === '#signup' ? 'signup' : 'login')
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
@@ -58,7 +58,7 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
         const result = await apiRequest('auth/setup', { method: 'POST', body: JSON.stringify({ username: value('username'), name: value('name'), password: value('password'), setupKey: value('setupKey') }) })
         setSessionToken(result.token || ''); await registered()
       } else if (mode === 'signup') {
-        const result = await apiRequest(staffInvitation ? 'auth/register' : 'auth/student/register', { method: 'POST', body: JSON.stringify({ username: value('username'), name: value('name'), password: value('password'), ...(!staffInvitation ? { workspaceId: value('workspaceId') } : {}) }) })
+        const result = await apiRequest(staffInvitation ? 'auth/register' : 'auth/student/register', { method: 'POST', body: JSON.stringify({ username: value('username'), name: value('name'), password: value('password'), ...(!staffInvitation ? { workspaceId: value('workspaceId') } : { invitationToken }) }) })
         if (staffInvitation) { form.reset(); setClock(Date.now()); setChallenge({ ...result, state: 'pending' }) } else { setSessionToken(result.token || ''); await registered() }
       } else await login(value('username'), value('password'), mode === 'admin')
     } catch (e) { setFailure((e as Error).message) }

@@ -1,6 +1,6 @@
 services:
   - type: worker
-    name: asanax-mentoring-bot
+    name: ax-mentoring-bot
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
@@ -11,25 +11,16 @@ services:
     envVars:
       - key: DISCORD_TOKEN
         sync: false
-      - key: GUILD_ID
-        sync: false
-      - key: ADMIN_ROLE_ID
-        sync: false
       - key: DB_PATH
         value: /data/mentoring.db
       - key: SYNC_GLOBALLY
         value: false
-      # Onboarding
-      - key: STUDENT_ROLE_ID
-        value: "1503760182281244743"
-      - key: ONBOARDING_CHANNEL_ID
+      # Guilds, channels and roles are stored per workspace in the web registry.
+      - key: LEARNINGOPS_PROVISION_URL
+        value: https://ax-learningops-web.onrender.com/api/integrations/discord/provision
+      - key: LEARNINGOPS_PROVISION_TOKEN
         sync: false
-      - key: INTRO_CHANNEL_ID
+      - key: LEARNINGOPS_AUTH_URL
+        value: https://ax-learningops-web.onrender.com/api/integrations/discord/verify
+      - key: LEARNINGOPS_AUTH_TOKEN
         sync: false
-      - key: ONBOARDING_COMPLETE_ROLE_ID
-        sync: false
-      # Q&A Forum
-      - key: QA_FORUM_CHANNEL_ID
-        value: "1506313964848676966"
-      - key: QA_UNANSWERED_HOURS
-        value: "24"

@@ -503,8 +503,8 @@ tbody tr:last-child td { border-bottom: none; }
 .workspace-dismiss { position: fixed; inset: 0; z-index: 39; cursor: default; }
 .workspace-menu { position: absolute; top: calc(100% + 8px); left: 0; width: 100%; min-width: 210px; z-index: 40; padding: 8px; border: 1px solid #e3e8e3; border-radius: 14px; background: #fff; box-shadow: 0 12px 40px #173b2424; max-height: 55vh; overflow: auto; }
 .workspace-menu > p { padding: 7px 10px; font-size: 11px; color: #78847b; }
-.workspace-menu > button { width: 100%; display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 11px 10px; border-radius: 8px; text-align: left; font-size: 13px; }
-.workspace-menu > button:hover, .workspace-menu > button.selected { background: #edf3eb; color: #315b36; }
+.workspace-menu > button, .workspace-option > button { width: 100%; display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 11px 10px; border-radius: 8px; text-align: left; font-size: 13px; }
+.workspace-menu > button:hover, .workspace-option > button:hover, .workspace-option > button.selected { background: #edf3eb; color: #315b36; }
 .workspace-menu small { display: block; margin-top: 4px; color: #7a857c; font-size: 11px; }
 .workspace-menu span { overflow-wrap: anywhere; min-width: 0; }
 .workspace-menu > button.workspace-create { justify-content: flex-start; border-top: 1px solid #edf0eb; border-radius: 0; margin-top: 5px; color: #315b36; }
@@ -551,3 +551,11 @@ tbody tr:last-child td { border-bottom: none; }
 .topbar > div:first-child strong { overflow:hidden; text-overflow:ellipsis; }
 .topbar .logout-button { min-height:34px; padding:8px 10px; font-size:11px; }
 @media(max-width:520px) { .topbar .profile-avatar { display:none; } .topbar .logout-button { padding:8px; font-size:10px; gap:5px; } .topbar .header-tools { flex-shrink:0; } .topbar .search-box input { width:clamp(32px, calc(100vw - 340px), 107px); } }
+
+.workspace-option { display: flex; align-items: center; gap: 4px; }
+.workspace-option > button:first-child { flex: 1; min-width: 0; }
+.workspace-option > button.workspace-restore { width: auto; flex-shrink: 0; font-size: 11px; padding-inline: 7px; color: #315b36; }
+.workspace-tabs { display: flex; gap: 4px; border-bottom: 1px solid #edf0eb; padding-bottom: 7px; margin-bottom: 4px; }
+.workspace-tabs button { flex: 1; padding: 9px 4px; border-radius: 8px; font-size: 11px; }
+.workspace-tabs button[aria-pressed="true"] { background: #edf3eb; color: #315b36; font-weight: 650; }
+.workspace-archive-notice { margin: 9px 3px 0; font-size: 11px; color: #677567; line-height: 1.6; }

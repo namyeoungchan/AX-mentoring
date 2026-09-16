@@ -72,10 +72,10 @@ export default function BotData({ workspaceId }: { workspaceId: string }) {
   return <>
     <div className="operations-toolbar"><p>기존 봇 데이터 · 운영 작업 · 채널 패널 설정</p><button className="button secondary" onClick={() => void refresh()}><RefreshCw size={15} />새로고침</button></div>
     {error && <p role="alert" className="inline-note error-note">{error}</p>}{notice && <p role="status" className="inline-note">{notice}</p>}
-    <section className="panel modal-form"><CardHeading title="데이터 이관"><Badge tone={state.imports.some(i => i.state === 'complete') ? 'green' : 'orange'}>{state.imports.some(i => i.state === 'complete') ? '웹 저장소 사용' : '봇 이관 대기'}</Badge></CardHeading>
-      <p>봇이 원본 데이터를 전송한 뒤 웹 저장소로 전환합니다. 원본은 보관하며, 기존 데이터와 충돌하면 이관을 멈춥니다.</p>
+    <section className="panel modal-form"><CardHeading title="데이터 이관"><Badge tone={state.imports.some(i => i.state === 'complete') ? 'green' : 'orange'}>{state.imports.some(i => i.state === 'complete') ? '이관 완료' : state.imports.length ? '이관 확인 필요' : '이관 이력 없음'}</Badge></CardHeading>
+      <p>새 워크스페이스는 연결된 Discord 서버를 기준으로 웹 저장소를 사용합니다. 기존 로컬 자료의 이관은 원본 서버의 워크스페이스에 한 번만 진행하며 원본은 보관합니다.</p>
       {state.imports.map(item => <div className="bot-import-row" key={item.checksum}><span>{item.guildId} · {item.createdAt} · {item.state === 'complete' ? '이관 완료' : item.state === 'conflict' ? '충돌 확인 필요' : '이관 중'}{item.error && <strong className="error-text">{item.error}</strong>}</span><button className="button secondary" onClick={() => void download(item.checksum)}><Download size={15} />원본 다운로드</button></div>)}
-      {!state.imports.length && <p>봇 서비스에 웹 연동 URL과 키를 설정하고 새 버전을 배포하면 시작합니다.</p>}
+      {!state.imports.length && <p>이관할 기존 자료가 없어도 웹 연동 URL과 키를 설정하면 이 서버의 봇 기능을 사용할 수 있습니다.</p>}
     </section>
     <div className="bot-data-grid">
       <section className="panel modal-form"><h2>운영 작업</h2><form onSubmit={operate}><fieldset disabled={busy || !guildId}>

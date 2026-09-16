@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView, WorkspaceModal
 """
 팀원 비밀평가(동료평가) — 1회성 일괄 진행
 - 관리자: /비밀평가 시작 → 과제-대시보드 채널에 패널 게시(팀별 완료율 + [✍️ 평가하기])
@@ -25,7 +26,8 @@ from ui.embeds import KST
 log = logging.getLogger("asanAX.peer_eval")
 
 PANEL_TYPE = "peer_eval"
-TEAMS = list(config.TEAM_CHANNELS.keys())  # 단일 출처: config.TEAM_CHANNELS
+def teams():
+    return list(config.current().TEAM_CHANNELS)
 ACCENT = "#8B5CF6"  # 비밀평가 전용 보라 계열
 
 # ── 채점 지표(참조 루브릭 4개 × 5점 척도) ──────────────────────────────────────
@@ -76,26 +78,26 @@ def _is_admin(interaction: discord.Interaction) -> bool:
     member = interaction.user
     if not isinstance(member, discord.Member):
         return False
-    return any(r.id == config.ADMIN_ROLE_ID for r in member.roles)
+    return member.guild_permissions.administrator or any(r.id == config.current().ADMIN_ROLE_ID for r in member.roles)
 
 
 def _is_staff(member: discord.Member) -> bool:
-    return any(r.id == config.ADMIN_ROLE_ID for r in member.roles)
+    return member.guild_permissions.administrator or any(r.id == config.current().ADMIN_ROLE_ID for r in member.roles)
 
 
 def parse_team(display_name: str) -> str | None:
-    """닉네임에서 팀 번호를 추출해 config.TEAM_CHANNELS 키(팀N)로 정규화.
+    """닉네임에서 팀 번호를 추출해 config.current().TEAM_CHANNELS 키(팀N)로 정규화.
     지원 형식: 홍길동(3팀), 홍길동(팀3), 남영찬_팀3, 팀3, 3조 등."""
     m = re.search(r"(\d+)\s*[팀조]", display_name) or re.search(r"[팀조]\s*(\d+)", display_name)
     if not m:
         return None
     key = f"팀{m.group(1)}"
-    return key if key in config.TEAM_CHANNELS else None
+    return key if key in config.current().TEAM_CHANNELS else None
 
 
 def build_roster(guild: discord.Guild) -> dict[str, list[discord.Member]]:
     """닉네임 기준 팀별 수강생 명단. 봇·관리자(스태프)는 평가 대상에서 제외."""
-    roster: dict[str, list[discord.Member]] = {t: [] for t in TEAMS}
+    roster: dict[str, list[discord.Member]] = {t: [] for t in teams()}
     for m in guild.members:
         if m.bot or _is_staff(m):
             continue
@@ -108,8 +110,8 @@ def build_roster(guild: discord.Guild) -> dict[str, list[discord.Member]]:
 
 
 def member_team(member):
-    if config.TEAM_MEMBERS is not None:
-        return config.TEAM_MEMBERS.get(str(member.id)) or None
+    if config.current().TEAM_MEMBERS is not None:
+        return config.current().TEAM_MEMBERS.get(str(member.id)) or None
     return parse_team(member.display_name)
 
 
@@ -181,7 +183,7 @@ def build_panel_embed(
     # 팀별 완료율 (점수는 비공개 — 완료 인원만)
     progress = compute_progress(roster, evals)
     lines = []
-    for team in TEAMS:
+    for team in teams():
         done, total = progress.get(team, (0, 0))
         if total == 0:
             lines.append(f"`{_bar(0, 1)}` **{team}** — 명단 없음")
@@ -202,7 +204,7 @@ async def refresh_panel(bot: commands.Bot) -> bool:
     panel = await database.get_assignment_panel(PANEL_TYPE)
     if not panel:
         return False
-    guild = bot.get_guild(config.GUILD_ID)
+    guild = bot.get_guild(config.current().GUILD_ID)
     if not guild:
         return False
     ch = guild.get_channel(int(panel["channel_id"]))
@@ -261,7 +263,7 @@ async def post_progress_dashboard(
     if manager:
         message = await manager.publish('peer_eval')
         return message.channel if message else None
-    ch = guild.get_channel(config.ASSIGNMENT_DASHBOARD_CHANNEL_ID)
+    ch = guild.get_channel(config.current().ASSIGNMENT_DASHBOARD_CHANNEL_ID)
     if not ch or not isinstance(ch, discord.TextChannel):
         return None
 
@@ -289,7 +291,7 @@ async def post_team_channel_panels(
 ) -> list[str]:
     """각 팀 채널에 평가 진입 패널을 게시. 성공한 팀명 목록 반환."""
     posted: list[str] = []
-    for team, channel_id in config.TEAM_CHANNELS.items():
+    for team, channel_id in config.current().TEAM_CHANNELS.items():
         ch = guild.get_channel(channel_id)
         if not ch or not isinstance(ch, discord.TextChannel):
             log.warning("Team channel not found for peer-eval: %s (%d)", team, channel_id)
@@ -334,7 +336,7 @@ def _score_bar(done: int, total: int, width: int = 8) -> str:
     return "▓" * filled + "░" * (width - filled)
 
 
-class CommentModal(discord.ui.Modal, title="코멘트 입력"):
+class CommentModal(WorkspaceModal, title="코멘트 입력"):
     """채점 화면에서 코멘트만 따로 입력받는 모달."""
 
     def __init__(self, view: "EvalStepView") -> None:
@@ -356,7 +358,7 @@ class CommentModal(discord.ui.Modal, title="코멘트 입력"):
         await interaction.response.edit_message(embed=self.view.embed(), view=self.view)
 
 
-class EvalStepView(discord.ui.View):
+class EvalStepView(WorkspaceView):
     """지표별 스텝 채점 — 한 화면에 지표 1개 + 채점 기준 + 눈금 1줄.
     눈금을 누르면 값이 정해지고 다음 지표로 자동 진행. 4개를 마치면 검토→저장."""
 
@@ -535,7 +537,7 @@ class EvalStepView(discord.ui.View):
                          if not self.test else "🧪 테스트 입력은 저장되지 않았습니다")
 
 
-class EvalHubView(discord.ui.View):
+class EvalHubView(WorkspaceView):
     """개인 평가 허브 — 진행률 + 팀원별 상태 버튼. 팀원을 눌러 채점 화면으로 이동."""
 
     def __init__(
@@ -670,7 +672,7 @@ async def render_hub(
 
 # ── 패널 View (persistent) ─────────────────────────────────────────────────────
 
-class PeerEvalPanelView(discord.ui.View):
+class PeerEvalPanelView(WorkspaceView):
     """봇 재시작 후에도 동작하도록 custom_id 고정."""
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -756,7 +758,7 @@ class PeerEvalPanelView(discord.ui.View):
 
 # ── 관리자 제어판 (과제 대시보드 버튼에서 호출) ──────────────────────────────────
 
-class TeamPickView(discord.ui.View):
+class TeamPickView(WorkspaceView):
     """테스트(미리보기)용 — 평가해 볼 팀을 선택."""
 
     def __init__(self, bot: commands.Bot, round_id: int) -> None:
@@ -764,12 +766,13 @@ class TeamPickView(discord.ui.View):
         self.bot = bot
         self.round_id = round_id
 
-        options = [discord.SelectOption(label=t, value=t, emoji="👥") for t in TEAMS]
+        options = [discord.SelectOption(label=t, value=t, emoji="👥") for t in teams()[:25]]
         select = discord.ui.Select(
             placeholder="평가 흐름을 테스트할 팀을 선택하세요",
             min_values=1,
             max_values=1,
-            options=options,
+            options=options or [discord.SelectOption(label="웹에서 팀을 먼저 설정하세요", value="unconfigured")],
+            disabled=not options,
         )
         select.callback = self._on_select
         self.add_item(select)
@@ -791,7 +794,7 @@ class TeamPickView(discord.ui.View):
                          interaction.user, members, test=True, edit=False)
 
 
-class PeerEvalAdminView(discord.ui.View):
+class PeerEvalAdminView(WorkspaceView):
     """과제 대시보드의 [🔒 비밀평가 게시] 버튼이 여는 관리자 제어판(ephemeral)."""
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -943,7 +946,7 @@ def build_results_embeds(round_row: dict, results: dict[str, list[dict]]) -> lis
         color=discord.Color.from_str(ACCENT),
     )
     embeds = [header]
-    for team in TEAMS:
+    for team in teams():
         rows = results.get(team)
         if not rows:
             continue
@@ -980,7 +983,7 @@ def build_results_excel(round_row: dict, results: dict[str, list[dict]]) -> tupl
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    for team in TEAMS:
+    for team in teams():
         for r in results.get(team, []):
             ws.append([
                 team, r["name"], r["count"],
@@ -1042,7 +1045,7 @@ class PeerEval(commands.Cog):
         if not guild:
             await interaction.response.send_message("서버에서만 사용할 수 있습니다.", ephemeral=True)
             return
-        ch = guild.get_channel(config.ASSIGNMENT_DASHBOARD_CHANNEL_ID)
+        ch = guild.get_channel(config.current().ASSIGNMENT_DASHBOARD_CHANNEL_ID)
         if not ch or not isinstance(ch, discord.TextChannel):
             await interaction.response.send_message(
                 "과제 대시보드 채널을 찾을 수 없습니다.", ephemeral=True
@@ -1060,7 +1063,7 @@ class PeerEval(commands.Cog):
 
         roster = build_roster(guild)
         total = sum(len(v) for v in roster.values())
-        roster_line = " · ".join(f"{t} {len(roster[t])}명" for t in TEAMS if roster[t])
+        roster_line = " · ".join(f"{t} {len(roster[t])}명" for t in teams() if roster[t])
         await interaction.followup.send(
             embed=discord.Embed(
                 title="✅ 비밀평가 시작",
@@ -1121,7 +1124,7 @@ async def refresh_panel_after_close(bot: commands.Bot, round_row: dict) -> None:
     panel = await database.get_assignment_panel(PANEL_TYPE)
     if not panel:
         return
-    guild = bot.get_guild(config.GUILD_ID)
+    guild = bot.get_guild(config.current().GUILD_ID)
     if not guild:
         return
     ch = guild.get_channel(int(panel["channel_id"]))

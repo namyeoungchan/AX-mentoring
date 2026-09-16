@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView, WorkspaceModal, guild_event
 """
 온보딩 플로우
 1. 멤버 서버 참여 → 수강생 역할 부여 → DM으로 온보딩 안내 (DM 차단 시 채널 fallback)
@@ -14,7 +15,8 @@ import database
 
 log = logging.getLogger("asanAX.onboarding")
 
-TEAMS = list(config.TEAM_CHANNELS.keys())  # 단일 출처: config.TEAM_CHANNELS
+def teams():
+    return list(config.current().TEAM_CHANNELS)
 
 
 async def web_managed(bot, guild_id):
@@ -65,7 +67,7 @@ def _intro_submitted_embed(member: discord.Member) -> discord.Embed:
 
 # ── Modal ──────────────────────────────────────────────────────────────────────
 
-class IntroModal(discord.ui.Modal, title="자기소개 작성"):
+class IntroModal(WorkspaceModal, title="자기소개 작성"):
     name_field = discord.ui.TextInput(
         label="이름 (실명)",
         placeholder="홍길동",
@@ -118,19 +120,20 @@ class IntroModal(discord.ui.Modal, title="자기소개 작성"):
 
 # ── Team select view ───────────────────────────────────────────────────────────
 
-class TeamSelectView(discord.ui.View):
+class TeamSelectView(WorkspaceView):
     """Step 1: select team before opening the intro modal."""
 
     def __init__(self, bot: commands.Bot) -> None:
         super().__init__(timeout=120)
         self.bot = bot
 
-        options = [discord.SelectOption(label=t, value=t, emoji="👥") for t in TEAMS]
+        options = [discord.SelectOption(label=t, value=t, emoji="👥") for t in teams()[:25]]
         select = discord.ui.Select(
             placeholder="소속 팀을 선택하세요",
             min_values=1,
             max_values=1,
-            options=options,
+            options=options or [discord.SelectOption(label="웹에서 팀을 먼저 설정하세요", value="unconfigured")],
+            disabled=not options,
         )
         select.callback = self._on_team_select
         self.add_item(select)
@@ -142,7 +145,7 @@ class TeamSelectView(discord.ui.View):
 
 # ── Persistent onboarding view ─────────────────────────────────────────────────
 
-class OnboardingView(discord.ui.View):
+class OnboardingView(WorkspaceView):
     """Persistent view — survives bot restarts via custom_id."""
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -157,7 +160,7 @@ class OnboardingView(discord.ui.View):
     async def write_intro(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
-        if not interaction.guild or interaction.guild.id != config.GUILD_ID or await web_managed(self.bot, interaction.guild.id):
+        if not interaction.guild or interaction.guild.id != config.current().GUILD_ID or await web_managed(self.bot, interaction.guild.id):
             await interaction.response.send_message("시작하기 채널의 온보딩 버튼을 사용하세요. 팀은 웹에서 배정합니다.", ephemeral=True)
             return
         record = await database.get_onboarding(str(interaction.user.id))
@@ -210,12 +213,12 @@ async def _process_intro(
     intro_embed.set_footer(text="아산 AX · 자기소개")
 
     # Post to #자기소개 channel
-    intro_ch = guild.get_channel(config.INTRO_CHANNEL_ID)
+    intro_ch = guild.get_channel(config.current().INTRO_CHANNEL_ID)
     if intro_ch and isinstance(intro_ch, discord.TextChannel):
         await intro_ch.send(embed=intro_embed)
 
     # Post to team channel
-    team_ch_id = config.TEAM_CHANNELS.get(team)
+    team_ch_id = config.current().TEAM_CHANNELS.get(team)
     if team_ch_id:
         team_ch = guild.get_channel(team_ch_id)
         if team_ch and isinstance(team_ch, discord.TextChannel):
@@ -242,8 +245,8 @@ async def _process_intro(
         return
 
     # 4. Grant onboarding-complete role
-    if config.ONBOARDING_COMPLETE_ROLE_ID:
-        role = guild.get_role(config.ONBOARDING_COMPLETE_ROLE_ID)
+    if config.current().ONBOARDING_COMPLETE_ROLE_ID:
+        role = guild.get_role(config.current().ONBOARDING_COMPLETE_ROLE_ID)
         if role:
             try:
                 await member.add_roles(role, reason="온보딩 완료")
@@ -267,13 +270,14 @@ class Onboarding(commands.Cog):
         self.bot.add_view(OnboardingView(self.bot))
 
     @commands.Cog.listener()
+    @guild_event
     async def on_member_join(self, member: discord.Member) -> None:
         guild = member.guild
-        if member.bot or guild.id != config.GUILD_ID or await web_managed(self.bot, guild.id):
+        if member.bot or guild.id != config.current().GUILD_ID or await web_managed(self.bot, guild.id):
             return
 
         # 1. Assign 수강생 role
-        student_role = guild.get_role(config.STUDENT_ROLE_ID)
+        student_role = guild.get_role(config.current().STUDENT_ROLE_ID)
         if student_role:
             try:
                 await member.add_roles(student_role, reason="서버 참여 — 수강생 역할 자동 부여")
@@ -284,7 +288,7 @@ class Onboarding(commands.Cog):
         await database.create_onboarding(str(member.id), str(guild.id))
 
         # 3. Brief mention in onboarding channel — auto-deletes after 30s
-        onboarding_ch = guild.get_channel(config.ONBOARDING_CHANNEL_ID)
+        onboarding_ch = guild.get_channel(config.current().ONBOARDING_CHANNEL_ID)
         if onboarding_ch and isinstance(onboarding_ch, discord.TextChannel):
             msg = await onboarding_ch.send(
                 content=f"👋 {member.mention} 님이 참여했습니다! 위의 **[✍️ 자기소개 작성하기]** 버튼을 눌러 온보딩을 시작해주세요."
@@ -292,14 +296,15 @@ class Onboarding(commands.Cog):
             await msg.delete(delay=30)
 
     @commands.Cog.listener()
+    @guild_event
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
         if not message.guild:
             return
-        if message.guild.id != config.GUILD_ID or await web_managed(self.bot, message.guild.id):
+        if message.guild.id != config.current().GUILD_ID or await web_managed(self.bot, message.guild.id):
             return
-        if message.channel.id != config.INTRO_CHANNEL_ID:
+        if message.channel.id != config.current().INTRO_CHANNEL_ID:
             return
         if len(message.content) < 20:
             return
@@ -315,8 +320,8 @@ class Onboarding(commands.Cog):
         member = message.author
         guild = message.guild
 
-        if config.ONBOARDING_COMPLETE_ROLE_ID:
-            role = guild.get_role(config.ONBOARDING_COMPLETE_ROLE_ID)
+        if config.current().ONBOARDING_COMPLETE_ROLE_ID:
+            role = guild.get_role(config.current().ONBOARDING_COMPLETE_ROLE_ID)
             if role:
                 try:
                     await member.add_roles(role, reason="온보딩 완료 (자기소개 채널 직접 작성)")  # type: ignore[union-attr]

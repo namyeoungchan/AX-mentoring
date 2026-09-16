@@ -1,4 +1,4 @@
-"""Fixed channel objects for the existing bot database (config.GUILD_ID only)."""
+"""Channel objects resolved independently for each connected workspace."""
 from dataclasses import dataclass
 from types import MappingProxyType
 

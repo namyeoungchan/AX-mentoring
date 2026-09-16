@@ -1,12 +1,12 @@
-# Render 공통 봇과 기존 아산 운영 데이터 연결
+# Render 공통 봇과 워크스페이스 운영 데이터 연결
 
-봇 인스턴스는 기존 Render Worker 하나입니다. 전체 워크스페이스의 채널 구성·가입 초대·인증과 공통 상태 보고는 [DISCORD-LMS.md](./DISCORD-LMS.md)의 공통 연결을 사용합니다. 이 문서는 같은 봇의 기존 아산 운영 DB를 읽기 전용으로 전송하는 설정입니다.
+봇 인스턴스는 기존 Render Worker 하나입니다. 전체 워크스페이스의 채널 구성·가입 초대·인증과 공통 상태 보고는 [DISCORD-LMS.md](./DISCORD-LMS.md)의 공통 연결을 사용합니다. 이 문서는 같은 봇이 각 워크스페이스의 웹 저장소를 읽고 서버 상태와 함께 조회용 스냅샷을 전송하는 설정입니다.
 
 ## 구현한 연결
 
 ```text
 기존 Render Background Worker
-  Discord 봇 + 기존 /data/mentoring.db
+  Discord 봇 → 서버별 웹 저장소
   cogs/learningops_sync.py (기본 60초 간격, 읽기 전용)
        │ HTTPS POST + 동기화 전용 키
        ▼
@@ -14,10 +14,10 @@ LearningOps 웹 API /api/integrations/render/snapshot
   lms_remote_snapshots에 조회용 데이터 저장
        │ 관리자 인증 후 조회
        ▼
-워크스페이스: 아산 AX → 봇 연결 현황 (?workspace=asan-ax#connection)
+해당 서버에 연결된 워크스페이스 → 봇 연결 현황
 ```
 
-원본 봇 DB, 예약 및 과제는 변경하지 않습니다. 천안 AX 웹 관리 데이터와 아산 AX 원격 데이터는 별도 저장됩니다. 원격 스냅샷은 웹의 수정 API로 전달되지 않습니다.
+예약 및 과제 원본은 변경하지 않습니다. 조회용 스냅샷은 서버별 워크스페이스에 별도로 저장됩니다. 원격 스냅샷은 웹의 수정 API로 전달되지 않습니다.
 
 표시 항목은 Discord 연결 보고, 서버 이름·멤버 수, 마지막 수신 시각, 멘토, 예약, 과제, 제출 내용/링크입니다. 서버 멤버 수는 수강생 수와 다릅니다. 각 표에는 최신 1,000건을 표시하고 합계는 원본 DB 전체 건수를 사용합니다. 3분 이상 새 데이터가 없으면 **동기화 지연 / 현재 상태 확인 불가**를 표시합니다. 기존 Worker가 온라인인지 Render API로 확인하는 기능은 아닙니다.
 
@@ -31,12 +31,11 @@ LearningOps 웹 API /api/integrations/render/snapshot
 ```dotenv
 LEARNINGOPS_SYNC_URL=https://실제-웹-API-도메인/api/integrations/render/snapshot
 LEARNINGOPS_SYNC_TOKEN=<웹 API와 같은 전용 키>
-LEARNINGOPS_SOURCE_NAME=아산 AX
 LEARNINGOPS_SYNC_INTERVAL=60
 ```
 
-5. `bot.py`, `cogs/learningops_sync.py`, `requirements.txt`가 포함된 코드를 기존 Worker에 배포합니다. 기존 `DISCORD_TOKEN`, `GUILD_ID`, `DB_PATH=/data/mentoring.db`와 디스크 설정을 유지합니다. 코드를 로드하려면 한 번 재배포해야 하며, 그동안 봇이 잠시 재연결됩니다. 무중단 적용을 보장하지 않습니다.
-6. 웹의 아산 AX 워크스페이스에 기존 봇 `GUILD_ID` 서버를 연결합니다. 가입 인증용 서버 설정이나 기존 수신 이력으로 이미 연결됐다면 추가 작업은 없습니다. Worker 로그의 `LearningOps snapshot published`와 웹의 `동기화 정상`을 확인합니다. 첫 동기화는 Discord 연결 준비가 끝난 후 실행됩니다. 브라우저는 15초 간격으로 수신 상태를 갱신합니다.
+5. `bot.py`, `cogs/learningops_sync.py`, `requirements.txt`가 포함된 코드를 기존 Worker에 배포합니다. 기존 `DISCORD_TOKEN`, `DB_PATH=/data/mentoring.db`와 디스크 설정을 유지합니다. 고정 `GUILD_ID`는 런타임에 필요하지 않습니다. 코드를 로드하려면 한 번 재배포해야 하며, 그동안 봇이 잠시 재연결됩니다. 무중단 적용을 보장하지 않습니다.
+6. 각 웹 워크스페이스에 Discord 서버를 1:1로 연결합니다. 이미 연결됐다면 추가 작업은 없습니다. 웹 저장소 연결이 준비된 서버마다 스냅샷을 전송합니다. Worker 로그의 `LearningOps snapshot published`와 웹의 `동기화 정상`을 확인합니다. 첫 동기화는 Discord 연결 준비가 끝난 후 실행됩니다. 브라우저는 15초 간격으로 수신 상태를 갱신합니다.
 
 Render 대시보드 주소만으로는 운영 DB를 읽거나 환경변수를 적용할 수 없습니다. 이 세션에서는 Render 계정 인증, 서비스 배포, 운영 데이터 수신을 아직 수행하지 않았습니다. 로컬에서 테스트한 데이터는 운영 데이터로 저장하지 않았습니다.
 

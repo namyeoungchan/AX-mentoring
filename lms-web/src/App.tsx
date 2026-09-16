@@ -10,7 +10,7 @@ import Dashboard from './Dashboard'
 import RenderMonitor from './RenderMonitor'
 import Management from './Management'
 import Operations from './Operations'
-import { useWorkspace } from './useWorkspace'
+import { demoMode, useWorkspace } from './useWorkspace'
 import AuthScreen from './AuthScreen'
 import StudentHome from './StudentHome'
 import DiscordSetup from './DiscordSetup'
@@ -48,11 +48,15 @@ export default function App() {
   const [invitationToken, setInvitationToken] = useState(() => location.hash.startsWith('#invite=') ? location.hash.slice(8) : '')
   const { loading, authRequired, account, learning, error, refresh, login, logout, enterDemo, workspaces, activeId, selectWorkspace } = workspace
   if (loading) return <div className="connection-screen"><Command size={32} /><h1>LearningOps</h1><p>운영 데이터 불러오는 중…</p></div>
-  const authScreen = <AuthScreen login={login} error={error} enterDemo={enterDemo} registered={refresh} staffInvitation={Boolean(invitationToken)} />
+  const authScreen = <AuthScreen login={login} error={error} enterDemo={enterDemo} registered={refresh} staffInvitation={Boolean(invitationToken)} invitationToken={invitationToken} />
   if (invitationToken) return <InvitationPage token={invitationToken} account={account} auth={authScreen} logout={logout} accepted={async id => { location.hash = 'dashboard'; await selectWorkspace(id); setInvitationToken('') }} />
   if (authRequired) return authScreen
+  if (!activeId && (workspaces.length > 0 || account?.role === 'admin' || demoMode)) return <div className="student-page"><header className="student-header"><strong>AX LearningOps</strong>{account && <LogoutButton logout={logout} />}</header><main className="student-main">
+    <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} createWorkspace={account?.role === 'admin' || demoMode ? workspace.createWorkspace : undefined} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={workspace.saving} error={error} />
+    <section className="panel student-empty"><h1>운영 중인 워크스페이스가 없습니다.</h1><p>워크스페이스 선택 메뉴의 보관함에서 기존 워크스페이스를 열 수 있습니다.</p></section>
+  </main></div>
   if (workspace.activeRole === 'instructor') return <InstructorHome key={activeId} workspace={workspace} />
-  if (account && workspace.activeRole !== 'admin') return <StudentHome user={account} learning={learning} error={error} refresh={refresh} logout={logout} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} />
+  if (account && workspace.activeRole !== 'admin') return <StudentHome user={account} learning={learning} error={error} refresh={refresh} logout={logout} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={workspace.saving} />
   return <AdminWorkspace key={activeId} workspace={workspace} />
 }
 function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
@@ -92,7 +96,7 @@ function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspa
     {sidebar && <button className="sidebar-overlay" aria-label="메뉴 닫기" onClick={() => setSidebar(false)} />}
     <aside className={`sidebar ${sidebar ? 'open' : ''}`}>
       <a href="#dashboard" className="brand" onClick={() => go('dashboard')}><span className="brand-mark"><Command size={23} /></span><span><span className="brand-ax">AX</span><small>LEARNINGOPS</small></span></a>
-      <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} createWorkspace={workspace.account?.role === 'admin' || data.mode === 'demo' ? createWorkspace : undefined} saving={saving} error={error} />
+      <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} createWorkspace={workspace.account?.role === 'admin' || data.mode === 'demo' ? createWorkspace : undefined} saving={saving} error={error} />
       <p className="nav-label">WORKSPACE</p>
       <nav aria-label="주 메뉴">{navigation.slice(0, -3).map(n => <button key={n.id} onClick={() => go(n.id)} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined}><n.icon size={19} /><span>{n.name}</span>{n.id === 'mentoring' && pending > 0 && <span className="nav-count">{pending}</span>}{page === n.id && <span className="active-dot" />}</button>)}<p className="nav-label system-label">MANAGEMENT</p>{navigation.slice(-3).map(n => <button key={n.id} onClick={() => go(n.id)} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined}><n.icon size={19} /><span>{n.name}</span>{n.id === 'bots' && <span className="online-dot" />}</button>)}</nav>
       <div className="sidebar-bottom"><div className="help-card"><span className="help-spark"><Sparkles size={19} /></span><h3>운영 도움말</h3><p>기능별 사용 방법과<br />연동 범위를 확인하세요.</p><button onClick={() => setModal('help')}>운영 가이드 <ArrowUpRight size={14} /></button></div><button className="profile" onClick={() => go('settings')}><Avatar name="관" color="peach" /><span><strong>{workspace.account?.name || '관리자'}</strong><small>{workspace.account?.role === 'admin' ? '전체 관리자' : '워크스페이스 관리자'}</small></span><MoreHorizontal size={19} /></button></div>

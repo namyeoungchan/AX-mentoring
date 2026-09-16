@@ -1,10 +1,11 @@
+from workspace_context import WorkspaceView
 import discord
 import database
 from ui import embeds
 from ui.approval_view import ApprovalView
 
 
-class BookingConfirmView(discord.ui.View):
+class BookingConfirmView(WorkspaceView):
     def __init__(self, slot: dict, mentor: dict):
         super().__init__(timeout=60)
         self.slot = slot
@@ -65,7 +66,7 @@ class BookingConfirmView(discord.ui.View):
         )
 
 
-class CancelConfirmView(discord.ui.View):
+class CancelConfirmView(WorkspaceView):
     def __init__(self, booking: dict, mentor: dict):
         super().__init__(timeout=60)
         self.booking = booking
@@ -101,7 +102,7 @@ class CancelConfirmView(discord.ui.View):
         )
 
 
-class AdminSlotRemoveView(discord.ui.View):
+class AdminSlotRemoveView(WorkspaceView):
     def __init__(self, slot_id: int, had_booking: bool):
         super().__init__(timeout=60)
         self.slot_id = slot_id

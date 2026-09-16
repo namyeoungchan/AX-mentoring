@@ -33,7 +33,7 @@ async function checkPassword(value, stored) {
 }
 
 export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, botToken = '', guildId = '', now = Date.now, guildAllowed = id => id === guildId } = {}) {
-  const enabled = botToken.length >= 32 && /^\d{17,20}$/.test(guildId)
+  const enabled = botToken.length >= 32
   db.exec(`
     CREATE TABLE IF NOT EXISTS lms_users (
       id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
@@ -100,8 +100,9 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     const raw = randomBytes(8).toString('hex').toUpperCase()
     return { raw, code: `${raw.slice(0, 8)}-${raw.slice(8)}`, expiresAt: now() + 10 * 60000 }
   }
-  async function register(body) {
+  async function register(body, targetGuild = guildId) {
     requireEnabled()
+    if (!/^\d{17,20}$/.test(targetGuild) || !guildAllowed(targetGuild)) throw new ApiError(503, '가입할 워크스페이스의 Discord 서버 연결을 확인하세요.')
     const input = registration.parse(body)
     input.discordId ||= `pending:${randomUUID()}`
     available(input.username, input.discordId)
@@ -112,7 +113,7 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     const ticket = randomBytes(32).toString('hex')
     const value = challenge()
     db.prepare(`INSERT INTO lms_registrations(ticket_hash,code_hash,username,name,password_hash,discord_id,guild_id,created_at,expires_at,renewed_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?)`).run(hash(ticket), hash(value.raw), input.username, input.name, passwordHash, input.discordId, guildId, now(), value.expiresAt, now())
+      VALUES(?,?,?,?,?,?,?,?,?,?)`).run(hash(ticket), hash(value.raw), input.username, input.name, passwordHash, input.discordId, targetGuild, now(), value.expiresAt, now())
     return { ticket, code: value.code, expiresAt: value.expiresAt }
   }
   async function signup(body, onCreated) {
@@ -158,7 +159,7 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     if (row.renewed_at + 60000 > now()) throw new ApiError(429, '코드는 1분에 한 번 재발급할 수 있습니다.')
     if (!row.user_id) available(row.username, row.discord_id)
     const value = challenge()
-    db.prepare('UPDATE lms_registrations SET code_hash=?,expires_at=?,renewed_at=?,guild_id=? WHERE ticket_hash=?').run(hash(value.raw), value.expiresAt, now(), row.user_id ? row.guild_id : guildId, row.ticket_hash)
+    db.prepare('UPDATE lms_registrations SET code_hash=?,expires_at=?,renewed_at=?,guild_id=? WHERE ticket_hash=?').run(hash(value.raw), value.expiresAt, now(), row.guild_id, row.ticket_hash)
     return { code: value.code, expiresAt: value.expiresAt }
   }
   function botAuthorized(header = '') { return botToken.length >= 32 && safeEqual(header, `Bearer ${botToken}`) }

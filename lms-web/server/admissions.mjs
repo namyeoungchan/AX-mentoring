@@ -12,9 +12,9 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     invite_state TEXT NOT NULL DEFAULT 'none', invite_code TEXT, invite_expires INTEGER, claim_hash TEXT, lease_until INTEGER,
     UNIQUE(workspace_id,user_id)
   );`)
-  function catalogue() { return db.prepare('SELECT id,name FROM lms_workspaces ORDER BY created_at,rowid').all() }
+  function catalogue() { return db.prepare('SELECT id,name FROM lms_workspaces WHERE archived_at IS NULL ORDER BY created_at,rowid').all() }
   function apply(id, user) {
-    workspaces.metadata(id)
+    if (workspaces.metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스에는 새 가입을 신청할 수 없습니다.')
     if (user.role === 'admin' || workspaces.role(id, user)) throw new ApiError(409, '이미 참여한 계정입니다.')
     const existing = db.prepare('SELECT * FROM lms_admissions WHERE workspace_id=? AND user_id=?').get(id, user.id)
     if (existing) throw new ApiError(409, '이미 신청한 워크스페이스입니다.')

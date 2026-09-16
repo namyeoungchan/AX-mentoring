@@ -635,6 +635,12 @@ async def mark_reminder_sent(booking_id: int, reminder_type: str) -> None:
 
 # ── Onboarding helpers ─────────────────────────────────────────────────────
 
+async def reset_onboarding(user_id: str, guild_id: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute('DELETE FROM onboarding_progress WHERE user_id = ? AND guild_id = ?', (user_id, guild_id))
+        await db.commit()
+
+
 async def create_onboarding(user_id: str, guild_id: str) -> None:
     """Record that a new member has joined (idempotent)."""
     async with aiosqlite.connect(DB_PATH) as db:

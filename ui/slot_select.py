@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView
 import discord
 import database
 from ui import embeds
@@ -6,7 +7,7 @@ from ui.confirm_view import BookingConfirmView
 PAGE_SIZE = 25
 
 
-class SlotSelectView(discord.ui.View):
+class SlotSelectView(WorkspaceView):
     def __init__(self, mentor: dict, slots: list[dict], bookings_map: dict[int, dict], page: int = 0):
         super().__init__(timeout=120)
         self.mentor = mentor

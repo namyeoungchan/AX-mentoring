@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
+import branding from '../shared/branding.json' with { type: 'json' }
 
 const text = z.string().trim().min(1).max(200)
 const id = text
@@ -24,7 +25,7 @@ const schemas = {
   settings: z.object({ name: text, reminders: z.boolean(), onboarding: z.boolean(), qa: z.boolean() }),
 }
 export class ApiError extends Error { constructor(status, message) { super(message); this.status = status } }
-export function createStore(dbPath, { workspaceId = 'default', defaultName = '천안 AX' } = {}) {
+export function createStore(dbPath, { workspaceId = 'default', defaultName = branding.name } = {}) {
   mkdirSync(dirname(dbPath), { recursive: true })
   const db = new DatabaseSync(dbPath)
   db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;')
@@ -51,6 +52,10 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = '�
   const get = (kind, key) => { const row = db.prepare('SELECT data FROM lms_records WHERE kind=? AND id=?').get(kind, key); return row ? JSON.parse(row.data) : null }
   const requireRecord = (kind, key) => { const row = get(kind, key); if (!row) throw new ApiError(422, `${kind}: 연결된 항목을 찾을 수 없습니다.`); return row }
   const put = (kind, row) => db.prepare('INSERT INTO lms_records(kind,id,data) VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data').run(kind, row.id || 'workspace', JSON.stringify(row))
+  if (workspaceId === 'default') {
+    const settings = get('settings', 'workspace')
+    if (settings?.name === branding.legacyName) put('settings', { ...settings, name: branding.name })
+  }
   function snapshot() {
     const result = Object.fromEntries(['courses', 'learners', 'teams', 'attendance', 'scores', 'notices', 'servers', 'files'].map(kind => [kind, rows(kind)]))
     result.courses = result.courses.map(c => ({ ...c, learners: result.learners.filter(l => l.courseId === c.id).length }))

@@ -33,7 +33,7 @@
 기존 채널 구축 연동 키를 공유하므로 새 환경변수는 없습니다. **웹 서비스와 별도로 실행 중인 봇 서비스에도** 다음 설정이 있어야 합니다.
 
 ```dotenv
-LEARNINGOPS_PROVISION_URL=https://asanax-learningops-web.onrender.com/api/integrations/discord/provision
+LEARNINGOPS_PROVISION_URL=https://ax-learningops-web.onrender.com/api/integrations/discord/provision
 LEARNINGOPS_PROVISION_TOKEN=<웹 서비스와 같은 32자 이상 키>
 ```
 

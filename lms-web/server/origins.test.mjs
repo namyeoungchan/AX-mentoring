@@ -3,10 +3,10 @@ import assert from 'node:assert/strict'
 import { configuredOrigins } from './origins.mjs'
 
 test('actual Render URL remains allowed when the configured service name is stale', () => {
-  const origins = configuredOrigins({ production: true, allowedOrigins: 'https://ax-lms.onrender.com, https://namyeoungchan.github.io/', renderExternalUrl: 'https://asanax-learningops-web.onrender.com' })
-  assert.ok(origins.has('https://asanax-learningops-web.onrender.com'))
+  const origins = configuredOrigins({ production: true, allowedOrigins: 'https://previous-service.onrender.com, https://namyeoungchan.github.io/', renderExternalUrl: 'https://ax-learningops-web.onrender.com' })
+  assert.ok(origins.has('https://ax-learningops-web.onrender.com'))
   assert.ok(origins.has('https://namyeoungchan.github.io'))
-  for (const origin of ['null', 'https://attacker.onrender.com', 'https://asanax-learningops-web.onrender.com.attacker.example', 'https://namyeoungchan.github.io.attacker.example', 'http://localhost:5173']) assert.equal(origins.has(origin), false)
+  for (const origin of ['null', 'https://attacker.onrender.com', 'https://ax-learningops-web.onrender.com.attacker.example', 'https://namyeoungchan.github.io.attacker.example', 'http://localhost:5173']) assert.equal(origins.has(origin), false)
 })
 
 test('production without explicit origins trusts only the platform supplied URL; local defaults stay development-only', () => {

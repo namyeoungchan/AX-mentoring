@@ -11,7 +11,7 @@ function fixture(t) {
   t.after(() => { store.db.close(); rmSync(directory, { recursive: true, force: true }) })
   return store
 }
-const course = { id: 'course1', title: '천안 AX', category: 'AX', description: '1기', progress: 0, learners: 0, weeks: '8주', mentor: '', theme: 'green', status: '모집 중', code: 'AX', cohort: '1', guildId: '', startDate: '2026-09-01', endDate: '2026-12-01' }
+const course = { id: 'course1', title: 'AX LearningOps', category: 'AX', description: '1기', progress: 0, learners: 0, weeks: '8주', mentor: '', theme: 'green', status: '모집 중', code: 'AX', cohort: '1', guildId: '', startDate: '2026-09-01', endDate: '2026-12-01' }
 const student = { id: 'student1', name: '테스트 학생', email: 'test@example.com', discordId: '123456789012345678', courseId: 'course1', team: '', status: '정상', progress: 0, color: 'sage' }
 const mentor = { id: 'new', name: '테스트 멘토', discordId: '223456789012345678', bio: '개발' }
 const write = (s, kind, value) => s.mutate({ revision: s.snapshot().revision, changes: [{ kind, value }] })

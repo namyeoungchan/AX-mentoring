@@ -18,7 +18,7 @@ test('create course, learner, attendance and score, persist reload, and validate
   await login(page)
   await page.getByRole('button', { name: '새 과정 만들기' }).click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByLabel('과정명', { exact: true }).fill('천안 AX 테스트 과정')
+  await dialog.getByLabel('과정명', { exact: true }).fill('AX LearningOps 테스트 과정')
   await dialog.getByLabel('과정 코드').fill('E2E-AX')
   await dialog.getByLabel('시작일').fill('2026-09-01')
   await dialog.getByLabel('종료일').fill('2026-12-01')

@@ -5,6 +5,7 @@ import { ApiError, createStore } from './store.mjs'
 import { createRenderSync } from './render-sync.mjs'
 import { templateSchema } from './provision.mjs'
 import defaultLayout from '../shared/discord-defaults.json' with { type: 'json' }
+import branding from '../shared/branding.json' with { type: 'json' }
 
 const creation = z.object({ name: z.string().trim().min(1).max(60).transform(value => value.normalize('NFKC')), description: z.string().trim().max(300).default(''), guildId: z.union([z.string().regex(/^\d{17,20}$/), z.literal('')]).default('') }).strict()
 
@@ -31,16 +32,25 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     );
     CREATE TABLE IF NOT EXISTS lms_workspace_migrations (name TEXT PRIMARY KEY);
     CREATE TABLE IF NOT EXISTS lms_discord_templates (workspace_id TEXT PRIMARY KEY REFERENCES lms_workspaces(id), data TEXT NOT NULL CHECK(json_valid(data)), revision TEXT NOT NULL, updated_at INTEGER NOT NULL);`)
+  if (!db.prepare('PRAGMA table_info(lms_workspaces)').all().some(column => column.name === 'archived_at')) {
+    db.exec('ALTER TABLE lms_workspaces ADD COLUMN archived_at INTEGER')
+  }
   const migrateMembers = !db.prepare("SELECT 1 FROM lms_workspace_migrations WHERE name='members-v1'").get()
+  const attachLegacyGuild = (guildId, id) => {
+    if (!db.prepare('SELECT 1 FROM lms_workspace_guilds WHERE workspace_id=? AND guild_id<>?').get(id, guildId)) {
+      db.prepare('INSERT OR IGNORE INTO lms_workspace_guilds VALUES(?,?)').run(guildId, id)
+    }
+  }
   db.exec('BEGIN IMMEDIATE')
   try {
-    db.prepare('INSERT OR IGNORE INTO lms_workspaces VALUES(?,?,?,?,?)').run('default', store.snapshot().name, '기존 학습 운영 데이터', 'local-default', Date.now())
-    db.prepare('INSERT OR IGNORE INTO lms_workspaces VALUES(?,?,?,?,?)').run('asan-ax', '아산 AX', '아산 AX 학습 운영', sourceId, Date.now())
-    if (/^\d{17,20}$/.test(authGuildId)) db.prepare('INSERT OR IGNORE INTO lms_workspace_guilds VALUES(?,?)').run(authGuildId, 'asan-ax')
+    db.prepare('INSERT OR IGNORE INTO lms_workspaces(id,name,description,source_id,created_at) VALUES(?,?,?,?,?)').run('default', store.snapshot().name, '기존 학습 운영 데이터', 'local-default', Date.now())
+    db.prepare('INSERT OR IGNORE INTO lms_workspaces(id,name,description,source_id,created_at) VALUES(?,?,?,?,?)').run('asan-ax', '아산 AX', '아산 AX 학습 운영', sourceId, Date.now())
+    db.prepare("UPDATE lms_workspaces SET name=? WHERE id='default' AND name=?").run(branding.name, branding.legacyName)
+    if (/^\d{17,20}$/.test(authGuildId)) attachLegacyGuild(authGuildId, 'asan-ax')
     // Existing snapshots keep their source and records. Bind the legacy Asan source once.
     const snapshot = db.prepare('SELECT payload FROM lms_remote_snapshots WHERE source_id=?').get(sourceId)
-    if (snapshot) db.prepare('INSERT OR IGNORE INTO lms_workspace_guilds VALUES(?,?)').run(JSON.parse(snapshot.payload).bot.guildId, 'asan-ax')
-    for (const row of db.prepare('SELECT guild_id FROM lms_discord_plans').all()) db.prepare('INSERT OR IGNORE INTO lms_workspace_guilds VALUES(?,?)').run(row.guild_id, 'default')
+    if (snapshot) attachLegacyGuild(JSON.parse(snapshot.payload).bot.guildId, 'asan-ax')
+    for (const row of db.prepare('SELECT guild_id FROM lms_discord_plans ORDER BY guild_id').all()) attachLegacyGuild(row.guild_id, 'default')
     // Existing verified accounts retain access once. New members must accept an invitation.
     if (migrateMembers) for (const user of db.prepare('SELECT * FROM lms_users WHERE verified_at IS NOT NULL').all()) {
       for (const workspace of db.prepare('SELECT id FROM lms_workspaces').all()) {
@@ -50,6 +60,11 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
       }
     }
     db.prepare("INSERT OR IGNORE INTO lms_workspace_migrations VALUES('members-v1')").run()
+    // Preserve any pre-existing ambiguous bindings for review instead of deleting data.
+    // Such workspaces are excluded from bot discovery until their binding is resolved.
+    if (!db.prepare('SELECT 1 FROM lms_workspace_guilds GROUP BY workspace_id HAVING COUNT(*)>1 LIMIT 1').get()) {
+      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS lms_workspace_single_guild ON lms_workspace_guilds(workspace_id)')
+    }
     db.exec('COMMIT')
   } catch (error) { db.exec('ROLLBACK'); throw error }
 
@@ -57,7 +72,7 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     if (typeof id !== 'string') throw new ApiError(404, '워크스페이스를 찾을 수 없습니다.')
     const row = db.prepare('SELECT * FROM lms_workspaces WHERE id=?').get(id)
     if (!row) throw new ApiError(404, '워크스페이스를 찾을 수 없습니다.')
-    return { id: row.id, name: row.name, description: row.description, sourceId: row.source_id,
+    return { id: row.id, name: row.name, description: row.description, sourceId: row.source_id, archivedAt: row.archived_at,
       guildIds: db.prepare('SELECT guild_id FROM lms_workspace_guilds WHERE workspace_id=? ORDER BY guild_id').all(id).map(g => g.guild_id) }
   }
   function open(id) {
@@ -75,13 +90,34 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     if (!canAccess(id, user)) throw new ApiError(403, '이 워크스페이스에 접근할 권한이 없습니다.')
     return { ...meta, role: role(id, user) }
   }
-  function list(user) {
-    return db.prepare('SELECT id FROM lms_workspaces ORDER BY created_at,rowid').all().filter(row => canAccess(row.id, user)).map(row => ({ ...metadata(row.id), role: role(row.id, user) }))
+  function list(user, { includeArchived = false } = {}) {
+    return db.prepare('SELECT id,archived_at FROM lms_workspaces ORDER BY created_at,rowid').all()
+      .filter(row => (includeArchived || row.archived_at === null) && canAccess(row.id, user))
+      .map(row => ({ ...metadata(row.id), role: role(row.id, user) }))
+  }
+  function setArchived(id, archived, user) {
+    requireRole(id, user, ['admin'])
+    z.boolean().parse(archived)
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      const before = metadata(id)
+      if ((before.archivedAt !== null) !== archived) {
+        const archivedAt = archived ? now() : null
+        db.prepare('UPDATE lms_workspaces SET archived_at=? WHERE id=?').run(archivedAt, id)
+        db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)')
+          .run(user.username || user.id, archived ? 'workspace.archive' : 'workspace.restore', id,
+            JSON.stringify({ archivedAt: before.archivedAt }), JSON.stringify({ archivedAt }))
+      }
+      db.exec('COMMIT')
+      return { ...metadata(id), role: role(id, user) }
+    } catch (error) { db.exec('ROLLBACK'); throw error }
   }
   function bindGuild(id, guildId) {
     if (!/^\d{17,20}$/.test(guildId)) throw new ApiError(422, 'Discord 서버 ID를 확인하세요.')
     const owner = db.prepare('SELECT workspace_id FROM lms_workspace_guilds WHERE guild_id=?').get(guildId)
     if (owner && owner.workspace_id !== id) throw new ApiError(409, '다른 워크스페이스에 연결된 Discord 서버입니다.')
+    const connected = db.prepare('SELECT guild_id FROM lms_workspace_guilds WHERE workspace_id=? AND guild_id<>?').get(id, guildId)
+    if (connected) throw new ApiError(409, '워크스페이스에는 Discord 서버 하나만 연결할 수 있습니다.')
     db.prepare('INSERT OR IGNORE INTO lms_workspace_guilds VALUES(?,?)').run(guildId, id)
   }
   function create(body) {
@@ -90,7 +126,7 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     db.exec('BEGIN IMMEDIATE')
     try {
       if (db.prepare('SELECT id FROM lms_workspaces WHERE lower(name)=lower(?)').get(input.name)) throw new ApiError(409, '같은 이름의 워크스페이스가 있습니다.')
-      db.prepare('INSERT INTO lms_workspaces VALUES(?,?,?,?,?)').run(id, input.name, input.description, id, Date.now())
+      db.prepare('INSERT INTO lms_workspaces(id,name,description,source_id,created_at) VALUES(?,?,?,?,?)').run(id, input.name, input.description, id, Date.now())
       if (input.guildId) { bindGuild(id, input.guildId); provision.install(input.guildId, template(id)) }
       open(id)
       db.exec('COMMIT')
@@ -204,6 +240,13 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     const row = pendingInvitation(token)
     return { workspaceName: metadata(row.workspace_id).name, role: row.role, username: row.username, expiresAt: row.expires_at }
   }
+  function invitationGuild(token, username) {
+    const row = pendingInvitation(token)
+    if (typeof username !== 'string' || row.username !== username.trim().toLowerCase()) throw new ApiError(403, '초대받은 아이디로 가입하세요.')
+    const guilds = metadata(row.workspace_id).guildIds
+    if (guilds.length !== 1) throw new ApiError(409, '초대한 워크스페이스에 Discord 서버 하나를 연결하세요.')
+    return guilds[0]
+  }
   function acceptInvitation(token, user) {
     if (user.role === 'admin' || user.verified === false) throw new ApiError(403, 'Discord 인증을 마친 초대 대상 계정으로 로그인하세요.')
     db.exec('BEGIN IMMEDIATE')
@@ -244,6 +287,6 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     return teaching(id)
   }
   function close() { for (const [id, value] of stores) if (id !== 'default') value.db.close() }
-  return { list, create, metadata, requireAccess, open, snapshot, mutate, remote, ingest, savePlan, enqueue,
-    provisionRead: id => ({ ...provision.read(metadata(id).guildIds), template: template(id), boundGuildIds: metadata(id).guildIds }), template, saveTemplate, addServer, connection, role, requireRole, invite, previewInvitation, acceptInvitation, members, revokeInvitation, teaching, teach, close }
+  return { list, create, setArchived, metadata, requireAccess, open, snapshot, mutate, remote, ingest, savePlan, enqueue,
+    provisionRead: id => ({ ...provision.read(metadata(id).guildIds), template: template(id), boundGuildIds: metadata(id).guildIds }), template, saveTemplate, addServer, connection, role, requireRole, invite, previewInvitation, invitationGuild, acceptInvitation, members, revokeInvitation, teaching, teach, close }
 }

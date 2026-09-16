@@ -37,6 +37,7 @@ export function createBotStorage(main, workspaces, onboarding) {
     snowflake.parse(guildId)
     const row = main.prepare('SELECT workspace_id FROM lms_workspace_guilds WHERE guild_id=?').get(guildId)
     if (!row) throw new ApiError(403, '웹 워크스페이스에 Discord 서버 ID를 먼저 등록하세요.')
+    if (workspaces.metadata(row.workspace_id).guildIds.length !== 1) throw new ApiError(409, '워크스페이스와 Discord 서버를 1:1로 연결하세요.')
     return row.workspace_id
   }
   function state(id) {
@@ -66,7 +67,22 @@ export function createBotStorage(main, workspaces, onboarding) {
     const id = owner(guildId), db = open(id)
     const imported = db.prepare("SELECT checksum FROM lms_storage_imports WHERE guild_id=? AND state='complete' LIMIT 1").get(guildId)
     const settings = db.prepare('SELECT data FROM lms_bot_settings WHERE guild_id=?').get(guildId)
-    const value = settings ? JSON.parse(settings.data) : null
+    const value = settings ? JSON.parse(settings.data) : { channels: {}, teams: [], qaUnansweredHours: 24 }
+    // Discord assigns IDs at creation. Read this guild's persisted resource map;
+    // explicit web settings override generated defaults, including an empty alert list.
+    const resourceId = (kind, key) => {
+      const row = main.prepare('SELECT data FROM lms_runtime_state WHERE guild_id=? AND kind=? AND record_key=?').get(guildId, kind, key)
+      const id = row ? JSON.parse(row.data).id : ''
+      return typeof id === 'string' && snowflake.safeParse(id).success ? id : ''
+    }
+    for (const [setting, kind, key] of [
+      ['ADMIN_ROLE_ID', 'role', 'admin'], ['STUDENT_ROLE_ID', 'role', 'student'], ['ONBOARDING_COMPLETE_ROLE_ID', 'role', 'complete'],
+      ['ONBOARDING_CHANNEL_ID', 'channel', 'start'], ['INTRO_CHANNEL_ID', 'channel', 'intro'],
+    ]) {
+      const id = resourceId(kind, key)
+      if (!value.channels[setting] && id) value.channels[setting] = id
+    }
+    value.qaNotifyRoleIds ??= ['admin', 'instructor'].map(key => resourceId('role', key)).filter(Boolean)
     let teamMembers = null
     const managed = main.prepare("SELECT data FROM lms_onboarding_settings WHERE guild_id=?").get(guildId)
     if (value && managed && JSON.parse(managed.data).enabled) {
@@ -90,6 +106,16 @@ export function createBotStorage(main, workspaces, onboarding) {
       bookings: db.prepare('SELECT b.id,b.user_name,b.status,s.label,s.start_time,s.end_time,m.name AS mentor_name FROM bookings b JOIN slots s ON b.slot_id=s.id JOIN mentors m ON s.mentor_id=m.id ORDER BY b.id DESC LIMIT 1000').all(),
       assignments: db.prepare('SELECT a.id,a.week,a.title,a.due_date,a.type,a.is_active,(SELECT COUNT(*) FROM submissions s WHERE s.assignment_id=a.id) AS submitted FROM assignments a ORDER BY a.id DESC LIMIT 1000').all(),
       submissions: db.prepare('SELECT s.id,s.assignment_id,s.user_name,s.team,s.content,s.link,s.submitted_at,a.title AS assignment_title FROM submissions s JOIN assignments a ON s.assignment_id=a.id ORDER BY s.id DESC LIMIT 1000').all() }
+  }
+  function registry(body) {
+    const { guildIds } = z.object({ guildIds: z.array(snowflake).max(10000) }).strict().parse(body)
+    const result = { workspaces: [], unavailable: [] }
+    for (const guildId of new Set(guildIds)) {
+      if (!main.prepare('SELECT 1 FROM lms_workspace_guilds WHERE guild_id=?').get(guildId)) continue
+      try { result.workspaces.push({ guildId, ...status(guildId) }) }
+      catch (error) { result.unavailable.push({ guildId, code: error.status === 409 ? 'guild_binding_conflict' : 'storage_unavailable' }) }
+    }
+    return result
   }
   function bootstrap(body) {
     const input = z.object({ guildId: snowflake, archive: z.string().max(64 * 1024 * 1024), checksum: z.string().length(64) }).strict().parse(body)
@@ -190,7 +216,7 @@ export function createBotStorage(main, workspaces, onboarding) {
     running.set(id, next)
     try { return { result: await next } } finally { if (running.get(id) === next) running.delete(id) }
   }
-  return { state, table, archive, status, snapshot, bootstrap, settings, bindPanels, runtime, call }
+  return { state, table, archive, status, registry, snapshot, bootstrap, settings, bindPanels, runtime, call }
 }
 
 function invoke(filename, request) {

@@ -1,3 +1,4 @@
+from workspace_context import WorkspaceView, WorkspaceModal
 """
 Mentor self-service setup panel.
 Accessible via /멘토 설정
@@ -14,7 +15,7 @@ from ui.date_select import WEEKDAYS
 
 # ── Modals ────────────────────────────────────────────────────────────────────
 
-class ScheduleSetModal(discord.ui.Modal, title="멘토링 시간대 설정"):
+class ScheduleSetModal(WorkspaceModal, title="멘토링 시간대 설정"):
     start_time = discord.ui.TextInput(
         label="시작 시간 (HH:MM)",
         placeholder="19:00",
@@ -80,7 +81,7 @@ class ScheduleSetModal(discord.ui.Modal, title="멘토링 시간대 설정"):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-class SlotGenerateModal(discord.ui.Modal, title="슬롯 생성"):
+class SlotGenerateModal(WorkspaceModal, title="슬롯 생성"):
     date_from = discord.ui.TextInput(
         label="시작 날짜 (YYYY-MM-DD)",
         placeholder="2026-06-01",
@@ -147,7 +148,7 @@ class SlotGenerateModal(discord.ui.Modal, title="슬롯 생성"):
 
 # ── Slot clear confirmation view ──────────────────────────────────────────────
 
-class SlotClearConfirmView(discord.ui.View):
+class SlotClearConfirmView(WorkspaceView):
     def __init__(self, mentor: dict, bot: commands.Bot) -> None:
         super().__init__(timeout=60)
         self.mentor = mentor
@@ -183,7 +184,7 @@ class SlotClearConfirmView(discord.ui.View):
 
 # ── Setup panel view ──────────────────────────────────────────────────────────
 
-class MentorSetupView(discord.ui.View):
+class MentorSetupView(WorkspaceView):
     def __init__(self, mentor: dict, template: dict | None, bot: commands.Bot) -> None:
         super().__init__(timeout=180)
         self.mentor = mentor

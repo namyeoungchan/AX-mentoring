@@ -35,7 +35,7 @@ test('migration preserves existing learning rows and assigns the previous Render
     store.mutate({ revision: store.snapshot().revision, changes: [{ kind: 'courses', value: course }] })
     sync.ingest(payload('asan-ax'))
   })
-  assert.deepEqual(manager.list(admin).map(w => w.name), ['천안 AX', '아산 AX'])
+  assert.deepEqual(manager.list(admin).map(w => w.name), ['AX LearningOps', '아산 AX'])
   assert.equal(manager.snapshot('default').courses[0].id, course.id)
   assert.deepEqual(manager.snapshot('asan-ax').courses, [])
   assert.equal(manager.remote('asan-ax').read().snapshot.bot.guildId, guildId)
@@ -136,8 +136,11 @@ test('saved workspace defaults are frozen into automatic jobs when a server ID i
   assert.equal(provision.poll({ guilds: [] }).job, null)
   const job = provision.poll({ guilds: [{ id: guildId, name: '교육 서버', manageChannels: true }] }).job
   assert.equal(job.id, result.job.id); assert.deepEqual(job.plan.channels, saved.channels)
-  const second = manager.addServer('default', { guildId: '323456789012345678', templateRevision: edited.revision })
-  assert.equal(second.plan.name, '다음 서버의 구성')
+  assert.throws(() => manager.addServer('default', { guildId: '323456789012345678', templateRevision: edited.revision }), { status: 409 })
+  assert.deepEqual(manager.metadata('default').guildIds, [guildId])
+  assert.equal(manager.provisionRead('default').jobs.length, 1)
+  const second = manager.create({ name: '별도 서버의 워크스페이스', guildId: '323456789012345678' })
+  assert.deepEqual(second.guildIds, ['323456789012345678'])
   assert.throws(() => manager.addServer('asan-ax', { guildId, templateRevision: manager.template('asan-ax').revision }), { status: 409 })
   assert.deepEqual(manager.provisionRead('asan-ax').plans, [])
 })
@@ -206,4 +209,101 @@ test('invitations bind account and role, are hashed, single-use, revocable and c
   const expired = manager.invite('asan-ax', { username: 'old.teacher', role: 'instructor' }, user)
   store.db.prepare('UPDATE lms_workspace_invitations SET expires_at=0 WHERE id=?').run(expired.id)
   assert.throws(() => manager.previewInvitation(expired.token), { status: 410 })
+})
+
+test('archive and restore preserve data, guild ownership and timestamps across reopening', t => {
+  const { manager, options, store } = fixture(t)
+  const created = manager.create({ name: '보관할 교육', guildId })
+  write(manager, created.id, 'courses', course)
+  const before = manager.snapshot(created.id)
+  const archived = manager.setArchived(created.id, true, admin)
+  assert.equal(typeof archived.archivedAt, 'number')
+  assert.equal(manager.list(admin).some(w => w.id === created.id), false)
+  assert.equal(manager.list(admin, { includeArchived: true }).find(w => w.id === created.id).archivedAt, archived.archivedAt)
+  assert.deepEqual(manager.snapshot(created.id), before)
+  assert.deepEqual(manager.metadata(created.id).guildIds, [guildId])
+  assert.throws(() => manager.create({ name: '다른 교육', guildId }), { status: 409 })
+  assert.equal(manager.setArchived(created.id, true, admin).archivedAt, archived.archivedAt)
+  const reopened = createWorkspaces(options)
+  try {
+    assert.equal(reopened.metadata(created.id).archivedAt, archived.archivedAt)
+    assert.equal(reopened.setArchived(created.id, false, admin).archivedAt, null)
+    assert.ok(reopened.list(admin).some(w => w.id === created.id))
+    assert.deepEqual(reopened.snapshot(created.id), before)
+    reopened.setArchived(created.id, false, admin)
+  } finally { reopened.close() }
+  assert.deepEqual(store.db.prepare("SELECT action FROM lms_audit WHERE target=? AND action LIKE 'workspace.%' ORDER BY id").all(created.id).map(row => row.action), ['workspace.archive', 'workspace.restore'])
+})
+
+test('only platform and owning workspace administrators can archive or restore', t => {
+  const { manager, store } = fixture(t)
+  for (const role of ['admin', 'instructor', 'student']) {
+    store.db.prepare('INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at) VALUES(?,?,?,?,?,?,?)').run(role, `archive.${role}`, role, 'test-hash', `archive-${role}`, guildId, 1)
+    store.db.prepare('INSERT INTO lms_workspace_members VALUES(?,?,?,?)').run('asan-ax', role, role, 1)
+  }
+  const owner = { id: 'admin', role: 'student' }
+  manager.setArchived('asan-ax', true, owner)
+  for (const id of ['instructor', 'student', 'outsider']) {
+    const user = { id, role: 'student' }
+    for (const archived of [false, true]) assert.throws(() => manager.setArchived('asan-ax', archived, user), { status: 403 })
+    assert.equal(manager.list(user).length, 0)
+    assert.equal(manager.list(user, { includeArchived: true }).length, id === 'outsider' ? 0 : 1)
+  }
+  assert.throws(() => manager.setArchived('default', true, owner), { status: 403 })
+  manager.setArchived('asan-ax', false, owner)
+  assert.equal(manager.metadata('asan-ax').archivedAt, null)
+})
+
+test('old workspace schema gains archive state without losing records and all workspaces can be restored', t => {
+  const { manager, options } = fixture(t, ({ store }) => {
+    store.db.exec('CREATE TABLE lms_workspaces(id TEXT PRIMARY KEY,name TEXT NOT NULL,description TEXT NOT NULL,source_id TEXT NOT NULL UNIQUE,created_at INTEGER NOT NULL)')
+    store.db.prepare('INSERT INTO lms_workspaces VALUES(?,?,?,?,?)').run('default', '직접 지정한 이름', '기존 설명', 'local-default', 1)
+    store.mutate({ revision: store.snapshot().revision, changes: [{ kind: 'courses', value: course }] })
+  })
+  assert.equal(manager.metadata('default').name, '직접 지정한 이름')
+  assert.equal(manager.metadata('default').archivedAt, null)
+  for (const row of manager.list(admin)) manager.setArchived(row.id, true, admin)
+  assert.deepEqual(manager.list(admin), [])
+  const reopened = createWorkspaces(options)
+  try {
+    assert.deepEqual(reopened.list(admin), [])
+    for (const row of reopened.list(admin, { includeArchived: true })) reopened.setArchived(row.id, false, admin)
+    assert.equal(reopened.list(admin).length, 2)
+    assert.equal(reopened.snapshot('default').courses[0].id, course.id)
+  } finally { reopened.close() }
+})
+
+test('legacy default branding migrates persisted settings and metadata while preserving custom names', t => {
+  const { manager, options } = fixture(t)
+  const oldName = '\ucc9c\uc548 AX'
+  write(manager, 'default', 'settings', { name: oldName, reminders: true, onboarding: true, qa: true })
+  const reopenedStore = createStore(options.dbPath)
+  const reopened = createWorkspaces({ ...options, store: reopenedStore })
+  try {
+    assert.equal(reopenedStore.snapshot().name, 'AX LearningOps')
+    assert.equal(reopened.metadata('default').name, 'AX LearningOps')
+    assert.equal(reopened.metadata('asan-ax').name, '아산 AX')
+    write(reopened, 'default', 'settings', { name: '나의 교육 공간', reminders: true, onboarding: true, qa: true })
+    const custom = createStore(options.dbPath)
+    try { assert.equal(custom.snapshot().name, '나의 교육 공간') } finally { custom.db.close() }
+  } finally { reopened.close(); reopenedStore.db.close() }
+})
+
+test('staff invitation determines verification guild without a global server setting', async t => {
+  const { manager, store } = fixture(t)
+  const otherGuild = '888456789012345678'
+  const a = manager.create({ name: '초대 서버 A', guildId })
+  const b = manager.create({ name: '초대 서버 B', guildId: otherGuild })
+  const auth = createAuth(store.db, { botToken: token, guildAllowed: id => [guildId, otherGuild].includes(id) })
+  const invitation = manager.invite(b.id, { username: 'dynamic.staff', role: 'instructor' }, admin)
+  const target = manager.invitationGuild(invitation.token, 'dynamic.staff')
+  assert.equal(target, otherGuild)
+  assert.throws(() => manager.invitationGuild(invitation.token, 'wrong.user'), { status: 403 })
+  const pending = await auth.register({ username: 'dynamic.staff', name: '강사', password: 'dynamic-password-1234' }, target)
+  assert.throws(() => auth.verify({ code: pending.code, discordId: '555456789012345678', guildId }), { status: 403 })
+  auth.verify({ code: pending.code, discordId: '555456789012345678', guildId: otherGuild })
+  const { user } = await auth.login({ username: 'dynamic.staff', password: 'dynamic-password-1234' })
+  manager.acceptInvitation(invitation.token, user)
+  assert.equal(manager.role(b.id, user), 'instructor')
+  assert.equal(manager.role(a.id, user), null)
 })
