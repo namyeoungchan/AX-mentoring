@@ -80,7 +80,7 @@ class Booking(commands.Cog):
                 embed=embeds.no_booking_embed(), ephemeral=True
             )
             return
-        mentor = await database.get_mentor_by_id(booking["mentor_id"])
+        mentor = await database.get_mentor_by_id(booking["mentor_id"], include_inactive=True)
         await interaction.response.send_message(
             embed=embeds.my_booking_embed(booking, mentor), ephemeral=True
         )
@@ -95,7 +95,7 @@ class Booking(commands.Cog):
                 embed=embeds.no_booking_embed(), ephemeral=True
             )
             return
-        mentor = await database.get_mentor_by_id(booking["mentor_id"])
+        mentor = await database.get_mentor_by_id(booking["mentor_id"], include_inactive=True)
         await interaction.response.send_message(
             embed=embeds.cancel_confirm_embed(booking, mentor),
             view=CancelConfirmView(booking, mentor),

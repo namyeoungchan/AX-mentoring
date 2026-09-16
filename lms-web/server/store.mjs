@@ -35,6 +35,7 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
   if (!ddl) throw new Error('봇의 데이터베이스 스키마를 찾을 수 없습니다.')
   db.exec(ddl)
   const addColumn = (table, name, definition) => { if (!db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`) }
+  addColumn('mentors', 'is_active', 'INTEGER NOT NULL DEFAULT 1')
   addColumn('bookings', 'status', "TEXT NOT NULL DEFAULT 'approved'")
   addColumn('bookings', 'rejection_reason', "TEXT DEFAULT ''")
   addColumn('assignments', 'fields', `TEXT NOT NULL DEFAULT '["제출 내용"]'`)
@@ -59,7 +60,7 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
   function snapshot() {
     const result = Object.fromEntries(['courses', 'learners', 'teams', 'attendance', 'scores', 'notices', 'servers', 'files'].map(kind => [kind, rows(kind)]))
     result.courses = result.courses.map(c => ({ ...c, learners: result.learners.filter(l => l.courseId === c.id).length }))
-    result.mentors = db.prepare('SELECT id,name,discord_id AS discordId,bio FROM mentors ORDER BY id').all().map(m => ({ ...m, id: String(m.id) }))
+    result.mentors = db.prepare('SELECT id,name,discord_id AS discordId,bio FROM mentors WHERE is_active=1 ORDER BY id').all().map(m => ({ ...m, id: String(m.id) }))
     result.assignments = db.prepare(`SELECT a.*, (SELECT COUNT(*) FROM submissions WHERE assignment_id=a.id) AS submitted, ac.course_id FROM assignments a LEFT JOIN lms_assignment_courses ac ON ac.assignment_id=a.id ORDER BY a.id`).all().map(a => ({ id: String(a.id), title: a.title, courseId: a.course_id || '', course: result.courses.find(c => c.id === a.course_id)?.title || '기존 봇 과제', due: a.due_date.slice(0, 10), submitted: a.submitted, total: a.type === 'team' ? result.teams.filter(t => t.courseId === a.course_id).length : result.learners.filter(l => l.courseId === a.course_id).length, status: a.is_active ? '진행 중' : '마감' }))
     result.sessions = db.prepare(`SELECT b.*, s.label, s.start_time, m.id AS mentor_id, m.name AS mentor_name FROM bookings b JOIN slots s ON b.slot_id=s.id JOIN mentors m ON s.mentor_id=m.id ORDER BY b.id`).all().map(b => ({ id: String(b.id), title: b.label, mentor: b.mentor_name, mentorId: String(b.mentor_id), studentId: result.learners.find(l => l.discordId === b.user_id)?.id || '', team: b.user_name, date: b.start_time.slice(0, 10), time: b.start_time.slice(11, 16), status: b.status === 'pending' ? '승인 대기' : b.status === 'completed' ? '완료' : '예약 확정' }))
     result.sessions.push(...db.prepare('SELECT data FROM lms_booking_history ORDER BY rowid').all().map(r => JSON.parse(r.data)))
@@ -122,7 +123,7 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
               db.prepare('UPDATE bookings SET status=? WHERE id=?').run(value.status === '완료' ? 'completed' : 'approved', value.id)
             }
           } else {
-            const mentor = db.prepare('SELECT * FROM mentors WHERE id=?').get(value.mentorId || '')
+            const mentor = db.prepare('SELECT * FROM mentors WHERE id=? AND is_active=1').get(value.mentorId || '')
             const student = requireRecord('learners', value.studentId || '')
             if (!mentor || !student.discordId) throw new ApiError(422, '멘토와 Discord ID가 연결된 수강생을 선택하세요.')
             const start = `${value.date}T${value.time}:00`

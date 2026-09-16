@@ -1,4 +1,4 @@
-from workspace_context import WorkspaceView
+from workspace_context import MentorWorkspaceView as WorkspaceView
 """
 멘토 자기관리 명령어
 - /mentor block   : 예약 불가일 지정 (본인만)

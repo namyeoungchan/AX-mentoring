@@ -21,14 +21,14 @@ from discord.ext import commands
 
 import config
 import database
-from ui.embeds import KST
+from ui.embeds import KST, panel_embed, panel_field
 
 log = logging.getLogger("asanAX.peer_eval")
 
 PANEL_TYPE = "peer_eval"
 def teams():
     return list(config.current().TEAM_CHANNELS)
-ACCENT = "#8B5CF6"  # 비밀평가 전용 보라 계열
+ACCENT = "#9384B7"  # 비밀평가 전용 보라 계열
 
 # ── 채점 지표(참조 루브릭 4개 × 5점 척도) ──────────────────────────────────────
 # (마커, 지표명, 관찰 근거, (5점 우수, 3점 보통, 1점 미흡))
@@ -160,8 +160,9 @@ def build_panel_embed(
     now_str = discord.utils.utcnow().astimezone(KST).strftime("%Y-%m-%d %H:%M KST")
 
     status = "진행 중" if active else "마감됨"
-    embed = discord.Embed(
-        title=f"🔒 팀원 비밀평가 — {round_row['title']}",
+    embed = panel_embed(
+        section="PEER FEEDBACK",
+        title=f"서로의 성장을 위한 피드백 · {round_row['title']}",
         description=(
             f"상태: **{status}** · 각 조 팀원끼리 서로를 평가합니다.\n"
             "**평가 내용은 비밀입니다.** 누가 몇 점을 줬는지는 공개되지 않으며, "
@@ -174,7 +175,7 @@ def build_panel_embed(
 
     # 채점 지표 요약
     rubric = "\n".join(f"{mark} **{name}** — {basis}" for mark, name, basis, _ in INDICATORS)
-    embed.add_field(
+    panel_field(embed,
         name="📋 채점 지표 (각 1~5점 · 5·3·1 앵커, 4·2점은 중간)",
         value=rubric,
         inline=False,
@@ -190,9 +191,9 @@ def build_panel_embed(
         else:
             pct = round(100 * done / total)
             lines.append(f"`{_bar(done, total)}` **{team}** — {done}/{total}명 완료 ({pct}%)")
-    embed.add_field(name="✅ 팀별 진행 현황", value="\n".join(lines), inline=False)
+    panel_field(embed, name="✅ 팀별 진행 현황", value="\n".join(lines) or "아직 배정된 조가 없습니다.", inline=False)
 
-    embed.set_footer(text=f"아산 AX · 비밀평가 · {now_str}")
+    embed.set_footer(text=f"AX LearningOps · 비밀평가 · {now_str}")
     return embed
 
 
@@ -232,8 +233,9 @@ async def refresh_panel(bot: commands.Bot) -> bool:
 
 def build_team_panel_embed(round_row: dict, team: str) -> discord.Embed:
     """각 팀 채널에 게시하는 평가 진입 패널(팀별 안내 + 채점 기준)."""
-    embed = discord.Embed(
-        title=f"🔒 {team} 팀원 비밀평가 — {round_row['title']}",
+    embed = panel_embed(
+        section="PEER FEEDBACK",
+        title=f"{team} · 서로의 성장을 위한 피드백",
         description=(
             "같은 팀원끼리 서로를 평가합니다. 아래 **[✍️ 평가하기]** 버튼을 눌러 "
             "팀원별로 4개 지표를 각각 1~5점으로 매겨주세요.\n"
@@ -246,12 +248,12 @@ def build_team_panel_embed(round_row: dict, team: str) -> discord.Embed:
         f"{mark} **{name}** · 5점: {anchors[0]} / 1점: {anchors[2]}"
         for mark, name, _basis, anchors in INDICATORS
     )
-    embed.add_field(
+    panel_field(embed,
         name="📋 채점 지표 (각 1~5점 · 5·3·1 앵커, 4·2점은 중간)",
         value=rubric[:1024],
         inline=False,
     )
-    embed.set_footer(text="아산 AX · 비밀평가")
+    embed.set_footer(text="AX LearningOps · 비밀평가")
     return embed
 
 

@@ -4,6 +4,8 @@ Persistent mentor panel — lives in a channel, survives bot restarts.
 Each button opens an ephemeral slot-select flow for that mentor.
 """
 
+from datetime import datetime
+
 import discord
 import database
 from ui import embeds
@@ -24,9 +26,9 @@ class MentorPanelView(WorkspaceView):
         super().__init__(timeout=None)
         for mentor in mentors[:25]:  # Discord limit: 25 components
             btn = discord.ui.Button(
-                label=mentor["name"],
-                emoji="📅",
-                style=discord.ButtonStyle.primary,
+                label=mentor["name"][:80],
+                emoji="💬",
+                style=discord.ButtonStyle.secondary,
                 custom_id=f"mentor_book:{mentor['id']}",
             )
             btn.callback = self._make_callback(mentor)
@@ -61,34 +63,24 @@ class MentorPanelView(WorkspaceView):
 
 
 async def build_panel_embed(mentors: list[dict]) -> discord.Embed:
-    embed = discord.Embed(
-        title="🎓  아산 AX 멘토링 예약",
-        description=(
-            "아래 버튼을 눌러 멘토를 선택하고 시간을 예약하세요.\n"
-            "예약은 본인에게만 보이며, `/mybooking` 으로 확인할 수 있습니다.\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━"
-        ),
-        color=discord.Color.from_str("#2B5CE6"),
+    embed = embeds.panel_embed(
+        "멘토와 함께, 다음 단계로",
+        "막힌 부분을 정리하고, 함께 해결할 시간을 만나보세요.\n"
+        "**멘토 선택 → 날짜 · 시간 선택 → 승인 후 확정**",
+        section="MENTORING",
     )
-
     if not mentors:
-        embed.add_field(name="현재 등록된 멘토가 없습니다.", value="관리자에게 문의하세요.", inline=False)
-        embed.set_footer(text="아산 AX 멘토링 예약 시스템")
+        embeds.panel_field(embed, "예약 준비 중", "멘토가 등록되면 이곳에서 예약할 수 있습니다.\n운영자에게 멘토 초대 상태를 확인해 주세요.")
         return embed
-
-    for m in mentors:
-        slots = await database.get_slots_for_mentor(m["id"], active_only=True)
-        slot_ids = [s["id"] for s in slots]
-        bookings_map = await database.get_bookings_by_slot_ids(slot_ids)
-        available = sum(1 for s in slots if s["id"] not in bookings_map)
-
-        value_lines = [m["bio"] or "소개 없음", f"📅 예약 가능 슬롯: **{available}개**"]
-        embed.add_field(
-            name=f"👤  {m['name']}",
-            value="\n".join(value_lines),
-            inline=False,
-        )
-
-    embed.set_footer(text="아산 AX 멘토링 · 버튼을 눌러 예약하세요")
-    embed.set_thumbnail(url="https://cdn.discordapp.com/embed/avatars/0.png")
+    for mentor in mentors[:25]:
+        slots = await database.get_slots_for_mentor(mentor["id"], active_only=True)
+        bookings = await database.get_bookings_by_slot_ids([slot["id"] for slot in slots])
+        today = datetime.now(embeds.KST).date().isoformat()
+        available = sum(1 for slot in slots if slot["id"] not in bookings and slot["start_time"][:10] >= today)
+        status = f"예약 가능 **{available}개**" if available else "새 일정 준비 중"
+        expertise = (mentor.get("bio") or "").split("\n", 1)[0][:100]
+        embeds.panel_field(embed, mentor["name"], f"{expertise}\n{status}".strip(), inline=True)
+    embeds.panel_field(embed, "예약 안내", "아래에서 멘토를 선택하세요. 신청 결과는 본인에게만 표시됩니다.\n멘토의 승인은 개인 메시지로 안내하며, `/mybooking`으로 예약을 확인할 수 있습니다.")
+    if len(mentors) > 25:
+        embed.set_footer(text="AX LearningOps · 첫 25명 표시 · /book에서 전체 멘토 검색")
     return embed

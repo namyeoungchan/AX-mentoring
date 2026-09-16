@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import discord
+from ui.embeds import panel_embed
 
 GUIDES = json.loads((Path(__file__).resolve().parents[1] / "lms-web/shared/channel-guides.json").read_text(encoding="utf-8"))
 
@@ -14,9 +15,10 @@ def guide_text(item):
 async def ensure_guide(channel, text, view=None):
     if not text:
         return
-    marker = f"learningops:guide:{channel.id}"
+    legacy_marker = f"learningops:guide:{channel.id}"
+    marker = "AX LearningOps · 채널 이용 안내"
     def owned(message):
-        return message.author.id == channel.guild.me.id and any(embed.footer.text == marker for embed in message.embeds)
+        return message.author.id == channel.guild.me.id and any(embed.footer.text in {marker, legacy_marker} for embed in message.embeds)
     target = None
     async for message in channel.pins(limit=100):
         if owned(message):
@@ -27,7 +29,7 @@ async def ensure_guide(channel, text, view=None):
             if owned(message):
                 target = message
                 break
-    embed = discord.Embed(title=f"{channel.name} · 이용 안내", description=text, color=0x315C48)
+    embed = panel_embed(title=f"{channel.name} 이용 안내", description=text, section="START HERE")
     embed.set_footer(text=marker)
     extra = {"view": view} if view is not None else {}
     if target:

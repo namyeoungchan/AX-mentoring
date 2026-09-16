@@ -8,8 +8,7 @@ type Field = { key: string; label: string; type?: string; options?: string[]; op
 type Definition = { title: string; description: string; fields: Field[] }
 const definitions: Record<string, Definition> = {
   learners: { title: '수강생', description: '이메일 및 Discord ID 중복 검증 · 과정 및 팀 배정', fields: [{ key: 'name', label: '이름' }, { key: 'email', label: '이메일', type: 'email' }, { key: 'discordId', label: 'Discord ID', optional: true }, { key: 'courseId', label: '과정', type: 'course' }, { key: 'team', label: '팀', type: 'team', optional: true }, { key: 'status', label: '상태', options: ['대기', '정상', '중도탈락', '수료', '비활성'] }] },
-  teams: { title: '팀', description: '과정별 팀 코드 및 담당 멘토 관리', fields: [{ key: 'name', label: '팀 이름' }, { key: 'code', label: '팀 코드' }, { key: 'courseId', label: '과정', type: 'course' }, { key: 'mentorId', label: '담당 멘토', type: 'mentor', optional: true }] },
-  mentors: { title: '멘토', description: '기존 봇 mentors 테이블과 연동됩니다.', fields: [{ key: 'name', label: '이름' }, { key: 'discordId', label: 'Discord ID' }, { key: 'bio', label: '담당 분야 및 소개', optional: true }] },
+  teams: { title: '팀', description: '과정별 팀 코드 관리 · 멘토 배정은 구성원 · 초대에서 변경합니다.', fields: [{ key: 'name', label: '팀 이름' }, { key: 'code', label: '팀 코드' }, { key: 'courseId', label: '과정', type: 'course' }] },
   attendance: { title: '출결', description: '수강생·날짜·차시별 출결 · 수정 사유 및 변경 이력 저장', fields: [{ key: 'courseId', label: '과정', type: 'course' }, { key: 'studentId', label: '수강생', type: 'student' }, { key: 'date', label: '수업 일자', type: 'date' }, { key: 'period', label: '차시', type: 'number' }, { key: 'status', label: '출결 상태', options: ['출석', '지각', '결석', '공결'] }, { key: 'reason', label: '등록·수정 사유' }] },
   scores: { title: '성적', description: '평가항목별 점수 · 배점 검증 · 종합점수 자동 합산', fields: [{ key: 'courseId', label: '과정', type: 'course' }, { key: 'studentId', label: '수강생', type: 'student' }, { key: 'item', label: '평가항목' }, { key: 'score', label: '점수', type: 'number' }, { key: 'maximum', label: '최대 배점', type: 'number' }] },
   notices: { title: '공지', description: '공지 초안 저장 · Discord 발송은 아직 연결되지 않았습니다.', fields: [{ key: 'title', label: '제목' }, { key: 'courseId', label: '과정', type: 'course' }, { key: 'target', label: '대상', options: ['과정 전체', '운영자', '멘토', '수강생'] }, { key: 'content', label: '내용', type: 'textarea' }] },
@@ -40,6 +39,7 @@ export default function Operations({ page, data, query, change, saving, error }:
     const value: RecordData = { ...editing!, id: editing?.id || crypto.randomUUID() }
     for (const field of definition.fields) value[field.key] = field.type === 'number' ? Number(fields.get(field.key)) : String(fields.get(field.key) || '').trim()
     if (page === 'learners') { value.progress ??= 0; value.color ??= 'sage' }
+    if (page === 'teams') value.mentorId ??= ''
     if (page === 'notices') value.status = '초안'
     const ok = await change(d => ({ ...d, [page]: editing?.id ? (d[page as keyof Workspace] as RecordData[]).map(r => r.id === editing.id ? value : r) : [...(d[page as keyof Workspace] as RecordData[]), value] }), `${definition.title} 데이터를 저장했습니다.`)
     if (ok) setEditing(null)

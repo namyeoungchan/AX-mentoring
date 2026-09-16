@@ -249,6 +249,7 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     const scope = validateScope(id, { mentorType: input.mentorType, teamIds: input.teamIds })
     if (input.role === 'student') throw new ApiError(422, '수강생은 가입 신청 후 관리자 또는 강사가 승인해야 합니다.')
     if (input.role === 'admin' && user.role !== 'admin') throw new ApiError(403, '워크스페이스 관리자 지정은 전체 관리자만 할 수 있습니다.')
+    if (user.role !== 'admin' && db.prepare("SELECT 1 FROM lms_workspace_invitations WHERE workspace_id=? AND username=? AND role='admin' AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>?").get(id, input.username, now())) throw new ApiError(403, '관리자 초대는 전체 관리자만 변경할 수 있습니다.')
     if (db.prepare('SELECT 1 FROM lms_workspace_members m JOIN lms_users u ON u.id=m.user_id WHERE m.workspace_id=? AND u.username=?').get(id, input.username)) throw new ApiError(409, '이미 참여한 구성원입니다.')
     const token = randomBytes(32).toString('hex'), invitationId = randomUUID(), expiresAt = now() + 7 * 24 * 3600000
     db.exec('BEGIN IMMEDIATE')
@@ -308,6 +309,24 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
     db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE id=? AND accepted_at IS NULL').run(now(), invitationId)
     return { ok: true }
   }
+  function editInvitation(id, invitationId, body, user) {
+    requireRole(id, user, ['admin'])
+    if (metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스입니다.')
+    const row = db.prepare('SELECT * FROM lms_workspace_invitations WHERE workspace_id=? AND id=?').get(id, invitationId)
+    if (!row) throw new ApiError(404, '초대를 찾을 수 없습니다.')
+    if (row.accepted_at !== null || row.revoked_at !== null || row.expires_at <= now()) throw new ApiError(409, '대기 중인 초대만 수정할 수 있습니다.')
+    const input = z.object({ role: z.enum(['admin', 'instructor']), mentorType: z.enum(['main', 'group']).default('main'), teamIds: z.array(z.string()).max(50).default([]) }).strict().parse(body)
+    if ((row.role === 'admin' || input.role === 'admin') && user.role !== 'admin') throw new ApiError(403, '관리자 초대는 전체 관리자만 변경할 수 있습니다.')
+    const scope = validateScope(id, input.role === 'instructor' ? { mentorType: input.mentorType, teamIds: input.teamIds } : {})
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      db.prepare('UPDATE lms_workspace_invitations SET role=? WHERE id=?').run(input.role, invitationId)
+      putScope(id, invitationId, scope)
+      db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(user.username, 'invitation.update', `${id}/${invitationId}`, JSON.stringify({ role: row.role }), JSON.stringify(input))
+      db.exec('COMMIT')
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+    return members(id, user)
+  }
   function teaching(id, user) {
     const data = snapshot(id)
     const scope = user ? mentorScope(id, user.id) : { mentorType: 'main', teamIds: [] }
@@ -341,5 +360,5 @@ export function createWorkspaces({ store, dbPath, provision, syncToken = '', sou
   }
   function close() { for (const [id, value] of stores) if (id !== 'default') value.db.close() }
   return { list, create, setArchived, metadata, requireAccess, open, snapshot, mutate, remote, ingest, savePlan, enqueue,
-    provisionRead: id => ({ ...provision.read(metadata(id).guildIds), template: template(id), boundGuildIds: metadata(id).guildIds }), template, saveTemplate, addServer, connection, role, requireRole, invite, previewInvitation, invitationGuild, acceptInvitation, members, revokeInvitation, mentorScope, assignMentor, teaching, teach, close }
+    provisionRead: id => ({ ...provision.read(metadata(id).guildIds), template: template(id), boundGuildIds: metadata(id).guildIds }), template, saveTemplate, addServer, connection, role, requireRole, invite, previewInvitation, invitationGuild, acceptInvitation, members, revokeInvitation, editInvitation, mentorScope, assignMentor, validateScope, teaching, teach, close }
 }

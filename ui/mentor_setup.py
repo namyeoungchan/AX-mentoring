@@ -1,4 +1,4 @@
-from workspace_context import WorkspaceView, WorkspaceModal
+from workspace_context import MentorWorkspaceView as WorkspaceView, MentorWorkspaceModal as WorkspaceModal
 """
 Mentor self-service setup panel.
 Accessible via /멘토 설정
@@ -289,9 +289,11 @@ class MentorSetupView(WorkspaceView):
 
 
 async def build_setup_embed(mentor: dict, template: dict | None) -> discord.Embed:
-    embed = discord.Embed(
-        title=f"⚙️ {mentor['name']} 멘토 설정 패널",
-        color=discord.Color.from_str("#2B5CE6"),
+    embed = embeds.panel_embed(
+        section="MENTOR DESK",
+        description="시간대를 정하고 예약을 열어보세요. 새 신청은 개인 메시지로 도착합니다.",
+        title=f"{mentor['name']} 멘토의 예약 관리",
+        color=embeds.BRAND_COLOR,
     )
 
     # Schedule template
@@ -300,13 +302,13 @@ async def build_setup_embed(mentor: dict, template: dict | None) -> discord.Embe
         eh, em = template["end_hour"], template["end_minute"]
         ivl = template["interval_minutes"]
         slots_per_day = (eh * 60 + em - sh * 60 - sm) // ivl
-        embed.add_field(
+        embeds.panel_field(embed,
             name="⏰ 현재 시간대",
             value=f"`{sh:02d}:{sm:02d} ~ {eh:02d}:{em:02d}` / {ivl}분 단위 (하루 {slots_per_day}슬롯)",
             inline=False,
         )
     else:
-        embed.add_field(
+        embeds.panel_field(embed,
             name="⏰ 시간대",
             value="미설정 — **[⏰ 시간대 설정]** 버튼으로 먼저 설정하세요",
             inline=False,
@@ -320,7 +322,7 @@ async def build_setup_embed(mentor: dict, template: dict | None) -> discord.Embe
     pending = sum(1 for b in bookings_map.values() if b.get("status") == "pending")
     approved = sum(1 for b in bookings_map.values() if b.get("status") == "approved")
 
-    embed.add_field(
+    embeds.panel_field(embed,
         name="🗓️ 슬롯 현황",
         value=(
             f"전체 활성: **{len(slots)}개**\n"
@@ -333,7 +335,7 @@ async def build_setup_embed(mentor: dict, template: dict | None) -> discord.Embe
 
     # Blocked dates
     blocked = await database.get_blocked_dates(mentor["id"])
-    embed.add_field(
+    embeds.panel_field(embed,
         name="🚫 예약 불가일",
         value="\n".join(f"• {d}" for d in blocked) if blocked else "없음",
         inline=True,
@@ -342,11 +344,11 @@ async def build_setup_embed(mentor: dict, template: dict | None) -> discord.Embe
     # Blocked weekdays
     _wd = ["월", "화", "수", "목", "금", "토", "일"]
     blocked_wdays = await database.get_blocked_weekdays(mentor["id"])
-    embed.add_field(
+    embeds.panel_field(embed,
         name="📆 예약 불가 요일",
         value=" · ".join(f"{_wd[w]}요일" for w in blocked_wdays) if blocked_wdays else "없음",
         inline=True,
     )
 
-    embed.set_footer(text="아산 AX 멘토링 · 멘토 설정")
+    embed.set_footer(text="AX LearningOps 멘토링 · 멘토 설정")
     return embed

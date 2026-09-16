@@ -58,7 +58,7 @@ export function createStaffFlow(db, workspaces, onboarding, admissions, { now = 
     const target = workspaces.open(id).db
     const mentor = target.prepare('SELECT id FROM mentors WHERE discord_id=?').get(profile.discord_id)
     const bio = `${profile.expertise}\n${profile.bio}`.trim()
-    if (mentor) target.prepare('UPDATE mentors SET name=?,bio=? WHERE id=?').run(profile.name, bio, mentor.id)
+    if (mentor) target.prepare('UPDATE mentors SET name=?,bio=?,is_active=1 WHERE id=?').run(profile.name, bio, mentor.id)
     else target.prepare('INSERT INTO mentors(name,discord_id,bio) VALUES(?,?,?)').run(profile.name, profile.discord_id, bio)
   }
   function syncDiscord(discordId, guildId) {
@@ -103,5 +103,57 @@ export function createStaffFlow(db, workspaces, onboarding, admissions, { now = 
     db.prepare('UPDATE lms_staff_profiles SET steps=?,updated_at=? WHERE workspace_id=? AND user_id=?').run(JSON.stringify([...new Set([...state.profile.steps, step])]), now(), id, user.id)
     return read(id, user)
   }
-  return { groups, setupGroups, enableTeams, read, profile, invite, step, syncDiscord }
+  function members(id, user) {
+    const result = workspaces.members(id, user)
+    result.members = result.members.map(member => ({ ...member, expertise: '', ...db.prepare('SELECT name,expertise FROM lms_staff_profiles WHERE workspace_id=? AND user_id=?').get(id, member.id) }))
+    return result
+  }
+  function managedMember(id, memberId, user) {
+    workspaces.requireRole(id, user, ['admin']); active(id)
+    const member = db.prepare('SELECT u.id,u.username,u.discord_id,m.role FROM lms_workspace_members m JOIN lms_users u ON u.id=m.user_id WHERE m.workspace_id=? AND m.user_id=?').get(id, memberId)
+    if (!member || !['admin', 'instructor'].includes(member.role)) throw new ApiError(404, '워크스페이스 운영 구성원을 찾을 수 없습니다.')
+    if (member.role === 'admin' && user.role !== 'admin') throw new ApiError(403, '워크스페이스 관리자는 총괄 관리자만 수정·삭제할 수 있습니다.')
+    return member
+  }
+  function disableMentor(target, discordId) {
+    // Preserve bookings and mentor identity for history; close future booking access.
+    target.prepare('UPDATE slots SET is_active=0 WHERE mentor_id IN (SELECT id FROM mentors WHERE discord_id=?)').run(discordId)
+    target.prepare('UPDATE mentors SET is_active=0 WHERE discord_id=?').run(discordId)
+  }
+  function editMember(id, memberId, body, user) {
+    const member = managedMember(id, memberId, user)
+    const input = z.object({ name: z.string().trim().min(1).max(50), expertise: z.string().trim().max(150), role: z.enum(['admin', 'instructor']), mentorType: z.enum(['main', 'group']).default('main'), teamIds: z.array(z.string()).max(50).default([]) }).strict().parse(body)
+    if (input.role === 'admin' && user.role !== 'admin') throw new ApiError(403, '워크스페이스 관리자 지정은 총괄 관리자만 할 수 있습니다.')
+    const scope = workspaces.validateScope(id, input.role === 'instructor' ? { mentorType: input.mentorType, teamIds: input.teamIds } : {})
+    const target = workspaces.open(id).db
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      if (target !== db) target.exec('BEGIN IMMEDIATE')
+      db.prepare('UPDATE lms_workspace_members SET role=? WHERE workspace_id=? AND user_id=?').run(input.role, id, memberId)
+      db.prepare("INSERT INTO lms_staff_profiles(workspace_id,user_id,name,expertise,bio,updated_at) VALUES(?,?,?,?,'',?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET name=excluded.name,expertise=excluded.expertise,updated_at=excluded.updated_at").run(id, memberId, input.name, input.expertise, now())
+      db.prepare('INSERT INTO lms_mentor_scopes VALUES(?,?,?,?) ON CONFLICT(workspace_id,subject_id) DO UPDATE SET kind=excluded.kind,team_ids=excluded.team_ids').run(id, memberId, scope.mentorType, JSON.stringify(scope.teamIds))
+      if (input.role === 'instructor') syncMentor(id, memberId)
+      else disableMentor(target, member.discord_id)
+      db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(user.username, 'member.update', `${id}/${memberId}`, JSON.stringify(member), JSON.stringify(input))
+      if (target !== db) target.exec('COMMIT'); db.exec('COMMIT')
+    } catch (error) { if (target.isTransaction) target.exec('ROLLBACK'); if (db.isTransaction) db.exec('ROLLBACK'); throw error }
+    return members(id, user)
+  }
+  function removeMember(id, memberId, user) {
+    const member = managedMember(id, memberId, user), target = workspaces.open(id).db
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      if (target !== db) target.exec('BEGIN IMMEDIATE')
+      disableMentor(target, member.discord_id)
+      db.prepare('DELETE FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').run(id, memberId)
+      db.prepare('DELETE FROM lms_mentor_scopes WHERE workspace_id=? AND subject_id=?').run(id, memberId)
+      db.prepare('DELETE FROM lms_staff_connections WHERE workspace_id=? AND user_id=?').run(id, memberId)
+      db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE workspace_id=? AND username=? AND accepted_at IS NULL AND revoked_at IS NULL').run(now(), id, member.username)
+      db.prepare("UPDATE lms_admissions SET state='rejected',invite_state='none',invite_code=NULL,invite_expires=NULL,claim_hash=NULL,lease_until=NULL,reason='워크스페이스 구성원에서 제외되었습니다.' WHERE workspace_id=? AND user_id=? AND purpose='staff'").run(id, memberId)
+      db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(user.username, 'member.remove', `${id}/${memberId}`, JSON.stringify(member), null)
+      if (target !== db) target.exec('COMMIT'); db.exec('COMMIT')
+    } catch (error) { if (target.isTransaction) target.exec('ROLLBACK'); if (db.isTransaction) db.exec('ROLLBACK'); throw error }
+    return members(id, user)
+  }
+  return { groups, setupGroups, enableTeams, read, profile, invite, step, syncDiscord, members, editMember, removeMember }
 }

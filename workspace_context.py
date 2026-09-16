@@ -59,6 +59,25 @@ class WorkspaceModal(discord.ui.Modal):
         return await enter_interaction(interaction, self.workspace_guild_id)
 
 
+class ActiveMentorInteraction:
+    async def interaction_check(self, interaction):
+        if not await super().interaction_check(interaction):
+            return False
+        import database
+        if await database.get_mentor_by_id(self.mentor['id']):
+            return True
+        await interaction.response.send_message('이 워크스페이스의 멘토 권한이 해제되었습니다.', ephemeral=True)
+        return False
+
+
+class MentorWorkspaceView(ActiveMentorInteraction, WorkspaceView):
+    pass
+
+
+class MentorWorkspaceModal(ActiveMentorInteraction, WorkspaceModal):
+    pass
+
+
 def guild_event(callback):
     """Legacy event handlers only operate on a ready, explicitly bound guild."""
     @functools.wraps(callback)

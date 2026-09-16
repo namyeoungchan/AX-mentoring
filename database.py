@@ -9,7 +9,8 @@ async def init_db() -> None:
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 discord_id  TEXT    NOT NULL UNIQUE,
                 name        TEXT    NOT NULL,
-                bio         TEXT    DEFAULT ''
+                bio         TEXT    DEFAULT '',
+                is_active   INTEGER NOT NULL DEFAULT 1
             );
 
             CREATE TABLE IF NOT EXISTS slots (
@@ -149,6 +150,10 @@ async def init_db() -> None:
 
 
 async def _migrate(db: aiosqlite.Connection) -> None:
+    async with db.execute("PRAGMA table_info(mentors)") as cur:
+        mentor_columns = {row[1] for row in await cur.fetchall()}
+    if "is_active" not in mentor_columns:
+        await db.execute("ALTER TABLE mentors ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
     async with db.execute("PRAGMA table_info(bookings)") as cur:
         columns = {row[1] for row in await cur.fetchall()}
     if "status" not in columns:
@@ -177,14 +182,14 @@ async def _migrate(db: aiosqlite.Connection) -> None:
 async def get_mentors() -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM mentors ORDER BY name") as cur:
+        async with db.execute("SELECT * FROM mentors WHERE is_active = 1 ORDER BY name") as cur:
             return [dict(r) for r in await cur.fetchall()]
 
 
-async def get_mentor_by_id(mentor_id: int) -> dict | None:
+async def get_mentor_by_id(mentor_id: int, include_inactive: bool = False) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM mentors WHERE id = ?", (mentor_id,)) as cur:
+        async with db.execute("SELECT * FROM mentors WHERE id = ? AND (is_active = 1 OR ?)", (mentor_id, include_inactive)) as cur:
             row = await cur.fetchone()
             return dict(row) if row else None
 
@@ -193,7 +198,7 @@ async def get_mentor_by_discord_id(discord_id: str) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT * FROM mentors WHERE discord_id = ?", (discord_id,)
+            "SELECT * FROM mentors WHERE discord_id = ? AND is_active = 1", (discord_id,)
         ) as cur:
             row = await cur.fetchone()
             return dict(row) if row else None
@@ -312,12 +317,14 @@ async def create_booking(slot_id: int, user_id: str, user_name: str) -> bool:
     """Creates a pending booking. Returns True on success, False if slot already taken."""
     try:
         async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "INSERT INTO bookings (slot_id, user_id, user_name, status) VALUES (?, ?, ?, 'pending')",
-                (slot_id, user_id, user_name),
+            cur = await db.execute(
+                """INSERT INTO bookings (slot_id, user_id, user_name, status)
+                   SELECT s.id, ?, ?, 'pending' FROM slots s JOIN mentors m ON m.id=s.mentor_id
+                   WHERE s.id=? AND s.is_active=1 AND m.is_active=1""",
+                (user_id, user_name, slot_id),
             )
             await db.commit()
-        return True
+        return cur.rowcount > 0
     except aiosqlite.IntegrityError:
         return False
 

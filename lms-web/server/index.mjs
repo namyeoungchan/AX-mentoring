@@ -48,7 +48,7 @@ app.use('/api', (req, res, next) => {
   if (origin) {
     res.set('Access-Control-Allow-Origin', origin)
     res.vary('Origin')
-    res.set('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS')
+    res.set('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
     res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization')
   }
   if (req.method === 'OPTIONS') return res.sendStatus(204)
@@ -210,7 +210,9 @@ app.get('/api/workspaces/:workspaceId/discord/groups', (req, res) => res.json(st
 app.post('/api/workspaces/:workspaceId/discord/groups', (req, res) => res.json(staff.setupGroups(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/archive', (req, res) => res.json(workspaces.setArchived(req.workspaceId, true, req.account)))
 app.post('/api/workspaces/:workspaceId/restore', (req, res) => res.json(workspaces.setArchived(req.workspaceId, false, req.account)))
-app.get('/api/workspaces/:workspaceId/members', (req, res) => res.json(workspaces.members(req.workspaceId, req.account)))
+app.get('/api/workspaces/:workspaceId/members', (req, res) => res.json(staff.members(req.workspaceId, req.account)))
+app.patch('/api/workspaces/:workspaceId/members/:memberId', (req, res) => res.json(staff.editMember(req.workspaceId, req.params.memberId, req.body, req.account)))
+app.delete('/api/workspaces/:workspaceId/members/:memberId', (req, res) => res.json(staff.removeMember(req.workspaceId, req.params.memberId, req.account)))
 app.patch('/api/workspaces/:workspaceId/members/:memberId/assignment', (req, res) => res.json(workspaces.assignMentor(req.workspaceId, req.params.memberId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/bot-data', (req, res) => res.json(botStorage.state(req.workspaceId)))
 app.get('/api/workspaces/:workspaceId/bot-data/table/:table', (req, res) => res.json(botStorage.table(req.workspaceId, req.params.table, req.query.page)))
@@ -220,6 +222,7 @@ app.post('/api/workspaces/:workspaceId/bot-data/operation', async (req, res) => 
 app.get('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.read(req.workspaceId)))
 app.post('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.save(req.workspaceId, req.body)))
 app.post('/api/workspaces/:workspaceId/invitations', (req, res) => res.status(201).json(workspaces.invite(req.workspaceId, req.body, req.account)))
+app.patch('/api/workspaces/:workspaceId/invitations/:invitationId', (req, res) => { workspaces.editInvitation(req.workspaceId, req.params.invitationId, req.body, req.account); res.json(staff.members(req.workspaceId, req.account)) })
 app.post('/api/workspaces/:workspaceId/invitations/:invitationId/revoke', (req, res) => res.json(workspaces.revokeInvitation(req.workspaceId, req.params.invitationId, req.account)))
 app.get('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(workspaces.snapshot(req.workspaceId)))
 app.patch('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(workspaces.mutate(req.workspaceId, req.body, req.account.username)))

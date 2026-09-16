@@ -1,4 +1,4 @@
-from workspace_context import WorkspaceView, WorkspaceModal
+from workspace_context import MentorWorkspaceView as WorkspaceView, MentorWorkspaceModal as WorkspaceModal
 """Mentor DM approval view — sent when a user requests a mentoring session."""
 import discord
 import database

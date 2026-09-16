@@ -15,7 +15,7 @@ from discord.ext import commands, tasks
 
 import config
 import database
-from ui.embeds import KST
+from ui.embeds import KST, panel_embed, panel_field
 
 log = logging.getLogger("asanAX.participation")
 
@@ -80,13 +80,13 @@ def build_participation_embed(
     period = f"최근 {days}일" if days > 0 else "전체 기간"
     now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
 
-    embed = discord.Embed(
-        title="📊 팀 채널 참여도 대시보드",
+    embed = panel_embed(
+        title="함께 만드는 대화의 기록",
         description=(
             f"집계 기간: **{period}** · 팀 채팅 메시지 수 기준 (봇 제외)\n"
             "아래 버튼으로 기간을 바꾸거나 새로고침할 수 있습니다."
         ),
-        color=discord.Color.from_str("#2B5CE6"),
+        section="COMMUNITY",
     )
 
     # ── 팀별 총합 비교 ─────────────────────────────────────────────────────────
@@ -99,14 +99,14 @@ def build_participation_embed(
         f"`{_bar(total, max_total)}` **{team}** — {total}건"
         for team, total in sorted(team_totals.items(), key=lambda x: -x[1])
     ]
-    embed.add_field(name="🏆 팀별 총 메시지", value="\n".join(total_lines), inline=False)
+    panel_field(embed, name="조별 대화량", value="\n".join(total_lines) or "조가 연결되면 대화량이 표시됩니다.", inline=False)
 
     # ── 팀별 인원 순위 ─────────────────────────────────────────────────────────
     medals = ["🥇", "🥈", "🥉"]
     for team in config.current().TEAM_CHANNELS:
         counts = stats.get(team, {})
         if not counts:
-            embed.add_field(name=f"👥 {team}", value="메시지 없음", inline=False)
+            panel_field(embed, name=team, value="메시지 없음", inline=False)
             continue
 
         ranked = sorted(counts.values(), key=lambda x: -x[1])
@@ -118,13 +118,13 @@ def build_participation_embed(
             rest = sum(count for _, count in ranked[TOP_N:])
             lines.append(f"… 외 {len(ranked) - TOP_N}명 {rest}건")
 
-        embed.add_field(
-            name=f"👥 {team} — 총 {team_totals[team]}건 · {len(ranked)}명 참여",
+        panel_field(embed,
+            name=f"{team}  ·  {team_totals[team]}건 · {len(ranked)}명",
             value="\n".join(lines),
             inline=False,
         )
 
-    embed.set_footer(text=f"아산 AX · {now_str}")
+    embed.set_footer(text=f"AX LearningOps · {now_str}")
     return embed
 
 

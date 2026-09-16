@@ -19,7 +19,7 @@ from discord.ext import commands, tasks
 
 import config
 import database
-from ui.embeds import fmt_kst, KST
+from ui.embeds import fmt_kst, KST, panel_embed, panel_field, progress_bar, BRAND_COLOR
 
 log = logging.getLogger("asanAX.assignment")
 
@@ -52,56 +52,43 @@ def _parse_fields(raw: str | None) -> list[str]:
 
 async def build_dashboard_embeds() -> list[discord.Embed]:
     assignments = await database.get_assignments(active_only=True)
-    now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
-
+    now_str = datetime.datetime.now(KST).strftime("%m.%d %H:%M KST")
+    summary = panel_embed(
+        "과제 운영 현황",
+        "제출 흐름을 한눈에 확인하고, 필요한 피드백을 이어가세요.",
+        section="STAFF DESK",
+    )
+    panel_field(summary, "진행 중인 과제", f"**{len(assignments)}개**", inline=True)
+    panel_field(summary, "운영 중인 조", f"**{len(teams())}개 조**", inline=True)
+    panel_field(summary, "최근 갱신", now_str, inline=True)
+    panel_field(summary, "빠른 실행", "**과제 만들기** → 제출 내역 확인 → 피드백\n아래 버튼에서 팀·개인 과제를 만들고 제출 내역을 확인하세요.")
     if not assignments:
-        return [
-            discord.Embed(
-                title="📋 과제 현황 대시보드",
-                description=(
-                    "현재 진행 중인 과제가 없습니다.\n\n"
-                    "아래 버튼으로 과제를 생성하세요."
-                ),
-                color=discord.Color.blurple(),
-            ).set_footer(text=f"아산 AX · {now_str}")
-        ]
+        panel_field(summary, "첫 과제를 기다리고 있어요", "팀 과제 또는 개인 과제를 만들면 이곳에 제출 현황이 표시됩니다.")
+        return [summary]
 
-    embeds: list[discord.Embed] = []
-    for a in assignments:
-        subs = await database.get_submissions(a["id"])
-        by_team: dict[str, list[dict]] = {}
-        for s in subs:
-            by_team.setdefault(s["team"], []).append(s)
-
-        type_label = "팀별" if a["type"] == "team" else "개인별"
-        field_names = _parse_fields(a.get("fields"))
-
-        embed = discord.Embed(
-            title=f"📌 {a['week']}주차 — {a['title']}",
-            description=a["description"] or "",
-            color=discord.Color.from_str("#2B5CE6"),
+    cards = [summary]
+    for assignment in assignments:
+        subs = await database.get_submissions(assignment["id"])
+        by_team = {}
+        for submission in subs:
+            by_team.setdefault(submission["team"], []).append(submission)
+        is_team = assignment["type"] == "team"
+        card = panel_embed(
+            f"{assignment['week']:02d}주차  ·  {assignment['title']}",
+            (assignment["description"] or "제출 항목을 확인하고 마감일까지 제출해 주세요.")[:500],
+            section="ASSIGNMENTS",
         )
-        embed.add_field(name="마감일", value=a["due_date"], inline=True)
-        embed.add_field(name="제출 방식", value=type_label, inline=True)
-        embed.add_field(name="총 제출", value=f"{len(subs)}건", inline=True)
-        embed.add_field(name="제출 항목", value=" · ".join(field_names), inline=False)
-
-        lines = []
-        for team in teams():
-            team_subs = by_team.get(team, [])
-            if team_subs:
-                names = ", ".join(s["user_name"] for s in team_subs[:3])
-                if len(team_subs) > 3:
-                    names += f" 외 {len(team_subs) - 3}명"
-                lines.append(f"✅ **{team}** {len(team_subs)}명 — {names}")
-            else:
-                lines.append(f"❌ **{team}** — 미제출")
-
-        embed.add_field(name="팀별 제출 현황", value="\n".join(lines), inline=False)
-        embed.set_footer(text=f"아산 AX · 과제 ID: {a['id']} · {now_str}")
-        embeds.append(embed)
-
-    return embeds
+        panel_field(card, "마감", assignment["due_date"], inline=True)
+        panel_field(card, "제출 방식", "팀 과제" if is_team else "개인 과제", inline=True)
+        panel_field(card, "접수 완료", f"**{len(subs)}건**", inline=True)
+        if is_team and teams():
+            done = sum(bool(by_team.get(team)) for team in teams())
+            panel_field(card, "제출 진행률", f"{progress_bar(done, len(teams()))}  **{done} / {len(teams())}조**")
+            lines = [f"{'✓' if by_team.get(team) else '○'}  **{team}**  ·  {'제출 완료' if by_team.get(team) else '제출 대기'}" for team in teams()]
+            panel_field(card, "조별 현황", "\n".join(lines))
+        panel_field(card, "제출 항목", " · ".join(_parse_fields(assignment.get("fields"))))
+        cards.append(card)
+    return cards
 
 
 async def refresh_dashboard(bot: commands.Bot) -> None:
@@ -477,7 +464,7 @@ def _build_submission_page(assignment: dict, subs: list[dict], page: int, per_pa
     header = discord.Embed(
         title=f"📋 {assignment['week']}주차 — {assignment['title']} 제출 내역",
         description=f"총 **{total}건** | {page + 1}/{total_pages} 페이지",
-        color=discord.Color.from_str("#2B5CE6"),
+        color=BRAND_COLOR,
     )
     embeds = [header]
 
@@ -587,7 +574,8 @@ class AdminDashboardView(WorkspaceView):
         self.bot = bot
 
     @discord.ui.button(
-        label="➕ 팀 과제 생성",
+        label="팀 과제 만들기",
+        emoji="➕",
         style=discord.ButtonStyle.success,
         custom_id="assignment:create:team",
         row=0,
@@ -601,7 +589,8 @@ class AdminDashboardView(WorkspaceView):
         await interaction.response.send_modal(CreateAssignmentModal(self.bot, "team"))
 
     @discord.ui.button(
-        label="➕ 개인 과제 생성",
+        label="개인 과제 만들기",
+        emoji="➕",
         style=discord.ButtonStyle.primary,
         custom_id="assignment:create:individual",
         row=0,
@@ -657,7 +646,7 @@ class AdminDashboardView(WorkspaceView):
                 embed=discord.Embed(
                     title="📋 제출 내역 조회",
                     description="내역을 볼 과제를 선택하세요.",
-                    color=discord.Color.from_str("#2B5CE6"),
+                    color=BRAND_COLOR,
                 ),
                 view=SubmissionAssignmentSelectView(self.bot, assignments),
                 ephemeral=True,
@@ -693,7 +682,7 @@ class AdminDashboardView(WorkspaceView):
                 embed=discord.Embed(
                     title="✏️ 과제 수정",
                     description="수정할 과제를 선택하세요.",
-                    color=discord.Color.from_str("#2B5CE6"),
+                    color=BRAND_COLOR,
                 ),
                 view=AssignmentActionSelectView(self.bot, assignments, "edit"),
                 ephemeral=True,
@@ -963,7 +952,7 @@ class AssignmentSelectView(WorkspaceView):
                 embed=discord.Embed(
                     title=f"📌 {assignment['week']}주차 — {assignment['title']}",
                     description="소속 팀을 선택해주세요.",
-                    color=discord.Color.from_str("#2B5CE6"),
+                    color=BRAND_COLOR,
                 ),
                 view=TeamSelectView(self.bot, assignment),
                 ephemeral=True,
@@ -977,7 +966,12 @@ class AssignmentSelectView(WorkspaceView):
 # ── Student: Submit panel (persistent) ───────────────────────────────────────
 
 def build_submit_embed():
-    return discord.Embed(title="과제 제출", description="아래 버튼으로 진행 중인 과제를 선택하고 제출 내용을 작성하세요.\n제출 결과는 웹의 제출 내역에 반영됩니다.", color=0x315C48)
+    embed = panel_embed("배운 것을, 결과물로", "오늘의 배움을 기록하고 피드백을 받아보세요.", section="ASSIGNMENTS")
+    panel_field(embed, "01  과제 선택", "아래 **과제 제출하기** 버튼에서 진행 중인 과제를 선택하세요.")
+    panel_field(embed, "02  내용 작성", "과제의 제출 항목을 채우고, 필요한 링크를 함께 남겨 주세요.")
+    panel_field(embed, "03  제출 확인", "제출 완료 안내를 확인하세요. 결과는 LMS 제출 내역에도 반영됩니다.")
+    embed.set_footer(text="AX LearningOps · 팀 과제는 LMS에 배정된 소속 조로 제출됩니다")
+    return embed
 
 
 async def start_web_submission(bot, interaction, assignment):
@@ -1000,7 +994,8 @@ class SubmitPanelView(WorkspaceView):
         self.bot = bot
 
     @discord.ui.button(
-        label="📝 과제 제출하기",
+        label="과제 제출하기",
+        emoji="📝",
         style=discord.ButtonStyle.primary,
         custom_id="assignment:submit",
     )
@@ -1041,7 +1036,7 @@ class SubmitPanelView(WorkspaceView):
                     embed=discord.Embed(
                         title=f"📌 {assignment['week']}주차 — {assignment['title']}",
                         description=f"마감일: **{assignment['due_date']}**\n\n소속 팀을 선택해주세요.",
-                        color=discord.Color.from_str("#2B5CE6"),
+                        color=BRAND_COLOR,
                     ),
                     view=TeamSelectView(self.bot, assignment),
                     ephemeral=True,
@@ -1055,7 +1050,7 @@ class SubmitPanelView(WorkspaceView):
                 embed=discord.Embed(
                     title="📋 과제 선택",
                     description="제출할 과제를 선택하세요.",
-                    color=discord.Color.from_str("#2B5CE6"),
+                    color=BRAND_COLOR,
                 ),
                 view=AssignmentSelectView(self.bot, assignments),
                 ephemeral=True,
@@ -1122,7 +1117,7 @@ class Assignment(commands.Cog):
                     ),
                     color=discord.Color.orange(),
                 )
-                embed.set_footer(text="아산 AX · 과제 마감 알림")
+                embed.set_footer(text="AX LearningOps · 과제 마감 알림")
 
                 try:
                     await ch.send(embed=embed)
@@ -1154,20 +1149,7 @@ class Assignment(commands.Cog):
             await interaction.followup.send("과제제출 채널을 찾을 수 없습니다.", ephemeral=True)
             return
 
-        embed = discord.Embed(
-            title="📝 과제 제출",
-            description=(
-                "아래 버튼을 눌러 과제를 제출하세요.\n\n"
-                "**제출 방법**\n"
-                "1. **[📝 과제 제출하기]** 버튼 클릭\n"
-                "2. 진행 중인 과제 선택 (여러 개인 경우)\n"
-                "3. 소속 팀 선택 (팀 과제인 경우)\n"
-                "4. 제출 내용 작성 후 제출\n\n"
-                "제출 후 이 채널에 공개됩니다."
-            ),
-            color=discord.Color.from_str("#2B5CE6"),
-        )
-        embed.set_footer(text="아산 AX · 과제 제출 시스템")
+        embed = build_submit_embed()
 
         msg = await ch.send(embed=embed, view=SubmitPanelView(self.bot))
         await database.save_assignment_panel("submit", str(ch.id), str(msg.id))
@@ -1230,7 +1212,7 @@ class Assignment(commands.Cog):
             )
             return
 
-        embed = discord.Embed(title="📋 과제 목록", color=discord.Color.from_str("#2B5CE6"))
+        embed = discord.Embed(title="📋 과제 목록", color=BRAND_COLOR)
         for a in assignments[:10]:
             status = "✅ 활성" if a["is_active"] else "🚫 비활성"
             type_label = "팀별" if a["type"] == "team" else "개인별"
