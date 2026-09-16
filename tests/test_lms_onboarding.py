@@ -37,6 +37,31 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((await reopened.get(1, "member", 7))["introDone"])
         self.assertIsNone(await reopened.get(2, "member", 7))
 
+    async def test_base_roles_are_created_without_enabled_onboarding_and_reused_per_guild(self):
+        for gid in [123, 456]:
+            roles = {}
+            async def create_role(name, **_):
+                role = Role(len(roles) + 1, name)
+                roles[role.id] = role
+                return role
+            guild = SimpleNamespace(id=gid, get_role=roles.get, create_role=AsyncMock(side_effect=create_role),
+                                    me=SimpleNamespace(top_role=Role(100), guild_permissions=SimpleNamespace(manage_roles=True)))
+            self.assertEqual(self.cog.configs, {})
+            first = await self.cog.provision_roles(guild)
+            again = await self.cog.provision_roles(guild)
+            self.assertEqual(set(first), set(module.ROLE_NAMES))
+            self.assertEqual(first, again)
+            self.assertEqual(guild.create_role.await_count, 5)
+            saved = await self.store.all(gid, 'role')
+            self.assertEqual(len(saved), 5)
+            self.assertTrue(all(role.permissions.value == 0 for role in first.values()))
+
+    async def test_base_roles_require_manage_roles_even_if_channels_are_allowed(self):
+        guild = SimpleNamespace(id=123, me=SimpleNamespace(guild_permissions=SimpleNamespace(manage_roles=False)), create_role=AsyncMock())
+        with self.assertRaisesRegex(module.OnboardingError, 'permissions'):
+            await self.cog.provision_roles(guild)
+        guild.create_role.assert_not_awaited()
+
     def test_only_verified_web_assignment_and_intro_completion_unlock_student_team_roles(self):
         student = {"role": "student", "teamId": "team-2"}
         self.assertEqual(module.desired_roles(None, True), {"pending"})

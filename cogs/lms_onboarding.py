@@ -154,6 +154,19 @@ class LMSOnboarding(commands.Cog):
             role = await role.edit(name=name[:100], reason="LMS team name changed")
         return role
 
+    async def ensure_roles(self, guild):
+        if not guild.me or not guild.me.guild_permissions.manage_roles:
+            raise OnboardingError("permissions")
+        return {key: await self.role(guild, key, name) for key, name in ROLE_NAMES.items()}
+
+    async def provision_roles(self, guild):
+        # Building a server always creates its base roles. Granting membership
+        # and team access still requires the separately enabled onboarding flow.
+        async with self.lock(guild.id):
+            roles = await self.ensure_roles(guild)
+            log.info("LMS base roles ready for guild %s (%s roles)", guild.id, len(roles))
+            return roles
+
     async def channel(self, guild, key, name, channel_type, overwrites=None, category=None, adopt=False):
         stored = await self.store.get(guild.id, "channel", key)
         channel = guild.get_channel(stored["id"]) if stored else None
@@ -194,7 +207,7 @@ class LMSOnboarding(commands.Cog):
         last = self.resources_checked.get(str(guild.id))
         if last and last[0] == cfg["revision"] and time.monotonic() - last[1] < 300:
             return
-        roles = {key: await self.role(guild, key, name) for key, name in ROLE_NAMES.items()}
+        roles = await self.ensure_roles(guild)
         start = await self.channel(guild, "start", cfg["onboardingChannel"], "text", adopt=True)
         intro = await self.channel(guild, "intro", cfg["introChannel"], "text", adopt=True)
         for channel in [start, intro]:

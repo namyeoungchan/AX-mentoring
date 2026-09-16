@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch, AsyncMock
 
 import discord
-from cogs.lms_provision import apply_channels, ProvisionError, validate_provision_endpoint, worker_status
+from cogs.lms_provision import LMSProvision, apply_channels, ProvisionError, validate_provision_endpoint, worker_status
 
 
 class Guild:
@@ -87,6 +87,27 @@ class ProvisionTests(unittest.IsolatedAsyncioTestCase):
         invalid[0]["parentId"] = "missing"
         with self.assertRaises(ProvisionError):
             await apply_channels(guild, invalid, [])
+
+    async def test_server_build_creates_roles_before_channels_and_saves_bindings(self):
+        events = []
+        onboarding = SimpleNamespace(provision_roles=AsyncMock(side_effect=lambda _guild: events.append('roles')))
+        panels = SimpleNamespace(bind_channels=AsyncMock(side_effect=lambda *_: events.append('bindings')))
+        cog = object.__new__(LMSProvision)
+        cog.bot = SimpleNamespace(get_cog=lambda name: {'LMSOnboarding': onboarding, 'AutoPanels': panels}.get(name))
+        async def channels(*_): events.append('channels')
+        with patch('cogs.lms_provision.apply_channels', new=AsyncMock(side_effect=channels)):
+            await cog.apply_server(Guild(), self.items(), [])
+        self.assertEqual(events, ['roles', 'channels', 'bindings'])
+
+    async def test_missing_role_permission_fails_the_build_before_channel_creation(self):
+        from cogs.lms_onboarding import OnboardingError
+        onboarding = SimpleNamespace(provision_roles=AsyncMock(side_effect=OnboardingError('permissions')))
+        cog = object.__new__(LMSProvision)
+        cog.bot = SimpleNamespace(get_cog=lambda _: onboarding)
+        with patch('cogs.lms_provision.apply_channels', new_callable=AsyncMock) as channels:
+            with self.assertRaisesRegex(ProvisionError, 'forbidden'):
+                await cog.apply_server(Guild(), self.items(), [])
+            channels.assert_not_awaited()
 
     def test_endpoint_rejects_untrusted_url_shapes(self):
         for value in ["http://example.com/api/integrations/discord/provision", "https://user:pass@example.com/api/integrations/discord/provision", "https://example.com/other"]:

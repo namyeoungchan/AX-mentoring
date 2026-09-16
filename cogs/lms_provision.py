@@ -110,6 +110,22 @@ class LMSProvision(commands.Cog):
             log.warning("LMS provisioning %s rejected (HTTP %s)", operation, response.status)
             raise ProvisionError("api_error")
 
+    async def apply_server(self, guild, items, results):
+        if not guild.me or not guild.me.guild_permissions.manage_channels:
+            raise ProvisionError("forbidden")
+        onboarding = self.bot.get_cog('LMSOnboarding')
+        if not onboarding:
+            raise ProvisionError("api_error")
+        from cogs.lms_onboarding import OnboardingError
+        try:
+            await onboarding.provision_roles(guild)
+        except OnboardingError as error:
+            raise ProvisionError('forbidden' if str(error) in {'permissions', 'role_hierarchy'} else 'api_error') from error
+        await apply_channels(guild, items, results)
+        manager = self.bot.get_cog('AutoPanels')
+        if manager:
+            await manager.bind_channels(guild, items, results)
+
     async def run_once(self):
         if not self.url or self.lock.locked():
             return
@@ -129,7 +145,7 @@ class LMSProvision(commands.Cog):
                     try:
                         if not guild:
                             raise ProvisionError("missing_guild")
-                        await asyncio.wait_for(apply_channels(guild, job["plan"]["channels"], results), timeout=180)
+                        await asyncio.wait_for(self.apply_server(guild, job["plan"]["channels"], results), timeout=180)
                     except ProvisionError as error:
                         error_code = error.code
                     except discord.Forbidden:
@@ -138,14 +154,14 @@ class LMSProvision(commands.Cog):
                         error_code = "timeout"
                     except discord.HTTPException:
                         error_code = "api_error"
+                    except Exception as error:
+                        log.warning("LMS server setup failed (%s)", type(error).__name__)
+                        error_code = "api_error"
                     self.pending_result = {"id": job["id"], "claim": job["claim"], "success": error_code is None,
                                            "errorCode": error_code, "results": results}
                     await self.post(session, "complete", self.pending_result)
                     self.pending_result = None
                     log.info("LMS channel job finished (%s)", error_code or "success")
-                    manager = self.bot.get_cog('AutoPanels')
-                    if manager and guild and error_code is None:
-                        await manager.bind_channels(guild, job['plan']['channels'], results)
             except asyncio.CancelledError:
                 raise
             except Exception as error:
