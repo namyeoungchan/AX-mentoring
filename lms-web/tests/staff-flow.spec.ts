@@ -13,7 +13,7 @@ test('invited workspace admin configures groups before Discord and can reassign 
   await page.getByLabel('비밀번호 확인', { exact: true }).fill('flow-owner-password-1234')
   await page.getByRole('button', { name: '계정 만들기' }).click()
   await page.getByRole('button', { name: '초대 수락', exact: true }).click()
-  await page.getByRole('button', { name: '2. 조 설정 및 Discord 구축' }).click()
+  await page.getByRole('button', { name: '조·서버 설정' }).click()
   await page.getByLabel('운영할 조 수', { exact: true }).fill('3')
   await page.getByRole('button', { name: '조 구성 저장' }).click()
   await expect(page.getByRole('status')).toContainText('조 구성을 저장했습니다.')

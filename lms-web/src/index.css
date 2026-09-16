@@ -633,3 +633,50 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
   .membership-removal .modal-actions { flex-direction: column; gap: 10px; }
   .membership-removal .modal-actions .button { width: 100%; }
 }
+
+/* Dashboard setup guide: separate from the member invitation form. */
+.workspace-start { margin-bottom: 24px; padding: 24px; border: 1px solid #dde6dc; border-radius: 14px; background: linear-gradient(120deg, #f1f5ed, #f9faf7 65%); }
+.workspace-start-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.workspace-start-symbol { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; color: #fff; background: #365844; }
+.workspace-start-heading h2 { font-size: 18px; font-weight: 700; letter-spacing: -.5px; color: #2b4533; }
+.workspace-start-heading p { margin-top: 5px; font-size: 12px; line-height: 1.6; color: #69786b; }
+.workspace-start-count { margin-left: auto; flex-shrink: 0; padding: 6px 10px; border: 1px solid #d9e3d5; border-radius: 20px; font-size: 11px; color: #58715b; background: #ffffff80; }
+.workspace-start-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; list-style: none; margin: 0; padding: 0; }
+.workspace-start-card { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 18px 16px 12px; border: 1px solid #e3e9df; border-radius: 11px; background: #fff; box-shadow: 0 2px 3px #25432a04; }
+.workspace-start-card-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 18px; }
+.workspace-start-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 11px; }
+.workspace-start-number { display: flex; align-items: baseline; gap: 5px; font-size: 9px; letter-spacing: 1px; color: #8a988c; }
+.workspace-start-number strong { font-size: 17px; font-weight: 550; letter-spacing: -.5px; color: #657a68; }
+.workspace-start-card h3 { font-size: 15px; font-weight: 650; letter-spacing: -.3px; color: #304836; }
+.workspace-start-description { margin-top: 8px; font-size: 12px; line-height: 1.8; color: #738074; word-break: keep-all; overflow-wrap: anywhere; }
+.workspace-start-owner { align-self: flex-start; margin: 14px 0 18px; padding: 4px 7px; border-radius: 5px; background: #f2f5f0; color: #647663; font-size: 10px; line-height: 1.5; }
+.workspace-start-action { margin-top: auto; border-top: 1px solid #edf0e9; padding-top: 7px; }
+.workspace-start-action button { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 8px; margin-inline: -4px; border-radius: 6px; text-align: left; font-size: 12px; font-weight: 650; color: #365e40; }
+.workspace-start-action button:hover { background: #f0f5ed; }
+.workspace-start-action p { display: flex; align-items: center; gap: 6px; min-height: 40px; padding-block: 8px; color: #7a857c; font-size: 11px; line-height: 1.6; word-break: keep-all; }
+.workspace-start-connector { position: absolute; right: -18px; top: 35px; color: #8da28a; }
+@media (max-width: 1200px) {
+  .workspace-start-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .workspace-start-connector { display: none; }
+}
+@media (max-width: 600px) {
+  .workspace-start { padding: 20px 16px 16px; }
+  .workspace-start-heading { align-items: flex-start; gap: 10px; margin-bottom: 18px; }
+  .workspace-start-symbol { width: 36px; height: 36px; border-radius: 10px; }
+  .workspace-start-symbol svg { width: 20px; }
+  .workspace-start-heading h2 { font-size: 16px; }
+  .workspace-start-heading p { font-size: 11px; }
+  .workspace-start-count { display: none; }
+  .workspace-start-steps { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .workspace-start-card { display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: 12px; padding: 16px 14px 10px; }
+  .workspace-start-card-top { display: flex; flex-direction: column; justify-content: flex-start; grid-row: 1 / 4; margin: 0; gap: 8px; }
+  .workspace-start-icon { width: 36px; height: 36px; border-radius: 9px; }
+  .workspace-start-icon svg { width: 19px; }
+  .workspace-start-number { font-size: 0; gap: 0; }
+  .workspace-start-number strong { font-size: 12px; }
+  .workspace-start-card h3, .workspace-start-description, .workspace-start-owner { grid-column: 2; }
+  .workspace-start-description { margin-top: 5px; }
+  .workspace-start-owner { justify-self: start; margin: 10px 0 12px; }
+  .workspace-start-action { grid-column: 1 / -1; }
+  .workspace-start-action button { min-height: 44px; }
+}
