@@ -79,3 +79,11 @@ test('only verified recipients receive individual reminders and existing imports
   assert.throws(() => f.alerts.read(f.workspace.id, user), { status: 403 })
   assert.throws(() => f.alerts.bind(f.workspace.id, '2', { courseId: 'foreign' }, admin), { status: 422 })
 })
+
+test('assignment preparation never cancels or lists attendance deliveries', t => {
+  const f = fixture(t)
+  f.db.prepare("INSERT INTO lms_outbox(id,event_key,kind,source_id,payload,actor,created_at) VALUES('attendance-job','attendance-event','attendance','round','{}','teacher',0)").run()
+  f.prepare()
+  assert.equal(f.db.prepare("SELECT state FROM lms_outbox WHERE id='attendance-job'").get().state, 'pending')
+  assert.ok(!f.alerts.read(f.workspace.id, admin).deliveries.some(d => d.kind === 'attendance'))
+})
