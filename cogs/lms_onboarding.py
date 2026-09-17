@@ -379,6 +379,9 @@ class LMSOnboarding(commands.Cog):
         if "pending" in desired:
             await self.gate_member(member, True)
         mappings = await self.store.all(member.guild.id, "role")
+        if any(key not in mappings for key in desired):
+            self.resources_checked.pop(str(member.guild.id), None)
+            raise OnboardingError("conflict")
         wanted = {mappings[key]["id"] for key in desired if key in mappings}
         managed = {value["id"] for value in mappings.values()}
         old = {role.id for role in member.roles}
@@ -420,6 +423,7 @@ class LMSOnboarding(commands.Cog):
             await self.request("progress", {"guildId": str(member.guild.id), "discordId": str(member.id)})
             record["reported"] = True
         await self.store.put(member.guild.id, "member", member.id, record)
+        return "waiting" if "pending" in desired else "ready"
 
     async def submit_intro(self, guild_id, user_id, name, introduction):
         await self.refresh([guild_id])
@@ -459,28 +463,41 @@ class LMSOnboarding(commands.Cog):
             return
         async with self.lock(guild.id):
             error = ""
+            reports = []
             try:
                 await self.ensure_resources(guild, cfg)
                 if not guild.chunked:
                     await guild.chunk(cache=True)
                 for member in guild.members:
+                    if member.bot or (cfg.get("retryDiscordIds") and str(member.id) not in cfg["retryDiscordIds"]):
+                        continue
+                    failure_code = ""
                     try:
-                        await self.sync_member(member, cfg)
+                        state = await self.sync_member(member, cfg)
                     except discord.Forbidden:
-                        error = "permissions"
+                        failure_code = "permissions"
                     except discord.HTTPException:
-                        error = "discord_error"
+                        failure_code = "discord_error"
                     except OnboardingError as failure:
-                        error = str(failure)
-                        if error == "api_error":
-                            break
+                        failure_code = str(failure)
+                    except asyncio.TimeoutError:
+                        failure_code = "api_error"
+                    reports.append({"discordId": str(member.id), "state": "failed" if failure_code else state or "ready", "error": failure_code})
+                    if failure_code:
+                        error = failure_code
+                    if failure_code == "api_error":
+                        break
+                present = {str(member.id) for member in guild.members}
+                for participant in cfg.get("participants", []):
+                    if participant["discordId"] not in present and (not cfg.get("retryDiscordIds") or participant["discordId"] in cfg["retryDiscordIds"]):
+                        reports.append({"discordId": participant["discordId"], "state": "failed", "error": "member_missing"})
             except OnboardingError as failure:
                 error = str(failure)
             except discord.Forbidden:
                 error = "permissions"
             except discord.HTTPException:
                 error = "discord_error"
-            await self.request("report", {"guildId": str(guild.id), "revision": cfg["revision"], "state": "failed" if error else "ready", "error": error})
+            await self.request("report", {"guildId": str(guild.id), "revision": cfg["revision"], "state": "failed" if error else "ready", "error": error, "members": reports})
 
     @tasks.loop(seconds=30)
     async def worker(self):
