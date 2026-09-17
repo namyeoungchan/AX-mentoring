@@ -791,3 +791,38 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .workspace-setup-guide h3 { margin: 0 0 5px; font-size: 14px; }
 .workspace-setup-guide p { margin-block: 8px; overflow-wrap: anywhere; }
 .workspace-setup-guide .button { margin-top: 5px; }
+.team-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px; border: 0; min-width: 0; }
+.team-controls label { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.team-controls select { border: 1px solid #d8ded9; border-radius: 8px; padding: 8px; max-width: 100%; }
+.team-operations { margin-bottom: 20px; min-width: 0; }
+/* The roster can scroll horizontally while its controls remain usable on phones. */
+.attendance-panel { padding-bottom: 20px; min-width: 0; }
+.attendance-panel fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.attendance-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px !important; }
+.attendance-controls label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; max-width: 100%; }
+.attendance-controls input, .attendance-controls select, .attendance-panel td select { border: 1px solid #d8ded9; border-radius: 8px; padding: 9px; background: white; max-width: 100%; }
+.attendance-controls input[type=file] { width: 235px; }
+.attendance-summary { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 16px; }
+.attendance-history { margin: 20px 16px 0; }
+.attendance-history summary { cursor: pointer; padding: 10px 0; }
+
+.discord-quick { min-width: 0; }
+.quick-overview > p { margin: 14px 20px; }
+.quick-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 0 20px; list-style: none; }
+.quick-steps button { width: 100%; height: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; text-align: left; border: 1px solid #dbe3dc; border-radius: 12px; padding: 14px; background: #f8faf8; color: inherit; }
+.quick-steps button[aria-current=step] { border-color: #2d684f; background: #eaf4ed; }
+.quick-steps button > span { font-weight: 800; }
+.quick-steps small { flex-basis: 100%; color: #57695f; }
+.quick-stage { padding: 0; margin: 18px 0; border: 0; min-width: 0; }
+.quick-stage-content { padding: 24px; overflow-wrap: anywhere; }
+.quick-stage-content h2 { margin-top: 0; font-size: 19px; }
+.quick-stage-content p { line-height: 1.65; }
+.quick-stage-content details { margin-top: 20px; }
+.quick-stage-content summary { cursor: pointer; }
+.quick-stage-content .button { margin: 6px 8px 6px 0; }
+.quick-verification ol { padding-left: 22px; }
+.quick-verification li { margin-block: 20px; }
+.quick-verification strong, .quick-verification output { display: block; margin-block: 10px; }
+.quick-verification output { font-family: monospace; font-size: 22px; font-weight: 700; user-select: all; letter-spacing: 1px; }
+.quick-verification code { display: block; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .quick-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-inline: 12px; } .quick-stage-content { padding: 18px; } }

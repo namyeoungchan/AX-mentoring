@@ -3,7 +3,7 @@ import { demoMode, workspaceRequest } from './api'
 import { CardHeading } from './components'
 
 type State = { courses: { id: string; title: string }[]; teams: { id: string; courseId: string; name: string }[]; courseId: string; revision: string }
-export default function GroupSetup({ workspaceId }: { workspaceId: string }) {
+export default function GroupSetup({ workspaceId, onSaved }: { workspaceId: string; onSaved?: () => void }) {
   const [state, setState] = useState<State | null>(null), [course, setCourse] = useState('')
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false)
   useEffect(() => {
@@ -18,6 +18,7 @@ export default function GroupSetup({ workspaceId }: { workspaceId: string }) {
     try {
       const result = await workspaceRequest(workspaceId, 'discord/groups', { method: 'POST', body: JSON.stringify({ count: Number(form.get('count')), courseId: course, title: String(form.get('title') || '기본 교육 과정'), revision: state.revision }) })
       setState(result); setCourse(result.courseId); setNotice('조 구성을 저장했습니다. 서버 연결과 봇 초대를 마치면 조별 역할·대화·음성 채널이 자동으로 생성됩니다.')
+      onSaved?.()
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   return <section className="panel membership-invite"><CardHeading title="1. 운영할 조 설정" subtitle="과정과 조를 먼저 설정한 뒤 아래에서 Discord 서버를 연결하세요."><button className="text-button" disabled={busy || demoMode} onClick={async () => { try { setState(await workspaceRequest(workspaceId, 'discord/groups')); setError('') } catch (e) { setError((e as Error).message) } }}>조 정보 새로고침</button></CardHeading>

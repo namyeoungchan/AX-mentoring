@@ -1,4 +1,5 @@
 import GroupSetup from './GroupSetup'
+import DiscordQuickSetup from './DiscordQuickSetup'
 import channelGuides from '../shared/channel-guides.json'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ChevronDown, Hash, Plus, RefreshCw, Save, Send, Trash2, Volume2 } from 'lucide-react'
@@ -15,6 +16,10 @@ const jobNames: Record<string, string> = { queued: '봇 연결 대기', running:
 const errorNames: Record<string, string> = { forbidden: '봇의 역할 관리·채널 관리·채널 보기·메시지 보내기·기록 보기·링크 삽입·메시지 고정 권한과 봇 역할의 순서를 확인하세요.', missing_guild: '봇이 서버에 참여하고 있는지 확인하세요.', conflict: '중복된 채널 이름을 확인하세요.', timeout: '작업 시간이 초과됐습니다. 생성된 채널을 확인한 후 다시 요청하세요.', api_error: 'Discord 연결 오류입니다. 잠시 후 다시 요청하세요.' }
 
 export default function DiscordSetup({ workspaceId }: { workspaceId: string }) {
+  const [advanced, setAdvanced] = useState(false)
+  return advanced ? <><button className="button secondary" onClick={() => setAdvanced(false)}>빠른 설정으로 돌아가기</button><AdvancedDiscordSetup key={workspaceId} workspaceId={workspaceId} /></> : <DiscordQuickSetup key={workspaceId} workspaceId={workspaceId} advanced={() => setAdvanced(true)} />
+}
+function AdvancedDiscordSetup({ workspaceId }: { workspaceId: string }) {
   const [state, setState] = useState<State>({ template: null, boundGuildIds: [], enabled: false, plans: [], guilds: [], jobs: [] })
   const [draft, setDraft] = useState<Plan>(initial)
   const [saved, setSaved] = useState('')

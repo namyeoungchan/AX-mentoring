@@ -27,8 +27,8 @@ test('invited workspace admin configures groups before Discord and can reassign 
   const groups = await (await page.request.get(`/api/workspaces/${workspace.id}/discord/groups`)).json()
   expect(groups.teams).toHaveLength(3)
   const guildId = '923456789012345678'
-  await page.getByLabel('추가할 Discord 서버 ID').fill(guildId)
-  await page.getByRole('button', { name: '서버 추가 및 구축', exact: true }).click()
+  await page.getByLabel('Discord 채널 링크 또는 서버 ID').fill(guildId)
+  await page.getByRole('button', { name: '서버 연결하고 계속', exact: true }).click()
   await expect(page.getByText(`연결된 서버: ${guildId}`, { exact: false })).toBeVisible()
   const botHeaders = { Authorization: 'Bearer test-only-provision-token-12345678901234567890' }
   const cfg = await (await request.post('/api/integrations/discord/onboarding/poll', { headers: botHeaders, data: { guildIds: [guildId] } })).json()
