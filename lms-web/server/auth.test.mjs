@@ -272,3 +272,52 @@ test('signup accepts exactly eight characters and rejects seven', async () => {
     assert.equal((await auth.login({ username: user.username, password: 'Test1234' })).user.id, user.id)
   } finally { db.close() }
 })
+
+test('platform-only reset returns one-time initial credentials, revokes sessions and enforces change', async () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    const auth = createAuth(db, options)
+    const owner = await auth.setup({ username: 'global.owner', name: '총괄', password: 'owner-password-1234', setupKey: options.adminPassword })
+    const student = await auth.signup(member, () => {})
+    assert.throws(() => auth.accounts({ ...student.user, role: 'admin' }), { status: 403 })
+    await assert.rejects(auth.resetAccount(student.user, owner.user.id, { username: owner.user.username }), { status: 403 })
+    await assert.rejects(auth.resetAccount(owner.user, student.user.id, { username: 'wrong.name' }), { status: 422 })
+    const initial = await auth.resetAccount(owner.user, student.user.id, { username: member.username })
+    assert.equal(initial.initialPassword.length, 24)
+    assert.equal(auth.session(student.token), null)
+    await assert.rejects(auth.login({ username: member.username, password: member.password }), { status: 401 })
+    const changedLogin = await auth.login({ username: member.username, password: initial.initialPassword })
+    assert.equal(changedLogin.user.mustChangePassword, true)
+    const changed = await auth.changePassword(changedLogin.user, { currentPassword: initial.initialPassword, newPassword: 'new-personal-password-1234' })
+    assert.equal(changed.user.mustChangePassword, false)
+    assert.ok(!JSON.stringify(auth.accounts(owner.user)).includes(initial.initialPassword))
+    assert.ok(!JSON.stringify(db.prepare('SELECT * FROM lms_account_audit').all()).includes(initial.initialPassword))
+    const attempts = await Promise.allSettled([1, 2].map(() => auth.resetAccount(owner.user, student.user.id, { username: member.username })))
+    assert.equal(attempts.filter(a => a.status === 'fulfilled').length, 1)
+    assert.equal(attempts.find(a => a.status === 'rejected').reason.status, 409)
+  } finally { db.close() }
+})
+
+test('deletion prevents last-admin removal, revokes login and rolls back on foreign-key failure', async () => {
+  const db = new DatabaseSync(':memory:')
+  try {
+    db.exec('PRAGMA foreign_keys=ON')
+    const auth = createAuth(db, options)
+    const owner = await auth.setup({ username: 'global.owner', name: '총괄', password: 'owner-password-1234', setupKey: options.adminPassword })
+    const student = await auth.signup(member, () => {})
+    assert.throws(() => auth.deleteAccount(student.user, owner.user.id, { username: owner.user.username }), { status: 403 })
+    assert.throws(() => auth.deleteAccount(owner.user, owner.user.id, { username: owner.user.username }), { status: 409 })
+    db.exec('CREATE TABLE unexpected_ref(user_id TEXT REFERENCES lms_users(id))')
+    db.prepare('INSERT INTO unexpected_ref VALUES(?)').run(student.user.id)
+    assert.throws(() => auth.deleteAccount(owner.user, student.user.id, { username: member.username }))
+    assert.ok(auth.session(student.token))
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM lms_account_audit WHERE action='account.delete'").get().n, 0)
+    db.exec('DROP TABLE unexpected_ref')
+    auth.deleteAccount(owner.user, student.user.id, { username: member.username })
+    assert.equal(auth.session(student.token), null)
+    await assert.rejects(auth.login({ username: member.username, password: member.password }), { status: 401 })
+    assert.equal(auth.accounts(owner.user).accounts.length, 1)
+    assert.equal(auth.accounts(owner.user).accounts[0].canDelete, false)
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
+  } finally { db.close() }
+})

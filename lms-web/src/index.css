@@ -869,6 +869,12 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .quick-verification code { display: block; overflow-wrap: anywhere; }
 @media (max-width: 700px) { .quick-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-inline: 12px; } .quick-stage-content { padding: 18px; } }
 
+.account-admin-controls { padding: 16px; display: flex; flex-wrap: wrap; align-items: end; gap: 16px; }
+.account-admin-controls label { display: grid; gap: 6px; font-size: 13px; }
+.account-admin-controls input { border: 1px solid #d8ded9; border-radius: 8px; padding: 10px; }
+.account-admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.account-admin-panel td { white-space: normal; overflow-wrap: anywhere; }
+.account-admin-panel td small { display: block; color: #647469; margin-top: 6px; }
 .attendance-discord-preview { white-space: pre-wrap; overflow-wrap: anywhere; padding: 14px; background: #f2f6f3; border-radius: 10px; }
 
 .publication-preview { margin: 16px 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow-wrap: anywhere; }
