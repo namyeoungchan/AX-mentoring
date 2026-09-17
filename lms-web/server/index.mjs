@@ -196,7 +196,7 @@ app.get('/api/workspaces/:workspaceId/me/learning', (req, res) => {
 })
 app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
   workspaces.requireRole(req.workspaceId, req.account, ['instructor'])
-  res.json(workspaces.teaching(req.workspaceId, req.account))
+  res.json({ ...workspaces.teaching(req.workspaceId, req.account), onboardingComplete: staff.read(req.workspaceId, req.account).completed })
 })
 app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admissions.reviewList(req.workspaceId, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/bulk-review', (req, res) => res.json(admissions.bulkReview(req.workspaceId, req.body, req.account)))

@@ -11,7 +11,7 @@ import type { useWorkspace } from './useWorkspace'
 
 export default function InstructorHome({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
   const { data, account, workspaces, activeId, selectWorkspace, update, saving, error, logout, refresh } = workspace
-  const [page, setPage] = useState('onboarding')
+  const [page, setPage] = useState(data.onboardingComplete ? 'courses' : 'onboarding')
   return <div className="student-page"><header className="student-header"><span className="auth-brand"><span><BookOpen size={21} /></span>AX <b>LearningOps</b></span><AccountSettings /><LogoutButton logout={logout} /></header><main className="student-main">
     <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} error={error} saving={saving} />
     <div className="page-heading"><div><span className="eyebrow">TEACHING</span><h1>멘토 활동 관리</h1><p>{account?.name} · {data.name}</p></div><Badge>멘토</Badge></div>
