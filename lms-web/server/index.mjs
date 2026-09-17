@@ -14,6 +14,7 @@ import { configuredOrigins } from './origins.mjs'
 import { createOnboarding } from './onboarding.mjs'
 import { createBotStorage } from './bot-storage.mjs'
 import { createStaffFlow } from './staff-flow.mjs'
+import { createOutbox } from './outbox.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -33,6 +34,7 @@ const admissions = createAdmissions(store.db, workspaces, { token: process.env.L
 const onboarding = createOnboarding(store.db, workspaces, provision)
 const staff = createStaffFlow(store.db, workspaces, onboarding, admissions)
 const botStorage = createBotStorage(store.db, workspaces, onboarding)
+const outbox = createOutbox(store.db, workspaces)
 const app = express()
 app.disable('x-powered-by')
 const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0)
@@ -124,6 +126,12 @@ app.post('/api/integrations/discord/onboarding/:operation', (req, res) => {
   if (req.params.operation === 'progress') return res.json(onboarding.progress(req.body))
   return res.status(404).json({ error: '지원하지 않는 작업입니다.' })
 })
+app.post('/api/integrations/discord/outbox/:operation', (req, res) => {
+  if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
+  if (req.params.operation === 'poll') return res.json(outbox.poll(req.body))
+  if (req.params.operation === 'complete') return res.json(outbox.complete(req.body))
+  res.status(404).json({ error: '지원하지 않는 작업입니다.' })
+})
 app.post('/api/integrations/discord/storage/:operation', async (req, res) => {
   if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
   if (req.params.operation === 'registry') return res.json(botStorage.registry(req.body))
@@ -213,6 +221,11 @@ app.post('/api/workspaces/:workspaceId/staff/verification', (req, res) => {
   res.json(auth.issueVerification(req.account, state.guildId))
 })
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
+app.get('/api/workspaces/:workspaceId/notices', (req, res) => res.json(outbox.notices(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/notices/:noticeId/send', (req, res) => res.json(outbox.enqueueNotice(req.workspaceId, req.params.noticeId, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/outbox/:id/retry', (req, res) => res.json(outbox.retry(req.workspaceId, req.params.id, req.account)))
+app.post('/api/workspaces/:workspaceId/outbox/:id/manual', (req, res) => res.json(outbox.manual(req.workspaceId, req.params.id, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/outbox/:id/hold', (req, res) => res.json(outbox.hold(req.workspaceId, req.params.id, req.account)))
 app.get('/api/workspaces/:workspaceId/discord/groups', (req, res) => res.json(staff.groups(req.workspaceId)))
 app.post('/api/workspaces/:workspaceId/discord/groups', (req, res) => res.json(staff.setupGroups(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/archive', (req, res) => res.json(workspaces.setArchived(req.workspaceId, true, req.account)))
