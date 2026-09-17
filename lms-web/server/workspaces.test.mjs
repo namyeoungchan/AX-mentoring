@@ -30,6 +30,71 @@ function fixture(t, seed = () => {}) {
 }
 const write = (manager, id, kind, value) => manager.mutate(id, { revision: manager.snapshot(id).revision, changes: [{ kind, value }] }, 'admin')
 
+test('issued admin credentials require a new password, expose no stored secrets, and grant only the accepted workspace', async t => {
+  const { manager, auth, store } = fixture(t)
+  const created = await auth.createInvitationAccount({ username: 'issued.owner', name: '초대 관리자' }, admin, username => manager.invite('default', { username, role: 'admin' }, admin))
+  assert.equal(created.initialPassword.length, 24)
+  assert.equal(created.token.length, 64)
+  assert.equal(created.role, 'admin')
+  assert.equal(created.name, '초대 관리자')
+  const original = await auth.login({ username: created.username, password: created.initialPassword })
+  assert.equal(original.user.role, 'student')
+  assert.equal(original.user.mustChangePassword, true)
+  assert.equal(auth.session(original.token).mustChangePassword, true)
+  assert.equal(manager.role('default', original.user), null)
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM lms_auth_sessions').get().n, 1)
+  for (const table of ['lms_users', 'lms_workspace_invitations', 'lms_audit']) {
+    const stored = JSON.stringify(store.db.prepare(`SELECT * FROM ${table}`).all())
+    assert.ok(!stored.includes(created.initialPassword))
+    assert.ok(!stored.includes(created.token))
+  }
+  assert.ok(!JSON.stringify(manager.previewInvitation(created.token)).includes(created.initialPassword))
+  assert.ok(!JSON.stringify(manager.members('default', admin)).includes(created.initialPassword))
+  await assert.rejects(auth.changePassword(original.user, { currentPassword: created.initialPassword, newPassword: created.initialPassword }), { status: 422 })
+  const changed = await auth.changePassword(original.user, { currentPassword: created.initialPassword, newPassword: 'private-password-12345' })
+  assert.equal(changed.user.mustChangePassword, false)
+  assert.equal(auth.session(changed.token).mustChangePassword, false)
+  assert.equal(auth.session(original.token), null)
+  await assert.rejects(auth.login({ username: created.username, password: created.initialPassword }), { status: 401 })
+  assert.equal(manager.acceptInvitation(created.token, changed.user).role, 'admin')
+  assert.equal(manager.role('default', changed.user), 'admin')
+  assert.equal(manager.role('asan-ax', changed.user), null)
+  assert.equal(changed.user.role, 'student')
+  assert.throws(() => manager.acceptInvitation(created.token, changed.user), { status: 410 })
+})
+
+test('account issuance cannot overwrite an existing account or be used by a workspace administrator', async t => {
+  const { manager, auth, store } = fixture(t)
+  const invite = username => manager.invite('default', { username, role: 'admin' }, admin)
+  const original = await auth.signup({ username: 'existing.owner', name: '기존 계정', password: 'original-password-1234' }, () => {})
+  const before = store.db.prepare('SELECT * FROM lms_users WHERE id=?').get(original.user.id)
+  await assert.rejects(auth.createInvitationAccount({ username: 'existing.owner', name: '덮어쓰기' }, admin, invite), { status: 409 })
+  assert.deepEqual(store.db.prepare('SELECT * FROM lms_users WHERE id=?').get(original.user.id), before)
+  assert.ok(auth.session(original.token))
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM lms_workspace_invitations').get().n, 0)
+  manager.acceptInvitation(invite(original.user.username).token, original.user)
+  await assert.rejects(auth.createInvitationAccount({ username: 'unauthorized.owner', name: '권한 없음' }, original.user, invite), { status: 403 })
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM lms_users').get().n, 1)
+})
+
+test('account and invitation creation roll back together and reject concurrent duplicate usernames', async t => {
+  const { manager, auth, store } = fixture(t)
+  const input = { username: 'atomic.owner', name: '동시 발급' }
+  const invite = username => manager.invite('default', { username, role: 'admin' }, admin)
+  const earlier = invite(input.username)
+  await assert.rejects(auth.createInvitationAccount(input, admin, username => { invite(username); throw new Error('after invitation failure') }), /after invitation failure/)
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM lms_users').get().n, 0)
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM lms_workspace_invitations').get().n, 1)
+  assert.equal(manager.previewInvitation(earlier.token).username, input.username)
+  const results = await Promise.allSettled([auth.createInvitationAccount(input, admin, invite), auth.createInvitationAccount(input, admin, invite)])
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1)
+  assert.equal(results.find(r => r.status === 'rejected').reason.status, 409)
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM lms_users').get().n, 1)
+  manager.setArchived('default', true, admin)
+  await assert.rejects(auth.createInvitationAccount({ ...input, username: 'archived.owner' }, admin, invite), { status: 409 })
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM lms_users').get().n, 1)
+})
+
 test('migration preserves existing learning rows and assigns the previous Render source to Asan', t => {
   const { manager } = fixture(t, ({ store, sync }) => {
     store.mutate({ revision: store.snapshot().revision, changes: [{ kind: 'courses', value: course }] })

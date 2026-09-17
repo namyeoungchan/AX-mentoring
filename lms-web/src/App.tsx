@@ -49,6 +49,7 @@ export default function App() {
   const [invitationToken, setInvitationToken] = useState(() => location.hash.startsWith('#invite=') ? location.hash.slice(8) : '')
   const { loading, authRequired, account, learning, error, refresh, login, logout, enterDemo, workspaces, activeId, selectWorkspace } = workspace
   if (loading) return <div className="connection-screen"><Command size={32} /><h1>LearningOps</h1><p>운영 데이터 불러오는 중…</p></div>
+  if (account?.mustChangePassword) return <div className="student-page"><header className="student-header"><strong>AX LearningOps · {account.username}</strong><LogoutButton logout={logout} /></header><main className="student-main"><AccountSettings requiredChange changed={refresh} /></main></div>
   const authScreen = <AuthScreen login={login} error={error} enterDemo={enterDemo} registered={refresh} staffInvitation={Boolean(invitationToken)} invitationToken={invitationToken} />
   if (invitationToken) return <InvitationPage token={invitationToken} account={account} auth={authScreen} logout={logout} accepted={async id => { location.hash = 'dashboard'; await selectWorkspace(id); setInvitationToken('') }} />
   if (authRequired) return authScreen
