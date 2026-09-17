@@ -78,12 +78,15 @@ app.post('/api/integrations/render/snapshot', (req, res) => {
 function setLogin(res, result) {
   return res.cookie('learningops_session', result.token, { httpOnly: true, sameSite: 'strict', secure: production, maxAge: 8 * 60 * 60 * 1000, path: '/api' }).json({ ok: true, ...result })
 }
-app.get('/api/auth/config', (_req, res) => res.json({ setupEnabled: auth.setupEnabled(), legacyAdminEnabled: auth.legacyEnabled(), registrationEnabled: auth.enabled, studentRegistrationEnabled: true, workspaces: admissions.catalogue() }))
+// Only migration regression tests may create legacy self-registered students.
+const legacyStudentRegistration = process.env.NODE_ENV === 'test' && process.env.ALLOW_LEGACY_STUDENT_REGISTRATION === 'true'
+app.get('/api/auth/config', (_req, res) => res.json({ setupEnabled: auth.setupEnabled(), legacyAdminEnabled: auth.legacyEnabled(), registrationEnabled: auth.enabled, studentRegistrationEnabled: legacyStudentRegistration, workspaces: admissions.catalogue() }))
 app.post('/api/auth/setup', async (req, res) => {
   auth.limit('setup-ip', req.ip, 5, 15 * 60000)
   setLogin(res.status(201), await auth.setup(req.body))
 })
 app.post('/api/auth/student/register', async (req, res) => {
+  if (!legacyStudentRegistration) throw new ApiError(403, '수강생 계정은 워크스페이스 관리자가 발급합니다. 전달받은 아이디로 로그인하세요.')
   auth.limit('registration-ip', req.ip, 100, 3600000)
   const { workspaceId, ...input } = req.body || {}
   workspaces.metadata(typeof workspaceId === 'string' ? workspaceId : '')
@@ -104,6 +107,7 @@ app.post('/api/auth/register', async (req, res) => {
     check(input.username)
     return setLogin(res.status(201), await auth.signup(input, user => check(user.username)))
   }
+  if (!legacyStudentRegistration) throw new ApiError(403, '수강생 계정은 워크스페이스 관리자에게 발급을 요청하세요.')
   res.status(201).json(await auth.register(input, process.env.LEARNINGOPS_AUTH_GUILD_ID || ''))
 })
 app.post('/api/auth/registration/status', (req, res) => {
@@ -170,10 +174,11 @@ const sessionToken = req => req.get('authorization')?.startsWith('Bearer ') ? re
 app.use('/api', (req, res, next) => {
   req.account = auth.session(sessionToken(req))
   if (!req.account) return res.status(401).json({ error: '로그인이 필요합니다.' })
-  if (req.account.mustChangePassword && !['/auth/me', '/auth/password', '/logout'].includes(req.path)) return res.status(403).json({ error: '초기 비밀번호를 변경한 뒤 이용하세요.', code: 'PASSWORD_CHANGE_REQUIRED' })
+  if ((req.account.mustChangePassword || req.account.mustCompleteProfile) && !['/auth/me', '/auth/password', '/auth/first-login', '/logout'].includes(req.path)) return res.status(403).json({ error: '초기 비밀번호를 변경한 뒤 이용하세요.', code: 'PASSWORD_CHANGE_REQUIRED' })
   next()
 })
 app.get('/api/auth/me', (req, res) => res.json({ user: req.account }))
+app.post('/api/auth/first-login', async (req, res) => setLogin(res, await auth.completeFirstLogin(req.account, req.body)))
 app.post('/api/auth/password', async (req, res) => setLogin(res, await auth.changePassword(req.account, req.body)))
 app.get('/api/admin/accounts', (req, res) => res.json(auth.accounts(req.account)))
 app.post('/api/admin/accounts/:id/reset-password', async (req, res) => res.json(await auth.resetAccount(req.account, req.params.id, req.body)))
@@ -244,6 +249,14 @@ app.post('/api/workspaces/:workspaceId/staff/verification', (req, res) => {
   res.json(auth.issueVerification(req.account, state.guildId))
 })
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
+app.get('/api/workspaces/:workspaceId/student-accounts', (req, res) => res.json(admissions.studentAccounts(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/student-accounts', async (req, res) => {
+  auth.limit('student-account-issue', req.account.id, 100, 3600000)
+  const { teamId, ...input } = req.body || {}
+  const authorize = () => admissions.validateStudentIssue(req.workspaceId, teamId, req.account)
+  const result = await auth.createStudentAccount(input, req.account, authorize, user => admissions.assignStudent(req.workspaceId, teamId, user, req.account))
+  res.status(201).json(result)
+})
 app.get('/api/workspaces/:workspaceId/notices', (req, res) => res.json(outbox.notices(req.workspaceId, req.account)))
 app.get('/api/workspaces/:workspaceId/assignment-alerts', (req, res) => res.json(assignmentAlerts.read(req.workspaceId, req.account)))
 app.post('/api/workspaces/:workspaceId/assignment-alerts/:id/publish', (req, res) => res.json(assignmentAlerts.publish(req.workspaceId, req.params.id, req.body, req.account)))

@@ -1,0 +1,26 @@
+[
+  {
+    "file": "admin-guide.pdf",
+    "pages": 3,
+    "embeddedFonts": 140,
+    "links": 4,
+    "textCharacters": 2332,
+    "a4": true
+  },
+  {
+    "file": "mentor-guide.pdf",
+    "pages": 3,
+    "embeddedFonts": 140,
+    "links": 4,
+    "textCharacters": 2290,
+    "a4": true
+  },
+  {
+    "file": "student-guide.pdf",
+    "pages": 3,
+    "embeddedFonts": 134,
+    "links": 4,
+    "textCharacters": 2330,
+    "a4": true
+  }
+]

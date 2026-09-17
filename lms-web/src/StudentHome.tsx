@@ -8,7 +8,7 @@ import type { WorkspaceMetadata } from './demoWorkspaces'
 import { BookOpen, CheckCheck, ClipboardList, RefreshCw } from 'lucide-react'
 import { Badge, CardHeading } from './components'
 
-export type Account = { id: string; username: string; name: string; discordId: string; role: 'admin' | 'student'; verified?: boolean; mustChangePassword?: boolean }
+export type Account = { id: string; username: string; name: string; discordId: string; role: 'admin' | 'student'; verified?: boolean; mustCompleteProfile?: boolean; mustChangePassword?: boolean }
 export type Learning = {
   enrollment: null | { name: string; status: string; team: string };
   courses: { id: string; title: string; description: string; status: string; startDate: string; endDate: string }[];
