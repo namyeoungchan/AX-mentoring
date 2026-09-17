@@ -55,6 +55,10 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     );
     CREATE INDEX IF NOT EXISTS lms_sessions_expiry ON lms_auth_sessions(expires_at);
     CREATE INDEX IF NOT EXISTS lms_registration_expiry ON lms_registrations(created_at);
+    CREATE TABLE IF NOT EXISTS lms_account_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id TEXT NOT NULL, target_id TEXT NOT NULL,
+      username TEXT NOT NULL, action TEXT NOT NULL, created_at INTEGER NOT NULL
+    );
   `)
   if (!db.prepare('PRAGMA table_info(lms_users)').all().some(row => row.name === 'verified_at')) {
     db.exec('ALTER TABLE lms_users ADD COLUMN verified_at INTEGER; UPDATE lms_users SET verified_at=created_at')
@@ -295,10 +299,66 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
       return { ok: true }
     } catch (error) { db.exec('ROLLBACK'); throw error }
   }
+  function platformAdmin(user) {
+    const row = db.prepare("SELECT * FROM lms_users WHERE id=? AND platform_role='admin'").get(user?.id || '')
+    if (!row || row.must_change_password) throw new ApiError(403, '총괄 관리자 계정으로 로그인하세요.')
+    return row
+  }
+  function accounts(user) {
+    platformAdmin(user)
+    const memberships = tableExists(db, 'lms_workspace_members') ? db.prepare('SELECT m.user_id,m.role,w.name FROM lms_workspace_members m JOIN lms_workspaces w ON w.id=m.workspace_id').all() : []
+    const adminCount = db.prepare("SELECT COUNT(*) AS n FROM lms_users WHERE platform_role='admin'").get().n
+    return { accounts: db.prepare('SELECT * FROM lms_users ORDER BY created_at DESC,username').all().map(row => ({ ...publicUser(row), createdAt: row.created_at, canDelete: row.platform_role !== 'admin' || adminCount > 1, memberships: memberships.filter(m => m.user_id === row.id).map(m => ({ role: m.role, name: m.name })) })) }
+  }
+  function confirmedAccount(id, body) {
+    const input = z.object({ username }).strict().parse(body)
+    const row = db.prepare('SELECT * FROM lms_users WHERE id=?').get(id)
+    if (!row) throw new ApiError(404, '계정을 찾을 수 없습니다.')
+    if (input.username !== row.username) throw new ApiError(422, '대상 계정의 아이디를 정확히 입력하세요.')
+    return row
+  }
+  async function resetAccount(user, id, body) {
+    const actor = platformAdmin(user)
+    const target = confirmedAccount(id, body)
+    limit('admin-account-reset', actor.id, 30, 3600000)
+    const initialPassword = randomBytes(18).toString('base64url')
+    const passwordHash = await hashPassword(initialPassword)
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      if (platformAdmin(user).password_hash !== actor.password_hash) throw new ApiError(409, '관리자 인증이 변경되었습니다. 다시 로그인하세요.')
+      const row = confirmedAccount(id, body)
+      if (row.password_hash !== target.password_hash) throw new ApiError(409, '이미 비밀번호가 변경되었습니다. 계정 목록을 새로고침하세요.')
+      db.prepare('UPDATE lms_users SET password_hash=?,must_change_password=1 WHERE id=?').run(passwordHash, row.id)
+      db.prepare('DELETE FROM lms_auth_sessions WHERE user_id=?').run(row.id)
+      db.prepare('DELETE FROM lms_registrations WHERE user_id=? OR username=?').run(row.id, row.username)
+      db.prepare('DELETE FROM lms_auth_limits WHERE key_hash=?').run(hash(`member-name:${row.username}`))
+      db.prepare('INSERT INTO lms_account_audit(actor_id,target_id,username,action,created_at) VALUES(?,?,?,?,?)').run(actor.id, row.id, row.username, 'password.reset', now())
+      db.exec('COMMIT')
+      return { username: row.username, initialPassword, mustChangePassword: true }
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
+  function deleteAccount(user, id, body) {
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      const actor = platformAdmin(user), row = confirmedAccount(id, body)
+      if (row.platform_role === 'admin' && db.prepare("SELECT COUNT(*) AS n FROM lms_users WHERE platform_role='admin'").get().n <= 1) throw new ApiError(409, '마지막 총괄 관리자 계정은 삭제할 수 없습니다.')
+      db.prepare('DELETE FROM lms_auth_sessions WHERE user_id=?').run(row.id)
+      db.prepare('DELETE FROM lms_registrations WHERE user_id=? OR username=?').run(row.id, row.username)
+      for (const table of ['lms_admissions', 'lms_workspace_members', 'lms_workspace_verifications', 'lms_staff_profiles', 'lms_staff_connections']) {
+        if (tableExists(db, table)) db.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(row.id)
+      }
+      if (tableExists(db, 'lms_mentor_scopes')) db.prepare('DELETE FROM lms_mentor_scopes WHERE subject_id=?').run(row.id)
+      if (tableExists(db, 'lms_workspace_invitations')) db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE accepted_at IS NULL AND revoked_at IS NULL AND (username=? OR created_by=?)').run(now(), row.username, row.id)
+      db.prepare('DELETE FROM lms_users WHERE id=?').run(row.id)
+      db.prepare('INSERT INTO lms_account_audit(actor_id,target_id,username,action,created_at) VALUES(?,?,?,?,?)').run(actor.id, row.id, row.username, 'account.delete', now())
+      db.exec('COMMIT')
+      return { ok: true, signedOut: actor.id === row.id }
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
   function cleanup() {
     db.prepare('DELETE FROM lms_auth_sessions WHERE expires_at<=?').run(now())
     db.prepare('DELETE FROM lms_auth_limits WHERE expires_at<=?').run(now())
     db.prepare('DELETE FROM lms_registrations WHERE created_at<=?').run(now() - 24 * 3600000)
   }
-  return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, register, signup, createInvitationAccount, issueVerification, status, renew, botAuthorized, preview, verify, login, adminLogin, session, logout, limit, cleanup }
+  return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, accounts, resetAccount, deleteAccount, register, signup, createInvitationAccount, issueVerification, status, renew, botAuthorized, preview, verify, login, adminLogin, session, logout, limit, cleanup }
 }

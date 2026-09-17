@@ -175,6 +175,9 @@ app.use('/api', (req, res, next) => {
 })
 app.get('/api/auth/me', (req, res) => res.json({ user: req.account }))
 app.post('/api/auth/password', async (req, res) => setLogin(res, await auth.changePassword(req.account, req.body)))
+app.get('/api/admin/accounts', (req, res) => res.json(auth.accounts(req.account)))
+app.post('/api/admin/accounts/:id/reset-password', async (req, res) => res.json(await auth.resetAccount(req.account, req.params.id, req.body)))
+app.delete('/api/admin/accounts/:id', (req, res) => res.json(auth.deleteAccount(req.account, req.params.id, req.body)))
 app.get('/api/me/admissions', (req, res) => res.json({ applications: admissions.own(req.account) }))
 app.post('/api/me/admissions', (req, res) => res.status(201).json(admissions.apply(req.body?.workspaceId, req.account)))
 app.post('/api/me/admissions/:id/renew', (req, res) => {
