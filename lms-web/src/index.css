@@ -888,3 +888,15 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .first-login-steps li { display: flex; align-items: center; gap: 8px; padding: 10px; background: #f1f5f0; border-radius: 8px; color: #53665a; }
 .first-login-steps li[aria-current] { background: #e5efe4; color: #28513c; font-weight: 700; }
 .first-login-steps b { background: #fff; border-radius: 50%; width: 24px; height: 24px; text-align: center; line-height: 24px; }
+
+/* Reviewed operational copy: readable supporting text and mobile controls. */
+.page-heading p, .card-heading p, .muted, .calendar-empty { color: #607066; }
+.page-heading p, .card-heading p { font-size: 12px; line-height: 1.7; }
+.profile small, .workspace-selector small, .help-card p { color: #607066; font-size: 11px; }
+.settings-info p { color: #607066; font-size: 12px; line-height: 1.8; }
+@media (max-width: 600px) {
+  .student-account-form .form-row { grid-template-columns: 1fr; }
+  .button { min-height: 44px; }
+  .modal-form input, .modal-form select, .modal-form textarea, .settings-form input { font-size: 16px; }
+  .student-account-tools input { width: 100%; }
+}

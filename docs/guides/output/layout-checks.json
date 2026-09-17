@@ -1,0 +1,62 @@
+[
+  {
+    "name": "admin-guide",
+    "layout": [
+      {
+        "page": 1,
+        "remainingSpace": 157,
+        "overflow": []
+      },
+      {
+        "page": 2,
+        "remainingSpace": 116,
+        "overflow": []
+      },
+      {
+        "page": 3,
+        "remainingSpace": 93,
+        "overflow": []
+      }
+    ]
+  },
+  {
+    "name": "mentor-guide",
+    "layout": [
+      {
+        "page": 1,
+        "remainingSpace": 129,
+        "overflow": []
+      },
+      {
+        "page": 2,
+        "remainingSpace": 46,
+        "overflow": []
+      },
+      {
+        "page": 3,
+        "remainingSpace": 119,
+        "overflow": []
+      }
+    ]
+  },
+  {
+    "name": "student-guide",
+    "layout": [
+      {
+        "page": 1,
+        "remainingSpace": 176,
+        "overflow": []
+      },
+      {
+        "page": 2,
+        "remainingSpace": 86,
+        "overflow": []
+      },
+      {
+        "page": 3,
+        "remainingSpace": 25,
+        "overflow": []
+      }
+    ]
+  }
+]
