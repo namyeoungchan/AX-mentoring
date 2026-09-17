@@ -208,7 +208,7 @@ app.use('/api/workspaces/:workspaceId', (req, _res, next) => {
 })
 app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace))
 app.post('/api/workspaces/:workspaceId/me/verification', (req, res) => {
-  workspaces.requireRole(req.workspaceId, req.account, ['student'])
+  workspaces.requireRole(req.workspaceId, req.account, ['admin', 'student'])
   if (req.workspace.guildIds.length !== 1) throw new ApiError(409, '워크스페이스에 Discord 서버 하나를 연결해야 합니다.')
   res.json(auth.issueVerification(req.account, req.workspace.guildIds[0]))
 })

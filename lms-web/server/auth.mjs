@@ -209,7 +209,8 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     const stored = row.user_id ? db.prepare('SELECT * FROM lms_users WHERE id=?').get(row.user_id) : null
     if (row.user_id && !stored) throw new ApiError(410, '가입 요청을 찾을 수 없습니다.')
     const identity = stored?.discord_id || row.discord_id
-    if ((!identity.startsWith('pending:') && identity !== input.discordId) || row.guild_id !== input.guildId) throw new ApiError(403, '연결된 Discord 계정 또는 인증 서버를 확인하세요.')
+    const unlinked = identity.startsWith('pending:') || (stored?.platform_role === 'admin' && identity === `platform:${stored.id}`)
+    if ((!unlinked && identity !== input.discordId) || row.guild_id !== input.guildId) throw new ApiError(403, '연결된 Discord 계정 또는 인증 서버를 확인하세요.')
     const owner = db.prepare('SELECT id FROM lms_users WHERE discord_id=?').get(input.discordId)
     if (owner && owner.id !== row.user_id) throw new ApiError(409, '이미 다른 LMS 계정에 연결된 Discord 계정입니다.')
     if (!row.user_id) available(row.username, input.discordId)

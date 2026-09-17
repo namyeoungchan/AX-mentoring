@@ -7,6 +7,8 @@ React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다
 
 워크스페이스 생성·역할별 화면·수강생 승인 절차: [WORKSPACES.md](./WORKSPACES.md), [DISCORD-LMS.md](./DISCORD-LMS.md).
 
+Discord 서버 연결·앱 초대·내 계정 인증을 한 화면에서 진행하려면 **Discord 채널 설정 → Discord 빠른 설정**을 사용하세요. 채널 링크를 붙여넣으면 서버 ID를 자동으로 읽고, 연결 상태와 인증 완료를 자동 확인합니다.
+
 현장 관리자용 버튼별 설정 순서: [WORKSPACE-SETUP-GUIDE.md](./WORKSPACE-SETUP-GUIDE.md).
 Discord 공지 발송·실패 재시도·수동 게시: [NOTICE-DELIVERY.md](./NOTICE-DELIVERY.md).
 과제 제출 대상·운영자 알림·D-1 수동 대체: [ASSIGNMENT-ALERTS.md](./ASSIGNMENT-ALERTS.md).
