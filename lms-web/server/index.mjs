@@ -246,6 +246,7 @@ app.post('/api/workspaces/:workspaceId/staff/verification', (req, res) => {
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
 app.get('/api/workspaces/:workspaceId/notices', (req, res) => res.json(outbox.notices(req.workspaceId, req.account)))
 app.get('/api/workspaces/:workspaceId/assignment-alerts', (req, res) => res.json(assignmentAlerts.read(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/assignment-alerts/:id/publish', (req, res) => res.json(assignmentAlerts.publish(req.workspaceId, req.params.id, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/assignment-alerts/:id/course', (req, res) => res.json(assignmentAlerts.bind(req.workspaceId, req.params.id, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/notices/:noticeId/send', (req, res) => res.json(outbox.enqueueNotice(req.workspaceId, req.params.noticeId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/outbox/:id/retry', (req, res) => res.json(outbox.retry(req.workspaceId, req.params.id, req.account)))

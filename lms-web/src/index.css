@@ -876,3 +876,5 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .account-admin-panel td { white-space: normal; overflow-wrap: anywhere; }
 .account-admin-panel td small { display: block; color: #647469; margin-top: 6px; }
 .attendance-discord-preview { white-space: pre-wrap; overflow-wrap: anywhere; padding: 14px; background: #f2f6f3; border-radius: 10px; }
+
+.publication-preview { margin: 16px 0; padding: 16px; border: 1px solid #dce4dd; border-radius: 12px; background: #f6f8f6; overflow-wrap: anywhere; }

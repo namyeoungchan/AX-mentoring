@@ -21,7 +21,7 @@ async def deliver(bot, job):
             result['error'] = 'channel_missing'
             return result
         payload = job['payload']
-        individual = job['kind'] == 'reminder' and payload.get('audience') == 'individual'
+        individual = job['kind'] in ('reminder', 'publication') and payload.get('audience') == 'individual'
         if individual:
             member = await guild.fetch_member(int(payload['targetId']))
             channel = await member.create_dm()
@@ -40,7 +40,7 @@ async def deliver(bot, job):
             if str(channel.id) != job['channelId']:
                 result['error'] = 'private_channel_required'
                 return result
-        elif job['kind'] == 'reminder' and not individual:
+        elif job['kind'] in ('reminder', 'publication') and not individual:
             onboarding = bot.get_cog('LMSOnboarding')
             admin = await onboarding.store.get(guild.id, 'role', 'admin') if onboarding else None
             allowed = {int(payload.get('roleId') or 0), guild.me.id, int((admin or {}).get('id') or 0)}

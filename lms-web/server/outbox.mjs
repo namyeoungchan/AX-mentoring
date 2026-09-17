@@ -60,7 +60,7 @@ export function createOutbox(main, workspaces, { now = Date.now, prepare = () =>
     const row = db.prepare('SELECT * FROM lms_outbox WHERE id=?').get(jobId)
     if (!row || !['failed', 'uncertain'].includes(row.state)) throw new ApiError(409, '실패하거나 결과 확인이 필요한 발송만 재시도하세요.')
     // Uncertain sends retain their original channel and only search for the prior message.
-    const target = row.state === 'failed' && row.kind !== 'reminder' ? channel(id, row.kind) : { guildId: row.guild_id, channelId: row.channel_id }
+    const target = row.state === 'failed' && !['reminder', 'publication'].includes(row.kind) ? channel(id, row.kind) : { guildId: row.guild_id, channelId: row.channel_id }
     db.prepare("UPDATE lms_outbox SET state=?,guild_id=?,channel_id=?,claim=NULL,error='' WHERE id=?").run(row.state === 'failed' ? 'pending' : 'reconcile', target.guildId, target.channelId, jobId)
     db.prepare('INSERT INTO lms_audit(actor,action,target) VALUES(?,?,?)').run(user.username || user.id, 'outbox.retry', jobId)
     return { ok: true }

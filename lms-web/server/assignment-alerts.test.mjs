@@ -87,3 +87,69 @@ test('assignment preparation never cancels or lists attendance deliveries', t =>
   assert.equal(f.db.prepare("SELECT state FROM lms_outbox WHERE id='attendance-job'").get().state, 'pending')
   assert.ok(!f.alerts.read(f.workspace.id, admin).deliveries.some(d => d.kind === 'attendance'))
 })
+
+test('publication freezes reviewed targets, deduplicates and routes team retries to team channels', t => {
+  const f = fixture(t), id = f.workspace.id
+  f.setTime('2026-09-10T00:00:00Z')
+  f.prepare(); assert.equal(f.db.prepare("SELECT COUNT(*) n FROM lms_outbox WHERE kind='publication'").get().n, 0)
+  let a = f.alerts.read(id, admin).assignments.find(a => a.id === '1')
+  assert.throws(() => f.alerts.publish(id, '1', { revision: '0'.repeat(64) }, admin), { status: 409 })
+  assert.throws(() => f.alerts.publish(id, '1', { revision: a.revision }, { id: 'student', role: 'student' }), { status: 403 })
+  f.alerts.publish(id, '1', { revision: a.revision }, admin)
+  f.alerts.publish(id, '1', { revision: a.revision }, admin)
+  f.prepare()
+  const rows = f.db.prepare("SELECT * FROM lms_outbox WHERE kind='publication'").all()
+  assert.equal(rows.length, 2); assert.equal(new Set(rows.map(r => r.channel_id)).size, 2)
+  assert.ok(rows.every(r => r.state === 'pending' && r.channel_id && JSON.parse(r.payload).roleId))
+  const row = rows[0]
+  f.db.prepare("UPDATE lms_outbox SET state='failed',error='permissions' WHERE id=?").run(row.id)
+  f.outbox.retry(id, row.id, admin)
+  f.prepare()
+  assert.equal(f.db.prepare('SELECT channel_id FROM lms_outbox WHERE id=?').get(row.id).channel_id, row.channel_id)
+  f.db.prepare("UPDATE lms_outbox SET state='uncertain',error='timeout' WHERE id=?").run(row.id)
+  f.outbox.retry(id, row.id, admin)
+  assert.deepEqual({ ...f.db.prepare('SELECT state,channel_id FROM lms_outbox WHERE id=?').get(row.id) }, { state: 'reconcile', channel_id: row.channel_id })
+  a = f.alerts.read(id, admin).assignments.find(a => a.id === '1')
+  assert.equal(typeof a.publishedAt, 'number')
+  assert.equal(f.db.prepare("SELECT COUNT(*) n FROM lms_audit WHERE action='assignment.publish'").get().n, 1)
+  f.db.prepare("UPDATE assignments SET is_active=0 WHERE id=1").run(); f.prepare()
+  assert.equal(f.db.prepare('SELECT state FROM lms_outbox WHERE id=?').get(rows[1].id).state, 'cancelled')
+})
+
+test('individual publication waits for verified DM, remains independent of submission and cancels changed identities', async t => {
+  const f = fixture(t), id = f.workspace.id
+  f.setTime('2026-09-10T00:00:00Z')
+  f.db.prepare("UPDATE lms_records SET data=json_set(data,'$.discordId','') WHERE kind='learners' AND id='l0'").run()
+  let a = f.alerts.read(id, admin).assignments.find(a => a.id === '2')
+  f.alerts.publish(id, '2', { revision: a.revision }, admin); f.prepare()
+  let row = f.db.prepare("SELECT * FROM lms_outbox WHERE kind='publication' AND json_extract(payload,'$.learnerId')='l0'").get()
+  assert.equal(row.channel_id, ''); assert.equal(row.error, 'recipient_unavailable')
+  const user = (await f.auth.signup({ username: 'publish.student', password: 'password-test-1234', name: '학생', discordId: '333456789012345678' }, () => {})).user
+  f.store.db.prepare('INSERT INTO lms_workspace_members VALUES(?,?,?,?)').run(id, user.id, 'student', 1)
+  f.auth.verify({ code: f.auth.issueVerification(user, guildId).code, discordId: user.discordId, guildId })
+  f.db.prepare("UPDATE lms_records SET data=json_set(data,'$.discordId',?) WHERE kind='learners' AND id='l0'").run(user.discordId)
+  f.db.prepare("INSERT INTO submissions(assignment_id,user_id,user_name,team,content,link) VALUES(2,?,'학생','','','')").run(user.discordId)
+  f.prepare()
+  row = f.db.prepare('SELECT * FROM lms_outbox WHERE id=?').get(row.id)
+  assert.equal(row.channel_id, `dm:${user.discordId}`); assert.equal(row.state, 'pending')
+  f.db.prepare("UPDATE lms_outbox SET state='failed',error='permissions' WHERE id=?").run(row.id)
+  f.outbox.retry(id, row.id, admin); f.prepare()
+  assert.equal(f.db.prepare('SELECT channel_id FROM lms_outbox WHERE id=?').get(row.id).channel_id, `dm:${user.discordId}`)
+  a = f.alerts.read(id, admin).assignments.find(a => a.id === '2')
+  f.alerts.publish(id, '2', { revision: a.revision }, admin)
+  assert.equal(f.db.prepare("SELECT COUNT(*) n FROM lms_outbox WHERE kind='publication'").get().n, 2)
+  f.db.prepare("UPDATE lms_records SET data=json_set(data,'$.discordId','999456789012345678') WHERE kind='learners' AND id='l0'").run(); f.prepare()
+  assert.equal(f.db.prepare('SELECT state FROM lms_outbox WHERE id=?').get(row.id).state, 'cancelled')
+})
+
+test('publication rejects changed roster, empty audience and archived workspaces without partial queue', t => {
+  const f = fixture(t), id = f.workspace.id
+  const revision = f.alerts.read(id, admin).assignments.find(a => a.id === '2').revision
+  f.db.prepare("UPDATE lms_records SET data=json_set(data,'$.status','중도 탈락') WHERE kind='learners'").run()
+  assert.throws(() => f.alerts.publish(id, '2', { revision }, admin), { status: 409 })
+  const current = f.alerts.read(id, admin).assignments.find(a => a.id === '2').revision
+  assert.throws(() => f.alerts.publish(id, '2', { revision: current }, admin), { status: 422 })
+  f.store.db.prepare('UPDATE lms_workspaces SET archived_at=1 WHERE id=?').run(id)
+  assert.throws(() => f.alerts.publish(id, '2', { revision: current }, admin), { status: 409 })
+  assert.equal(f.db.prepare('SELECT COUNT(*) n FROM lms_assignment_publications').get().n, 0)
+})

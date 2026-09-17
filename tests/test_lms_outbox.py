@@ -47,6 +47,27 @@ class OutboxTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['error'], 'private_channel_required')
         channel.send.assert_not_awaited()
 
+    async def test_publication_routes_private_team_channel_and_verified_dm_and_reports_dm_failure(self):
+        bot, channel, job = self.fixture()
+        guild = bot.get_guild(11)
+        guild.id, guild.me, guild.default_role = 11, SimpleNamespace(id=100), SimpleNamespace(id=0)
+        bot.get_cog = lambda _: SimpleNamespace(store=SimpleNamespace(get=AsyncMock(return_value={'id': 5})))
+        channel.permissions_for.return_value = SimpleNamespace(view_channel=False)
+        channel.overwrites = {}
+        team_job = {**job, 'kind': 'publication', 'payload': {**job['payload'], 'audience': 'team', 'targetId': 't1', 'roleId': '8'}}
+        self.assertEqual((await module.deliver(bot, team_job))['state'], 'sent')
+        channel.send.reset_mock()
+        channel.permissions_for.return_value = SimpleNamespace(view_channel=True)
+        self.assertEqual((await module.deliver(bot, team_job))['error'], 'private_channel_required')
+        channel.send.assert_not_awaited()
+        guild.fetch_member = AsyncMock(return_value=SimpleNamespace(create_dm=AsyncMock(return_value=channel)))
+        dm_job = {**job, 'kind': 'publication', 'channelId': 'dm:123', 'payload': {**job['payload'], 'audience': 'individual', 'targetId': '123'}}
+        self.assertEqual((await module.deliver(bot, dm_job))['state'], 'sent')
+        guild.fetch_member.assert_awaited_once_with(123)
+        channel.send.side_effect = discord.Forbidden(SimpleNamespace(status=403, reason='Forbidden'), 'DM blocked')
+        result = await module.deliver(bot, dm_job)
+        self.assertEqual((result['state'], result['error']), ('failed', 'permissions'))
+
     def fixture(self):
         channel = MagicMock(spec=discord.TextChannel)
         channel.id = 22
