@@ -9,6 +9,7 @@ import { createAuth } from './auth.mjs'
 import { createRenderSync } from './render-sync.mjs'
 import { createProvision } from './provision.mjs'
 import { createWorkspaces } from './workspaces.mjs'
+import { createOutbox } from './outbox.mjs'
 import { createAttendance } from './attendance.mjs'
 import { studentLearning } from './student.mjs'
 import { exportAttendance, importAttendance } from '../shared/attendance-csv.mjs'
@@ -20,7 +21,8 @@ function fixture(t, count = 2) {
   const auth = createAuth(store.db)
   createRenderSync(store.db)
   const workspaces = createWorkspaces({ store, dbPath, provision: createProvision(store.db) })
-  const service = createAttendance(workspaces)
+  const outbox = createOutbox(store.db, workspaces)
+  const service = createAttendance(workspaces, { outbox })
   const put = (kind, value) => store.db.prepare('INSERT INTO lms_records(kind,id,data) VALUES(?,?,?)').run(kind, value.id, JSON.stringify(value))
   put('courses', { id: 'c1', title: '과정' })
   put('teams', { id: 't1', name: '1조', courseId: 'c1', code: '1' })
@@ -37,7 +39,7 @@ function fixture(t, count = 2) {
     return user
   }
   t.after(() => { workspaces.close(); store.db.close(); rmSync(dir, { force: true, recursive: true }) })
-  return { store, service, auth, workspaces, view, payload, save, entries, signup }
+  return { store, service, outbox, auth, workspaces, view, payload, save, entries, signup }
 }
 
 test('120-person roster saves atomically and rolls back records, history and receipts on a late failure', t => {
@@ -130,4 +132,43 @@ test('CSV roundtrip preserves quoted newlines, safe formula text, IDs and pendin
   assert.ok(csv.includes("'=formula")); assert.ok(csv.includes("' +SUM"))
   assert.deepEqual(importAttendance(csv, selection, ['s0', 's1']), rows.map(({ studentId, status, reason }) => ({ studentId, status, reason })))
   for (const invalid of [csv.replace('s1', 's0'), csv.replace('s1', 'foreign'), csv.replace('공결', '오류'), csv.replace('2026-09-18', '2026-09-19'), csv + '"']) assert.throws(() => importAttendance(invalid, selection, ['s0', 's1']))
+})
+
+test('main instructors manage full rounds while group mentors retain scoped editing', async t => {
+  const f = fixture(t), instructor = await f.signup('instructor')
+  f.workspaces.assignMentor('default', instructor.id, { mentorType: 'main', teamIds: [] }, admin)
+  assert.equal(f.view(instructor).canManage, true)
+  f.save(f.payload('start', [], instructor), instructor)
+  f.save(f.payload('save', f.entries(), instructor), instructor)
+  assert.equal(f.save(f.payload('close', [], instructor), instructor).state, '마감')
+})
+
+test('Discord summaries are scoped, private, immutable and idempotent; delivery failures never undo attendance', async t => {
+  const f = fixture(t), mentor = await f.signup('instructor'), student = await f.signup('student')
+  const guildId = '123456789012345678', channelId = '223456789012345678'
+  f.workspaces.addServer('default', { guildId, templateRevision: f.workspaces.template('default').revision })
+  f.store.db.prepare("UPDATE lms_discord_jobs SET state='succeeded',completed_at=1,results=? WHERE guild_id=?").run(JSON.stringify([{ id: 'assignment-dashboard', discordId: channelId }]), guildId)
+  const share = (user = admin, revision = f.view(user).revision) => f.service.share('default', { ...selection, revision }, user)
+  assert.throws(() => share(), { status: 409 })
+  f.save(f.payload('start')); f.save(f.payload('save', [{ studentId: 's0', status: '지각', reason: '개인 사유' }, { studentId: 's1', status: '결석', reason: '민감 사유' }]))
+  assert.throws(() => share(student), { status: 403 })
+  assert.throws(() => share(admin, 'stale'), { status: 409 })
+  const result = share(mentor)
+  assert.ok(result.preview.description.includes('명단 1명'))
+  assert.ok(result.preview.description.includes('결석 0명'))
+  assert.ok(!JSON.stringify(result.preview).includes('학생'))
+  assert.ok(!JSON.stringify(result.preview).includes('개인 사유'))
+  assert.equal(share(mentor).delivery.id, result.delivery.id)
+  const job = f.outbox.poll({ guildIds: [guildId] }).job
+  assert.equal(job.kind, 'attendance'); assert.equal(job.channelId, channelId)
+  f.outbox.complete({ workspaceId: 'default', id: job.id, claim: job.claim, state: 'failed', error: 'permissions' })
+  assert.equal(f.view().counts['지각'], 1)
+  assert.equal(share(mentor).delivery.state, 'pending')
+  const retried = f.outbox.poll({ guildIds: [guildId] }).job
+  assert.equal(retried.nonce, job.nonce)
+  f.outbox.complete({ workspaceId: 'default', id: job.id, claim: retried.claim, state: 'uncertain', error: 'not_found' })
+  assert.equal(share(mentor).delivery.state, 'reconcile')
+  assert.equal(f.outbox.poll({ guildIds: [guildId] }).job.reconcile, true)
+  f.workspaces.setArchived('default', true, admin)
+  assert.throws(() => share(mentor), { status: 409 })
 })

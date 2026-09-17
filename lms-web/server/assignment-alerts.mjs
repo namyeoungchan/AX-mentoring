@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash } from 'node:crypto'
 import { z } from 'zod'
 import { ApiError } from './store.mjs'
 
@@ -21,15 +21,17 @@ export function createAssignmentAlerts(main, workspaces, { now = Date.now } = {}
       const completed = new Set(mapped.map(r => r.target_key))
       const targets = a.type === 'team'
         ? data.teams.filter(t => t.courseId === a.course_id && learners.some(l => l.team === t.name)).map(t => ({ key: `team:${t.id}`, name: t.name, audience: 'team', targetId: t.id, completed: completed.has(`team:${t.id}`) }))
-        : learners.map(l => ({ key: l.discordId ? `user:${l.discordId}` : `learner:${l.id}`, name: l.name, audience: 'individual', targetId: l.discordId, completed: !!l.discordId && completed.has(`user:${l.discordId}`) }))
-      return { id: String(a.id), title: a.title, dueDate: a.due_date.slice(0, 10), active: !!a.is_active, type: a.type, courseId: a.course_id || '', targets, submitted: targets.filter(t => t.completed).length, total: targets.length, unmatchedSubmissions: rows.filter(s => !mapped.some(m => m.submission_id === s.id)).length }
+        : learners.map(l => ({ key: l.discordId ? `user:${l.discordId}` : `learner:${l.id}`, name: l.name, learnerId: l.id, audience: 'individual', targetId: l.discordId, completed: !!l.discordId && completed.has(`user:${l.discordId}`) }))
+      const revision = createHash('sha256').update(JSON.stringify([a.title, a.due_date, a.type, a.course_id, a.is_active, workspaces.metadata(id).guildIds, targets.map(t => [t.key, t.name, t.learnerId, t.targetId, t.audience])])).digest('hex')
+      const publishedAt = db.prepare('SELECT created_at FROM lms_assignment_publications WHERE assignment_id=?').get(a.id)?.created_at ?? null
+      return { revision, publishedAt, id: String(a.id), title: a.title, dueDate: a.due_date.slice(0, 10), active: !!a.is_active, type: a.type, courseId: a.course_id || '', targets, submitted: targets.filter(t => t.completed).length, total: targets.length, unmatchedSubmissions: rows.filter(s => !mapped.some(m => m.submission_id === s.id)).length }
     })
   }
   function read(id, user) {
     workspaces.requireRole(id, user, ['admin'])
     const db = workspaces.open(id).db
     return { courses: workspaces.snapshot(id).courses.map(c => ({ id: c.id, title: c.title })), policy: '개인별 1회 제출 유지 · 팀은 한 건 이상 제출하면 완료', assignments: roster(id),
-      deliveries: db.prepare("SELECT id,kind,source_id AS assignmentId,state,attempts,error,message_id AS messageId,channel_id AS channelId,guild_id AS guildId,payload,created_at AS createdAt FROM lms_outbox WHERE kind<>'notice' ORDER BY created_at DESC,rowid DESC LIMIT 200").all().map(r => ({ ...r, payload: JSON.parse(r.payload) })) }
+      deliveries: db.prepare("SELECT id,kind,source_id AS assignmentId,state,attempts,error,message_id AS messageId,channel_id AS channelId,guild_id AS guildId,payload,created_at AS createdAt FROM lms_outbox WHERE kind IN ('submission','reminder','publication') ORDER BY created_at DESC,rowid DESC LIMIT 200").all().map(r => ({ ...r, payload: JSON.parse(r.payload) })) }
   }
   function bind(id, assignmentId, body, user) {
     workspaces.requireRole(id, user, ['admin'])
@@ -44,6 +46,31 @@ export function createAssignmentAlerts(main, workspaces, { now = Date.now } = {}
       db.prepare('INSERT OR IGNORE INTO lms_assignment_courses VALUES(?,?)').run(assignmentId, courseId)
       db.prepare('INSERT INTO lms_audit(actor,action,target,after_json) VALUES(?,?,?,?)').run(user.username || user.id, 'assignment.bind', assignmentId, JSON.stringify({ courseId }))
       roster(id)
+      db.exec('COMMIT')
+    } catch (e) { db.exec('ROLLBACK'); throw e }
+    return read(id, user)
+  }
+  function publish(id, assignmentId, body, user) {
+    workspaces.requireRole(id, user, ['admin'])
+    const { revision } = z.object({ revision: z.string().regex(/^[a-f0-9]{64}$/) }).strict().parse(body)
+    if (workspaces.metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스입니다.')
+    const db = workspaces.open(id).db, guildId = workspaces.metadata(id).guildIds[0]
+    if (!guildId) throw new ApiError(409, 'Discord 서버를 먼저 연결하세요.')
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      const a = roster(id).find(a => a.id === assignmentId)
+      if (!a) throw new ApiError(404, '과제를 찾을 수 없습니다.')
+      if (a.publishedAt === null) {
+        if (a.revision !== revision) throw new ApiError(409, '과제 또는 대상이 변경되었습니다. 새로고침 후 확인하세요.')
+        if (!a.active || !a.courseId || !a.targets.length) throw new ApiError(422, '진행 중인 과제의 과정과 정상 수강생을 확인하세요.')
+        for (const target of a.targets) {
+          const targetKey = target.audience === 'individual' ? `learner:${target.learnerId}` : target.key
+          const payload = { title: '새 과제가 배포되었습니다', description: `${a.title}\n대상: ${target.name}\n마감: ${a.dueDate}\nLMS에서 과제를 확인하거나 Discord /과제 목록으로 확인해 주세요.`, assignmentId: a.id, dueDate: a.dueDate, audience: target.audience, targetId: target.targetId || '', learnerId: target.learnerId || '', targetKey, publicationGuildId: guildId }
+          db.prepare('INSERT OR IGNORE INTO lms_outbox(id,event_key,kind,source_id,guild_id,payload,actor,created_at) VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(), `publication:${a.id}:${targetKey}`, 'publication', a.id, guildId, JSON.stringify(payload), user.username || user.id, now())
+        }
+        db.prepare('INSERT INTO lms_assignment_publications VALUES(?,?,?)').run(a.id, now(), user.username || user.id)
+        db.prepare('INSERT INTO lms_audit(actor,action,target,after_json) VALUES(?,?,?,?)').run(user.username || user.id, 'assignment.publish', a.id, JSON.stringify({ type: a.type, targets: a.total, revision }))
+      }
       db.exec('COMMIT')
     } catch (e) { db.exec('ROLLBACK'); throw e }
     return read(id, user)
@@ -63,16 +90,20 @@ export function createAssignmentAlerts(main, workspaces, { now = Date.now } = {}
         const row = main.prepare('SELECT data FROM lms_runtime_state WHERE guild_id=? AND kind=? AND record_key=?').get(guildId, kind, key)
         return row ? String(JSON.parse(row.data).id || '') : ''
       }
-      for (const row of db.prepare("SELECT * FROM lms_outbox WHERE kind<>'notice' AND state IN ('pending','failed')").all()) {
+      for (const row of db.prepare("SELECT * FROM lms_outbox WHERE kind IN ('submission','reminder','publication') AND state IN ('pending','failed')").all()) {
         let channelId = '', error = '', payload = JSON.parse(row.payload)
         if (row.kind === 'submission') {
           if (!assignments.some(a => a.id === row.source_id)) { db.prepare("UPDATE lms_outbox SET state='cancelled',error='assignment_removed' WHERE id=?").run(row.id); continue }
           try { channelId = resolveChannel(id, 'submission').channelId } catch { error = 'channel_unconfigured' }
         } else {
-          const a = assignments.find(a => a.id === row.source_id), target = a?.targets.find(t => t.key === payload.targetKey)
-          if (!a?.active || !target || target.completed || a.dueDate !== payload.dueDate || a.dueDate !== tomorrow) {
-            db.prepare("UPDATE lms_outbox SET state='cancelled',error='no_longer_due' WHERE id=?").run(row.id); continue
+          const publication = row.kind === 'publication'
+          const a = assignments.find(a => a.id === row.source_id)
+          const target = a?.targets.find(t => publication && payload.audience === 'individual' ? t.learnerId === payload.learnerId : t.key === payload.targetKey)
+          const stale = !a?.active || !target || (publication ? payload.publicationGuildId !== guildId || (!!payload.targetId && payload.targetId !== target.targetId) : target.completed || a.dueDate !== payload.dueDate || a.dueDate !== tomorrow)
+          if (stale) {
+            db.prepare("UPDATE lms_outbox SET state='cancelled',error=? WHERE id=?").run(publication ? 'publication_target_changed' : 'no_longer_due', row.id); continue
           }
+          if (publication && !payload.targetId) payload.targetId = target.targetId || ''
           if (payload.audience === 'team') {
             channelId = resource(`team-text:${payload.targetId}`)
             payload.roleId = resource(`team:${payload.targetId}`, 'role')
@@ -88,5 +119,5 @@ export function createAssignmentAlerts(main, workspaces, { now = Date.now } = {}
       db.exec('COMMIT')
     } catch (e) { db.exec('ROLLBACK'); throw e }
   }
-  return { read, bind, prepare }
+  return { read, bind, publish, prepare }
 }

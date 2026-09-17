@@ -21,7 +21,7 @@ const schemas = {
   notices: z.object({ id, title: text, content: z.string().min(1).max(4000), courseId: id, target: text, status: z.literal('초안') }),
   servers: z.object({ id, name: text, provider: text, region: text, status: z.literal('미연결'), version: z.string().max(40) }),
   mentors: z.object({ id, name: text, discordId: discord, bio: z.string().max(1000) }),
-  assignments: z.object({ id, title: text, course: text, courseId: z.string().optional(), due: date, submitted: z.number().int().nonnegative(), total: z.number().int().nonnegative(), status: z.enum(['진행 중', '마감']) }),
+  assignments: z.object({ id, type: z.enum(['team', 'individual']).optional(), title: text, course: text, courseId: z.string().optional(), due: date, submitted: z.number().int().nonnegative(), total: z.number().int().nonnegative(), status: z.enum(['진행 중', '마감']) }),
   sessions: z.object({ id, title: text, mentor: text, mentorId: id.optional(), studentId: id.optional(), team: z.string(), date, time: z.string().regex(/^\d{2}:\d{2}$/).refine(v => +v.slice(0, 2) < 24 && +v.slice(3) < 60), status: z.enum(['승인 대기', '예약 확정', '완료', '취소']) }),
   settings: z.object({ name: text, reminders: z.boolean(), onboarding: z.boolean(), qa: z.boolean() }),
 }
@@ -43,6 +43,7 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
   db.exec(`CREATE TABLE IF NOT EXISTS lms_records (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL CHECK(json_valid(data)), PRIMARY KEY(kind,id));
     CREATE TABLE IF NOT EXISTS lms_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL, before_json TEXT, after_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS lms_assignment_courses (assignment_id INTEGER PRIMARY KEY REFERENCES assignments(id), course_id TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS lms_assignment_publications (assignment_id INTEGER PRIMARY KEY REFERENCES assignments(id), created_at INTEGER NOT NULL, actor TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lms_booking_history (id TEXT PRIMARY KEY, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lms_attendance_rounds (course_id TEXT NOT NULL, date TEXT NOT NULL, period INTEGER NOT NULL, state TEXT NOT NULL CHECK(state IN ('진행 전','진행 중','마감')), version INTEGER NOT NULL, PRIMARY KEY(course_id,date,period));
     CREATE TABLE IF NOT EXISTS lms_attendance_requests (id TEXT PRIMARY KEY, actor TEXT NOT NULL, digest TEXT NOT NULL);
@@ -69,7 +70,7 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
     const result = Object.fromEntries(['courses', 'learners', 'teams', 'attendance', 'scores', 'notices', 'servers', 'files'].map(kind => [kind, rows(kind)]))
     result.courses = result.courses.map(c => ({ ...c, learners: result.learners.filter(l => l.courseId === c.id).length }))
     result.mentors = db.prepare('SELECT id,name,discord_id AS discordId,bio FROM mentors WHERE is_active=1 ORDER BY id').all().map(m => ({ ...m, id: String(m.id) }))
-    result.assignments = db.prepare(`SELECT a.*, (SELECT COUNT(*) FROM submissions WHERE assignment_id=a.id) AS submitted, ac.course_id FROM assignments a LEFT JOIN lms_assignment_courses ac ON ac.assignment_id=a.id ORDER BY a.id`).all().map(a => ({ id: String(a.id), title: a.title, courseId: a.course_id || '', course: result.courses.find(c => c.id === a.course_id)?.title || '기존 봇 과제', due: a.due_date.slice(0, 10), submitted: a.submitted, total: a.type === 'team' ? result.teams.filter(t => t.courseId === a.course_id).length : result.learners.filter(l => l.courseId === a.course_id).length, status: a.is_active ? '진행 중' : '마감' }))
+    result.assignments = db.prepare(`SELECT a.*, (SELECT COUNT(*) FROM submissions WHERE assignment_id=a.id) AS submitted, ac.course_id FROM assignments a LEFT JOIN lms_assignment_courses ac ON ac.assignment_id=a.id ORDER BY a.id`).all().map(a => ({ id: String(a.id), type: a.type, title: a.title, courseId: a.course_id || '', course: result.courses.find(c => c.id === a.course_id)?.title || '기존 봇 과제', due: a.due_date.slice(0, 10), submitted: a.submitted, total: a.type === 'team' ? result.teams.filter(t => t.courseId === a.course_id).length : result.learners.filter(l => l.courseId === a.course_id).length, status: a.is_active ? '진행 중' : '마감' }))
     result.sessions = db.prepare(`SELECT b.*, s.label, s.start_time, m.id AS mentor_id, m.name AS mentor_name FROM bookings b JOIN slots s ON b.slot_id=s.id JOIN mentors m ON s.mentor_id=m.id ORDER BY b.id`).all().map(b => ({ id: String(b.id), title: b.label, mentor: b.mentor_name, mentorId: String(b.mentor_id), studentId: result.learners.find(l => l.discordId === b.user_id)?.id || '', team: b.user_name, date: b.start_time.slice(0, 10), time: b.start_time.slice(11, 16), status: b.status === 'pending' ? '승인 대기' : b.status === 'completed' ? '완료' : '예약 확정' }))
     result.sessions.push(...db.prepare('SELECT data FROM lms_booking_history ORDER BY rowid').all().map(r => JSON.parse(r.data)))
     result.submissions = db.prepare('SELECT id,assignment_id AS assignmentId,user_name AS name,team,content,link,submitted_at AS submittedAt FROM submissions ORDER BY id DESC').all().map(s => ({ ...s, id: String(s.id) }))
@@ -112,12 +113,12 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
           else db.prepare('INSERT INTO mentors(name,discord_id,bio) VALUES(?,?,?)').run(value.name, value.discordId, value.bio)
         } else if (kind === 'assignments') {
           if (before) {
-            if (value.title !== before.title || value.course !== before.course || value.due !== before.due) throw new ApiError(422, '기존 과제는 현재 마감 상태 변경만 지원합니다.')
+            if ((value.type && value.type !== before.type) || value.title !== before.title || value.course !== before.course || value.due !== before.due) throw new ApiError(422, '기존 과제는 현재 마감 상태 변경만 지원합니다.')
             db.prepare('UPDATE assignments SET is_active=? WHERE id=?').run(value.status === '진행 중' ? 1 : 0, value.id)
           } else {
             const course = rows('courses').find(c => c.id === value.courseId)
             if (!course) throw new ApiError(422, '등록된 과정을 선택하세요.')
-            const row = db.prepare("INSERT INTO assignments(week,title,description,due_date,type) VALUES(1,?,'',?,'team')").run(value.title, value.due)
+            const row = db.prepare("INSERT INTO assignments(week,title,description,due_date,type) VALUES(1,?,'',?,?)").run(value.title, value.due, value.type || 'team')
             db.prepare('INSERT INTO lms_assignment_courses VALUES(?,?)').run(Number(row.lastInsertRowid), course.id)
           }
         } else if (kind === 'sessions') {

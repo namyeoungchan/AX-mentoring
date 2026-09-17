@@ -37,10 +37,10 @@ const admissions = createAdmissions(store.db, workspaces, { token: process.env.L
 const onboarding = createOnboarding(store.db, workspaces, provision)
 const staff = createStaffFlow(store.db, workspaces, onboarding, admissions)
 const teamOperations = createTeamOperations(workspaces, onboarding)
-const attendance = createAttendance(workspaces)
 const botStorage = createBotStorage(store.db, workspaces, onboarding)
 const assignmentAlerts = createAssignmentAlerts(store.db, workspaces)
 const outbox = createOutbox(store.db, workspaces, { prepare: assignmentAlerts.prepare })
+const attendance = createAttendance(workspaces, { outbox })
 function prepareAssignmentAlerts() {
   for (const row of store.db.prepare('SELECT id FROM lms_workspaces WHERE archived_at IS NULL').all()) {
     try { assignmentAlerts.prepare(row.id, outbox.channel) } catch { console.error('Assignment notification preparation failed for workspace', row.id) }
@@ -175,6 +175,9 @@ app.use('/api', (req, res, next) => {
 })
 app.get('/api/auth/me', (req, res) => res.json({ user: req.account }))
 app.post('/api/auth/password', async (req, res) => setLogin(res, await auth.changePassword(req.account, req.body)))
+app.get('/api/admin/accounts', (req, res) => res.json(auth.accounts(req.account)))
+app.post('/api/admin/accounts/:id/reset-password', async (req, res) => res.json(await auth.resetAccount(req.account, req.params.id, req.body)))
+app.delete('/api/admin/accounts/:id', (req, res) => res.json(auth.deleteAccount(req.account, req.params.id, req.body)))
 app.get('/api/me/admissions', (req, res) => res.json({ applications: admissions.own(req.account) }))
 app.post('/api/me/admissions', (req, res) => res.status(201).json(admissions.apply(req.body?.workspaceId, req.account)))
 app.post('/api/me/admissions/:id/renew', (req, res) => {
@@ -222,6 +225,8 @@ app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
 })
 app.get('/api/workspaces/:workspaceId/attendance', (req, res) => res.json(attendance.view(req.workspaceId, req.query, req.account)))
 app.post('/api/workspaces/:workspaceId/attendance', (req, res) => res.json(attendance.save(req.workspaceId, req.body, req.account)))
+app.get('/api/workspaces/:workspaceId/attendance/discord', (req, res) => res.json(attendance.discord(req.workspaceId, req.query, req.account)))
+app.post('/api/workspaces/:workspaceId/attendance/discord', (req, res) => res.json(attendance.share(req.workspaceId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admissions.reviewList(req.workspaceId, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/bulk-review', (req, res) => res.json(admissions.bulkReview(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res.json(admissions.review(req.workspaceId, req.params.id, req.body, req.account)))
@@ -241,6 +246,7 @@ app.post('/api/workspaces/:workspaceId/staff/verification', (req, res) => {
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
 app.get('/api/workspaces/:workspaceId/notices', (req, res) => res.json(outbox.notices(req.workspaceId, req.account)))
 app.get('/api/workspaces/:workspaceId/assignment-alerts', (req, res) => res.json(assignmentAlerts.read(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/assignment-alerts/:id/publish', (req, res) => res.json(assignmentAlerts.publish(req.workspaceId, req.params.id, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/assignment-alerts/:id/course', (req, res) => res.json(assignmentAlerts.bind(req.workspaceId, req.params.id, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/notices/:noticeId/send', (req, res) => res.json(outbox.enqueueNotice(req.workspaceId, req.params.noticeId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/outbox/:id/retry', (req, res) => res.json(outbox.retry(req.workspaceId, req.params.id, req.account)))

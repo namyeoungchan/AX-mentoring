@@ -1,6 +1,6 @@
 export type Course = { id: string; title: string; category: string; description: string; progress: number; learners: number; weeks: string; mentor: string; theme: 'orange' | 'green' | 'blue'; status: '진행 중' | '모집 중' | '종료'; code?: string; cohort?: string; guildId?: string; startDate?: string; endDate?: string }
 export type Session = { id: string; title: string; mentor: string; mentorId?: string; studentId?: string; team: string; date: string; time: string; status: '승인 대기' | '예약 확정' | '완료' | '취소' }
-export type Assignment = { id: string; title: string; course: string; courseId?: string; due: string; submitted: number; total: number; status: '진행 중' | '마감' }
+export type Assignment = { type?: 'team' | 'individual'; id: string; title: string; course: string; courseId?: string; due: string; submitted: number; total: number; status: '진행 중' | '마감' }
 export type Server = { id: string; name: string; provider: string; region: string; status: '실행 중' | '중지됨' | '미연결'; version: string }
 export type Log = { id: string; time: string; text: string; before?: string; after?: string }
 export type RecordData = { id: string; [key: string]: string | number }
