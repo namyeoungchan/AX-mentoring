@@ -7,6 +7,29 @@ from scripts.lms_backup import backup, restore, verify
 
 
 class BackupTests(unittest.TestCase):
+    def test_legacy_foreign_key_errors_require_explicit_mode_and_are_preserved(self):
+        root = self.fixture()
+        with sqlite3.connect(root / 'main.db') as db:
+            db.executescript('CREATE TABLE parent(id INTEGER PRIMARY KEY); CREATE TABLE child(parent_id REFERENCES parent(id)); INSERT INTO child VALUES(42);')
+        with self.assertRaises(ValueError):
+            backup(root / 'main.db', root / 'strict')
+        result = backup(root / 'main.db', root / 'legacy', True)
+        self.assertEqual(result['files'][0]['foreignKeyViolations'], 1)
+        with self.assertRaises(ValueError):
+            verify(root / 'legacy')
+        with self.assertRaises(ValueError):
+            restore(root / 'legacy', root / 'rejected')
+        self.assertFalse((root / 'rejected').exists())
+        verify(root / 'legacy', True)
+        restore(root / 'legacy', root / 'restored', True)
+        with sqlite3.connect(root / 'restored' / 'main.db') as db:
+            self.assertEqual(db.execute('SELECT parent_id FROM child').fetchone()[0], 42)
+        manifest = root / 'legacy' / 'manifest.json'
+        modified = json.loads(manifest.read_text()); modified['files'][0]['foreignKeyViolations'] = 0
+        manifest.write_text(json.dumps(modified))
+        with self.assertRaises(ValueError):
+            verify(root / 'legacy', True)
+
     def fixture(self):
         temp = tempfile.TemporaryDirectory(); self.addCleanup(temp.cleanup)
         root = Path(temp.name)

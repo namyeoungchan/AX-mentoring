@@ -16,22 +16,24 @@ def checksum(path):
     return digest.hexdigest()
 
 
-def check(path):
+def check(path, allow_foreign_key_errors=False):
     with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True) as db:
         if db.execute('PRAGMA integrity_check').fetchall() != [('ok',)]:
             raise ValueError(f'Integrity check failed: {path.name}')
-        if db.execute('PRAGMA foreign_key_check').fetchone():
+        violations = db.execute('PRAGMA foreign_key_check').fetchall()
+        if violations and not allow_foreign_key_errors:
             raise ValueError(f'Foreign key check failed: {path.name}')
+        return len(violations)
 
 
-def snapshot(source, destination):
+def snapshot(source, destination, allow_foreign_key_errors=False):
     with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as source_db:
         with sqlite3.connect(destination) as target_db:
             source_db.backup(target_db)
-    check(destination)
+    return check(destination, allow_foreign_key_errors)
 
 
-def backup(source, output):
+def backup(source, output, allow_foreign_key_errors=False):
     source, output = Path(source).resolve(), Path(output).absolute()
     if not source.is_file():
         raise ValueError('Source database does not exist')
@@ -51,9 +53,9 @@ def backup(source, output):
         relative = path.relative_to(source.parent)
         target = output / relative
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        snapshot(path, target)
+        violations = snapshot(path, target, allow_foreign_key_errors)
         target.chmod(0o600)
-        manifest['files'].append({'path': relative.as_posix(), 'sha256': checksum(target), 'bytes': target.stat().st_size})
+        manifest['files'].append({'path': relative.as_posix(), 'sha256': checksum(target), 'bytes': target.stat().st_size, 'foreignKeyViolations': violations})
     if files() != inputs:
         raise ValueError('Workspace database set changed; retry in a maintenance window')
     # The manifest is written last: an interrupted backup is never a valid backup set.
@@ -62,7 +64,7 @@ def backup(source, output):
     return manifest
 
 
-def verify(directory):
+def verify(directory, allow_foreign_key_errors=False):
     directory = Path(directory).resolve()
     manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
     if manifest.get('version') != 1 or not isinstance(manifest.get('files'), list) or not manifest['files']:
@@ -78,14 +80,16 @@ def verify(directory):
             raise ValueError('Backup file is missing or outside the backup directory')
         if path.stat().st_size != entry['bytes'] or checksum(path) != entry['sha256']:
             raise ValueError(f'Checksum mismatch: {relative}')
-        check(path)
+        violations = check(path, allow_foreign_key_errors)
+        if violations != entry.get('foreignKeyViolations', 0):
+            raise ValueError(f'Foreign key violation count changed: {relative}')
     if manifest.get('main') not in seen:
         raise ValueError('Main database is missing')
     return manifest
 
 
-def restore(directory, output):
-    manifest = verify(directory)
+def restore(directory, output, allow_foreign_key_errors=False):
+    manifest = verify(directory, allow_foreign_key_errors)
     directory, output = Path(directory).resolve(), Path(output).absolute()
     if output.exists() or output.is_symlink():
         raise ValueError('Restore output must be a new directory; existing data is never overwritten')
@@ -95,7 +99,7 @@ def restore(directory, output):
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         shutil.copyfile(directory / entry['path'], target)
         target.chmod(0o600)
-        check(target)
+        check(target, allow_foreign_key_errors)
     return manifest
 
 
@@ -105,13 +109,15 @@ def main():
     create = sub.add_parser('backup'); create.add_argument('--source', required=True); create.add_argument('--output', required=True)
     validate = sub.add_parser('verify'); validate.add_argument('--backup', required=True)
     recover = sub.add_parser('restore'); recover.add_argument('--backup', required=True); recover.add_argument('--output', required=True)
+    for command in [create, validate, recover]:
+        command.add_argument('--allow-existing-foreign-key-errors', action='store_true', help='Preserve and record existing legacy foreign-key violations; integrity and checksums remain mandatory')
     args = parser.parse_args()
     if args.action == 'backup':
-        result = backup(args.source, args.output)
+        result = backup(args.source, args.output, args.allow_existing_foreign_key_errors)
     elif args.action == 'restore':
-        result = restore(args.backup, args.output)
+        result = restore(args.backup, args.output, args.allow_existing_foreign_key_errors)
     else:
-        result = verify(args.backup)
+        result = verify(args.backup, args.allow_existing_foreign_key_errors)
     print(json.dumps({'action': args.action, 'databases': len(result['files']), 'backupCreatedAt': result['createdAt']}))
 
 

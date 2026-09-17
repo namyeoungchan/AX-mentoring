@@ -11,6 +11,7 @@ from lms_backup import backup, verify
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--allow-existing-foreign-key-errors', action='store_true')
     parser.add_argument('database_env')
     parser.add_argument('default_database')
     parser.add_argument('command', nargs=argparse.REMAINDER)
@@ -26,9 +27,9 @@ def main():
         destination = root / f'{source.name}-{identity}'
         reused = destination.exists()
         if not reused:
-            backup(source, destination)
-        manifest = verify(destination)
-        print(json.dumps({'prestartBackup': 'verified', 'path': str(destination), 'databases': len(manifest['files']), 'reused': reused}), flush=True)
+            backup(source, destination, args.allow_existing_foreign_key_errors)
+        manifest = verify(destination, args.allow_existing_foreign_key_errors)
+        print(json.dumps({'prestartBackup': 'verified', 'path': str(destination), 'databases': len(manifest['files']), 'reused': reused, 'legacyForeignKeyViolations': sum(entry.get('foreignKeyViolations', 0) for entry in manifest['files'])}), flush=True)
     else:
         print(json.dumps({'prestartBackup': 'new-database', 'path': str(source)}), flush=True)
     # Any backup or verification failure exits before application imports/migrations.
