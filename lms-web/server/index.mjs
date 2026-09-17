@@ -14,6 +14,7 @@ import { configuredOrigins } from './origins.mjs'
 import { createOnboarding } from './onboarding.mjs'
 import { createBotStorage } from './bot-storage.mjs'
 import { createStaffFlow } from './staff-flow.mjs'
+import { createTeamOperations } from './team-operations.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -32,6 +33,7 @@ const workspaces = createWorkspaces({ store, dbPath, provision, syncToken: proce
 const admissions = createAdmissions(store.db, workspaces, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
 const onboarding = createOnboarding(store.db, workspaces, provision)
 const staff = createStaffFlow(store.db, workspaces, onboarding, admissions)
+const teamOperations = createTeamOperations(workspaces, onboarding)
 const botStorage = createBotStorage(store.db, workspaces, onboarding)
 const app = express()
 app.disable('x-powered-by')
@@ -203,6 +205,9 @@ app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admiss
 app.post('/api/workspaces/:workspaceId/admissions/bulk-review', (req, res) => res.json(admissions.bulkReview(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res.json(admissions.review(req.workspaceId, req.params.id, req.body, req.account)))
 app.patch('/api/workspaces/:workspaceId/teaching', (req, res) => res.json(workspaces.teach(req.workspaceId, req.body, req.account)))
+app.get('/api/workspaces/:workspaceId/team-operations', (req, res) => res.json(teamOperations.read(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/team-operations', (req, res) => res.json(teamOperations.save(req.workspaceId, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/team-operations/retry', (req, res) => res.json(teamOperations.retry(req.workspaceId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/staff/onboarding', (req, res) => res.json(staff.read(req.workspaceId, req.account)))
 app.post('/api/workspaces/:workspaceId/staff/profile', (req, res) => res.json(staff.profile(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/staff/invite', (req, res) => { auth.limit('staff-invite', req.account.id, 5, 3600000); res.json(staff.invite(req.workspaceId, req.account)) })

@@ -1,0 +1,28 @@
+import { test, expect } from '@playwright/test'
+test('operators preview a bulk move, keep it after reload and export prior teams', async ({ page }) => {
+  await page.request.post('/api/login', { data: { password: 'test-only-password-1234' } })
+  const w = await (await page.request.post('/api/workspaces', { data: { name: '팀 일괄 배정 검증' } })).json()
+  const base = `/api/workspaces/${w.id}`
+  const before = await (await page.request.get(`${base}/discord/groups`)).json()
+  const groups = await (await page.request.post(`${base}/discord/groups`, { data: { count: 2, title: '팀 검증', revision: before.revision } })).json()
+  const current = await (await page.request.get(`${base}/workspace`)).json()
+  expect((await page.request.patch(`${base}/workspace`, { data: { revision: current.revision, changes: [0, 1].map(i => ({ kind: 'learners', value: { id: `l${i}`, name: `학생${i}`, courseId: groups.courseId, email: '', discordId: '', team: groups.teams[0].name, status: '정상' } })) } })).status()).toBe(200)
+  await page.goto(`/?workspace=${w.id}#teams`)
+  await expect(page.getByRole('heading', { name: '수강생 팀 일괄 배정' })).toBeVisible()
+  await page.getByLabel('학생0 배정 선택').check()
+  await page.getByLabel('학생1 배정 선택').check()
+  await page.getByLabel('배정할 팀').selectOption(groups.teams[1].id)
+  await page.getByRole('button', { name: '배정 미리보기' }).click()
+  await expect(page.getByRole('dialog')).toContainText('2명을 2조으로 이동')
+  await page.getByRole('button', { name: '팀 배정 저장', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('팀 배정을 저장했습니다.')
+  await page.reload()
+  const panel = page.locator('.team-operations')
+  await expect(panel.getByRole('row').filter({ hasText: '학생0' })).toContainText('2조')
+  await page.getByLabel('팀 배정 상태').selectOption('Discord 미인증')
+  await expect(panel.getByRole('row')).toHaveCount(3)
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: '팀 변경 이력 CSV' }).click()
+  expect((await download).suggestedFilename()).toBe('팀-변경-이력.csv')
+  for (const width of [1440, 390, 360]) { await page.setViewportSize({ width, height: 900 }); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy() }
+})

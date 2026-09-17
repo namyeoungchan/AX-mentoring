@@ -25,6 +25,34 @@ class Role:
 
 
 class OnboardingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_partial_transfer_retries_after_restart_and_reports_only_requested_members(self):
+        roles = {i: Role(i) for i in range(1, 7)}
+        for key, value in {'student': 2, 'complete': 3, 'team:old': 4, 'team:new': 5}.items():
+            await self.store.put(123, 'role', key, {'id': value})
+        await self.store.put(123, 'member', 7, {'introDone': True, 'welcomed': True, 'reported': True})
+        member = SimpleNamespace(id=7, bot=False, nick=None, roles=[roles[2], roles[3], roles[4]], top_role=roles[4])
+        async def remove(*removed, **kwargs):
+            member.roles = [r for r in member.roles if r not in removed]
+        denied = discord.Forbidden(SimpleNamespace(status=403, reason='Forbidden'), 'role order')
+        member.remove_roles = AsyncMock(side_effect=remove)
+        member.add_roles = AsyncMock(side_effect=denied)
+        guild = SimpleNamespace(id=123, owner_id=99, chunked=True, members=[member, SimpleNamespace(id=8, bot=False)], get_role=roles.get, me=SimpleNamespace(top_role=Role(100), guild_permissions=SimpleNamespace(manage_nicknames=False)))
+        member.guild = guild
+        cfg = {'enabled': True, 'revision': 'revision', 'participants': [{'discordId': '7', 'role': 'student', 'name': '학생', 'teamId': 'new'}], 'teams': [{'id': 'new', 'name': '새 팀'}], 'retryDiscordIds': ['7']}
+        self.cog.ensure_resources = AsyncMock()
+        self.cog.request = AsyncMock()
+        await self.cog.sync_guild(guild, cfg)
+        self.assertNotIn(roles[4], member.roles)
+        self.assertEqual(self.cog.request.call_args.args[1]['members'], [{'discordId': '7', 'state': 'failed', 'error': 'permissions'}])
+        # Persisted desired mappings survive bot restart; retry adds only the missing role.
+        self.cog.store = OnboardingStore(os.path.join(self.directory.name, 'bot.db'))
+        member.add_roles = AsyncMock()
+        member.remove_roles.reset_mock()
+        await self.cog.sync_guild(guild, cfg)
+        member.remove_roles.assert_not_awaited()
+        member.add_roles.assert_awaited_once_with(roles[5], reason='LMS onboarding and web team assignment')
+        self.assertEqual(self.cog.request.call_args.args[1]['members'][0]['state'], 'ready')
+
     async def asyncSetUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

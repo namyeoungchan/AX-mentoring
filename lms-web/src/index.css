@@ -791,3 +791,7 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .workspace-setup-guide h3 { margin: 0 0 5px; font-size: 14px; }
 .workspace-setup-guide p { margin-block: 8px; overflow-wrap: anywhere; }
 .workspace-setup-guide .button { margin-top: 5px; }
+.team-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px; border: 0; min-width: 0; }
+.team-controls label { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.team-controls select { border: 1px solid #d8ded9; border-radius: 8px; padding: 8px; max-width: 100%; }
+.team-operations { margin-bottom: 20px; min-width: 0; }

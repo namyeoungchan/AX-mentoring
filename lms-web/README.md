@@ -6,6 +6,7 @@ React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다
 
 <!-- <<<<<<< fix/issue-4-workspace-setup-guide -->
 현장 관리자용 버튼별 설정 순서: [WORKSPACE-SETUP-GUIDE.md](./WORKSPACE-SETUP-GUIDE.md).
+팀 일괄 배정과 개인별 Discord 복구: [TEAM-OPERATIONS.md](./TEAM-OPERATIONS.md).
 <!-- ======= -->
 <!-- 웹에서 봇 초대·서버 구축을 진행할 수 있는 범위: [WEB-BOT-INVITE.md](./WEB-BOT-INVITE.md). -->
 <!-- >>>>>>> develop -->
