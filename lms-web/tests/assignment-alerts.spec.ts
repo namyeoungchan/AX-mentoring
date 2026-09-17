@@ -43,7 +43,7 @@ test('new submission remains saved while notification waits and Web shows team c
 
 test('web creates individual assignment and publishes one DM job per learner without duplicate requests', async ({ page }) => {
   await page.request.post('/api/login', { data: { password: 'test-only-password-1234' } })
-  const w = await (await page.request.post('/api/workspaces', { data: { name: '개인 배포 E2E', guildId: '663456789012345678' } })).json(), base = `/api/workspaces/${w.id}`
+  const w = await (await page.request.post('/api/workspaces', { data: { name: '개인 배포 E2E', guildId: '963456789012345670' } })).json(), base = `/api/workspaces/${w.id}`
   const groups = await (await page.request.get(`${base}/discord/groups`)).json()
   const setup = await (await page.request.post(`${base}/discord/groups`, { data: { count: 1, revision: groups.revision } })).json()
   const data = await (await page.request.get(`${base}/workspace`)).json()
