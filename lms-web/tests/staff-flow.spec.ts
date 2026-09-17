@@ -23,7 +23,7 @@ test('invited workspace admin configures groups before Discord and can reassign 
   await page.getByRole('button', { name: '조 구성·서버 연결 화면 열기' }).click()
   await page.getByLabel('운영할 조 수', { exact: true }).fill('3')
   await page.getByRole('button', { name: '조 구성 저장' }).click()
-  await expect(page.getByRole('status')).toContainText('조 구성을 저장했습니다.')
+  await expect(page.getByRole('status').filter({ hasText: '조별 역할·대화·음성 채널' })).toContainText('조 구성을 저장했습니다.')
   const groups = await (await page.request.get(`/api/workspaces/${workspace.id}/discord/groups`)).json()
   expect(groups.teams).toHaveLength(3)
   const guildId = '923456789012345678'
