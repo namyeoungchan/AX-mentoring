@@ -31,7 +31,7 @@ export function useWorkspace() {
     try {
       const demo = demoMode ? readDemoWorkspaces() : null
       const user: Account | null = demo ? null : (await request('auth/me', { signal })).user
-      if (user?.mustChangePassword) {
+      if (user?.mustChangePassword || user?.mustCompleteProfile) {
         if (version !== generation.current) return
         setAccount(user); setAuthRequired(false); setError(''); setWorkspaces([]); setData(emptyWorkspace); setLearning(null)
         active.current = ''; setActiveId('')

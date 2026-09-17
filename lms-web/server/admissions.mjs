@@ -32,6 +32,28 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     workspaces.mutate(row.workspace_id, { revision: data.revision, changes: [{ kind: 'learners', value: learner }] }, active ? 'admission-verification' : 'admission-approval')
   }
   function catalogue() { return db.prepare('SELECT id,name FROM lms_workspaces WHERE archived_at IS NULL ORDER BY created_at,rowid').all() }
+  function validateStudentIssue(id, teamId, actor) {
+    workspaces.requireRole(id, actor, ['admin'])
+    const metadata = workspaces.metadata(id)
+    if (metadata.archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스에서는 계정을 발급할 수 없습니다.')
+    if (metadata.guildIds.length !== 1) throw new ApiError(422, 'Discord 서버 연결과 조 구성을 먼저 완료하세요.')
+    const team = availableTeams(id, actor).find(t => t.id === teamId)
+    if (!team || !team.courseTitle) throw new ApiError(422, '이 워크스페이스의 과정과 조를 선택하세요.')
+    return { team, guildId: metadata.guildIds[0], workspaceName: metadata.name }
+  }
+  function assignStudent(id, teamId, user, actor) {
+    const { team, guildId, workspaceName } = validateStudentIssue(id, teamId, actor)
+    const applicationId = randomUUID()
+    db.prepare("INSERT INTO lms_admissions(id,workspace_id,user_id,state,created_at,reviewed_by,reviewed_at,guild_id,invite_state,purpose,team_id) VALUES(?,?,?,'approved',?,?,?,?,'queued','student',?)").run(applicationId, id, user.id, now(), actor.id, now(), guildId, team.id)
+    db.prepare("INSERT INTO lms_workspace_members VALUES(?,?,'student',?)").run(id, user.id, now())
+    db.prepare('INSERT INTO lms_audit(actor,action,target,after_json) VALUES(?,?,?,?)').run(actor.username || actor.id, 'student.assign', `${id}/${user.id}`, JSON.stringify({ teamId: team.id, courseId: team.courseId }))
+    return { applicationId, workspaceName, teamName: team.name, courseTitle: team.courseTitle }
+  }
+  function studentAccounts(id, actor) {
+    workspaces.requireRole(id, actor, ['admin'])
+    return { teams: availableTeams(id, actor), guildIds: workspaces.metadata(id).guildIds, archived: workspaces.metadata(id).archivedAt !== null,
+      accounts: db.prepare("SELECT u.id,u.username,u.name,u.must_complete_profile AS setupPending,u.must_change_password AS passwordPending,a.team_id AS teamId,a.state FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.purpose='student' ORDER BY a.created_at DESC").all(id) }
+  }
   function apply(id, user) {
     if (workspaces.metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스에는 새 가입을 신청할 수 없습니다.')
     if (user.role === 'admin' || workspaces.role(id, user)) throw new ApiError(409, '이미 참여한 계정입니다.')
@@ -161,5 +183,5 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     db.prepare('UPDATE lms_admissions SET invite_state=?,invite_code=?,invite_expires=?,claim_hash=NULL,lease_until=NULL WHERE id=?').run(input.success ? 'ready' : 'failed', input.success ? input.code : null, input.success ? now() + 23 * 3600000 : null, input.id)
     return { ok: true }
   }
-  return { catalogue, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete }
+  return { catalogue, validateStudentIssue, assignStudent, studentAccounts, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete }
 }

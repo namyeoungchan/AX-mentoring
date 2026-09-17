@@ -879,6 +879,16 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 
 .publication-preview { margin: 16px 0; padding: 16px; border: 1px solid #dce4dd; border-radius: 12px; background: #f6f8f6; overflow-wrap: anywhere; }
 
+.student-account-form, .student-account-tools { padding: 20px; }
+.student-account-tools { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
+.student-account-tools label { display: grid; gap: 6px; }
+.student-account-tools input { padding: 10px; border: 1px solid #dce4dd; border-radius: 8px; }
+.student-account-panel td small { display: block; color: #627368; margin-top: 5px; }
+.first-login-steps { list-style: none; display: flex; gap: 12px; padding: 0; margin: 22px 0; flex-wrap: wrap; }
+.first-login-steps li { display: flex; align-items: center; gap: 8px; padding: 10px; background: #f1f5f0; border-radius: 8px; color: #53665a; }
+.first-login-steps li[aria-current] { background: #e5efe4; color: #28513c; font-weight: 700; }
+.first-login-steps b { background: #fff; border-radius: 50%; width: 24px; height: 24px; text-align: center; line-height: 24px; }
+
 /* Reviewed operational copy: readable supporting text and mobile controls. */
 .page-heading p, .card-heading p, .muted, .calendar-empty { color: #607066; }
 .page-heading p, .card-heading p { font-size: 12px; line-height: 1.7; }
