@@ -25,6 +25,18 @@ class OutboxTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['state'], 'sent')
         guild.fetch_member.assert_awaited_once_with(123)
 
+    async def test_attendance_repairs_private_channel_and_refuses_delivery_without_guard(self):
+        bot, channel, job = self.fixture()
+        bot.get_cog = lambda _: None
+        result = await module.deliver(bot, {**job, 'kind': 'attendance'})
+        self.assertEqual(result['error'], 'private_channel_required')
+        channel.send.assert_not_awaited()
+        onboarding = SimpleNamespace(ensure_dashboard=AsyncMock(return_value=channel))
+        bot.get_cog = lambda _: onboarding
+        result = await module.deliver(bot, {**job, 'kind': 'attendance'})
+        self.assertEqual(result['state'], 'sent')
+        onboarding.ensure_dashboard.assert_awaited_once()
+
     async def test_team_reminder_rejects_public_channel_without_posting(self):
         bot, channel, job = self.fixture()
         guild = bot.get_guild(11)

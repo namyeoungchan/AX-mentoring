@@ -36,7 +36,7 @@ test('create course, learner, attendance and score, persist reload, and validate
   await page.getByRole('navigation').getByRole('button', { name: '출결 관리' }).click()
   await page.getByRole('button', { name: '회차 시작', exact: true }).click()
   await expect(page.locator('.attendance-panel').getByRole('status')).toHaveText('회차를 시작했습니다.')
-  await page.getByLabel('김테스트 출결 상태').selectOption('출석')
+  await page.getByRole('group', { name: '김테스트 출결 상태', exact: true }).getByRole('button', { name: '출석', exact: true }).click()
   await page.getByLabel('등록·정정 사유').fill('운영자 확인')
   await page.getByRole('button', { name: '출결 일괄 저장', exact: true }).click()
   await expect(page.locator('.attendance-panel').getByRole('status')).toHaveText('명단 출결을 저장했습니다.')
