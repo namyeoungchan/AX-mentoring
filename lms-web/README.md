@@ -5,7 +5,9 @@ React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다
 수업 당일 점검·장애 대응·유지보수 인수는 [CLASS-RUNBOOK.md](./CLASS-RUNBOOK.md)에서 시작하세요.
 자동 통합 검증 결과와 실제 Discord 리허설의 남은 항목: [CLASS-READINESS.md](./CLASS-READINESS.md).
 
-워크스페이스 생성·역할별 화면·수강생 승인 절차: [WORKSPACES.md](./WORKSPACES.md), [DISCORD-LMS.md](./DISCORD-LMS.md).
+학생 계정 발급·첫 로그인 설정: [STUDENT-ACCOUNTS.md](./STUDENT-ACCOUNTS.md).
+
+워크스페이스 생성·역할별 화면·기존 가입 승인 절차: [WORKSPACES.md](./WORKSPACES.md), [DISCORD-LMS.md](./DISCORD-LMS.md).
 
 Discord 서버 연결·앱 초대·내 계정 인증을 한 화면에서 진행하려면 **Discord 채널 설정 → Discord 빠른 설정**을 사용하세요. 채널 링크를 붙여넣으면 서버 ID를 자동으로 읽고, 연결 상태와 인증 완료를 자동 확인합니다.
 
