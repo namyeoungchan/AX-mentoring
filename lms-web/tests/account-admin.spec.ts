@@ -1,0 +1,53 @@
+import { test, expect } from '@playwright/test'
+
+test('platform administrator resets and deletes accounts with session and membership revocation', async ({ page, request }) => {
+  const setup = await request.post('http://localhost:3004/api/auth/setup', { data: { username: 'accounts.owner', name: '총괄 관리자', password: 'owner-password-1234', setupKey: 'account-setup-key-123456' } })
+  expect(setup.ok()).toBeTruthy()
+  const owner = await setup.json()
+  expect(owner.token).toBeTruthy()
+  const headers = { Authorization: `Bearer ${owner.token}` }
+  const base = 'http://localhost:3004/api'
+  const created = await (await request.post(`${base}/workspaces`, { headers, data: { name: '계정 관리 검증' } })).json()
+  const issued = await (await request.post(`${base}/workspaces/${created.id}/invitations/account`, { headers, data: { username: 'account.target', name: '초기 계정' } })).json()
+  expect(issued.initialPassword).toBeTruthy()
+  const targetLogin = await (await request.post(`${base}/auth/login`, { data: { username: issued.username, password: issued.initialPassword } })).json()
+  const changed = await (await request.post(`${base}/auth/password`, { headers: { Authorization: `Bearer ${targetLogin.token}` }, data: { currentPassword: issued.initialPassword, newPassword: 'target-password-1234' } })).json()
+  const targetHeaders = { Authorization: `Bearer ${changed.token}` }
+  expect((await request.post(`${base}/invitations/accept`, { headers: targetHeaders, data: { token: issued.token } })).status()).toBe(200)
+  expect((await request.get(`${base}/admin/accounts`, { headers: targetHeaders })).status()).toBe(403)
+  expect((await request.post(`${base}/admin/accounts/${owner.user.id}/reset-password`, { headers: targetHeaders, data: { username: 'accounts.owner' } })).status()).toBe(403)
+  expect((await request.delete(`${base}/admin/accounts/${owner.user.id}`, { headers: targetHeaders, data: { username: 'accounts.owner' } })).status()).toBe(403)
+  await page.goto(`http://localhost:3004/?workspace=${created.id}#accounts`)
+  await page.getByLabel('아이디', { exact: true }).fill('accounts.owner')
+  await page.getByLabel('비밀번호', { exact: true }).fill('owner-password-1234')
+  await page.locator('button[type=submit]').click()
+  await expect(page.getByRole('heading', { name: '전체 계정 관리', exact: true }).first()).toBeVisible()
+  const row = page.getByRole('row').filter({ hasText: 'account.target' })
+  await row.getByRole('button', { name: '초기 비밀번호 재설정' }).click()
+  const reset = page.getByRole('dialog', { name: '초기 비밀번호 재설정' })
+  await expect(reset.getByRole('button', { name: '새 초기 비밀번호 발급' })).toBeDisabled()
+  await reset.getByLabel('확인할 계정 아이디').fill('account.target')
+  await reset.getByRole('button', { name: '새 초기 비밀번호 발급' }).click()
+  const credentials = await reset.getByLabel('전달할 계정 정보').inputValue()
+  const password = credentials.split('\n')[1].replace('초기 비밀번호: ', '')
+  expect(password.length).toBe(24)
+  expect((await request.get(`${base}/auth/me`, { headers: targetHeaders })).status()).toBe(401)
+  const resetLogin = await (await request.post(`${base}/auth/login`, { data: { username: 'account.target', password } })).json()
+  const resetHeaders = { Authorization: `Bearer ${resetLogin.token}` }
+  expect(resetLogin.user.mustChangePassword).toBe(true)
+  expect((await request.get(`${base}/workspaces`, { headers: resetHeaders })).status()).toBe(403)
+  await reset.getByRole('button', { name: '확인', exact: true }).click()
+  await row.getByRole('button', { name: '계정 삭제', exact: true }).click()
+  const removing = page.getByRole('dialog', { name: '계정 삭제', exact: true })
+  await removing.getByLabel('확인할 계정 아이디').fill('account.target')
+  await removing.getByRole('button', { name: '계정 영구 삭제' }).click()
+  await expect(row).toHaveCount(0)
+  expect((await request.get(`${base}/auth/me`, { headers: resetHeaders })).status()).toBe(401)
+  const members = await (await request.get(`${base}/workspaces/${created.id}/members`, { headers })).json()
+  expect(members.members.some((m: { username: string }) => m.username === 'account.target')).toBe(false)
+  await expect(page.getByRole('row').filter({ hasText: 'accounts.owner' }).getByRole('button', { name: '계정 삭제', exact: true })).toBeDisabled()
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+  }
+})
