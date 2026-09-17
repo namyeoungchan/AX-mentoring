@@ -3,7 +3,7 @@ services:
     name: ax-mentoring-bot
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
+    startCommand: python scripts/start_with_backup.py DB_PATH data/mentoring.db python bot.py
     disk:
       name: bot-data
       mountPath: /data
