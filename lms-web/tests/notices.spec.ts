@@ -4,7 +4,7 @@ test('notice preview queues once, reports failure, and pauses before manual deli
   const headers = { Authorization: `Bearer ${admin.token}` }, botHeaders = { Authorization: 'Bearer test-only-provision-token-12345678901234567890' }
   const guildId = '643456789012345678', channelId = '743456789012345678'
   const workspace = await (await page.request.post('/api/workspaces', { data: { name: '공지 발송 검증', guildId } })).json(), base = `/api/workspaces/${workspace.id}`
-  const { job } = await (await request.post('/api/integrations/discord/provision/poll', { headers: botHeaders, data: { guildIds: [guildId] } })).json()
+  const { job } = await (await request.post('/api/integrations/discord/provision/poll', { headers: botHeaders, data: { guilds: [{ id: guildId, name: 'Test', manageChannels: true }] } })).json()
   expect((await request.post('/api/integrations/discord/provision/complete', { headers: botHeaders, data: { id: job.id, claim: job.claim, success: true, errorCode: null, results: job.plan.channels.map((c: { id: string }, i: number) => ({ id: c.id, discordId: c.id === 'notice' ? channelId : String(843456789012345678n + BigInt(i)), action: 'created' })) } })).status()).toBe(200)
   const groups = await (await page.request.get(`${base}/discord/groups`)).json()
   const setup = await (await page.request.post(`${base}/discord/groups`, { data: { count: 1, revision: groups.revision } })).json()
