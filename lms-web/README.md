@@ -2,6 +2,8 @@
 
 React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다. Node.js / Express API가 워크스페이스별 SQLite 파일을 사용합니다. 기존 Python 봇 DB는 연결된 워크스페이스로 이관하고, 전환 이후 봇도 웹 API로 데이터를 읽고 저장합니다. 연동 URL과 키가 없는 기존 설치는 로컬 DB를 유지합니다.
 
+수업 당일 점검·장애 대응·유지보수 인수는 [CLASS-RUNBOOK.md](./CLASS-RUNBOOK.md)에서 시작하세요.
+
 워크스페이스 생성·역할별 화면·수강생 승인 절차: [WORKSPACES.md](./WORKSPACES.md), [DISCORD-LMS.md](./DISCORD-LMS.md).
 
 <!-- <<<<<<< fix/issue-4-workspace-setup-guide -->
