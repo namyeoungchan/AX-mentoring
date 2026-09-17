@@ -20,11 +20,17 @@ async def deliver(bot, job):
         if guild is None:
             result['error'] = 'channel_missing'
             return result
-        channel = await guild.fetch_channel(int(job['channelId']))
-        if not isinstance(channel, discord.TextChannel):
+        payload = job['payload']
+        individual = job['kind'] == 'reminder' and payload.get('audience') == 'individual'
+        if individual:
+            member = await guild.fetch_member(int(payload['targetId']))
+            channel = await member.create_dm()
+        else:
+            channel = await guild.fetch_channel(int(job['channelId']))
+        if not individual and not isinstance(channel, discord.TextChannel):
             result['error'] = 'channel_missing'
             return result
-        if job['kind'] != 'notice':
+        if job['kind'] == 'submission':
             onboarding = bot.get_cog('LMSOnboarding')
             if not onboarding:
                 result['error'] = 'private_channel_required'
@@ -32,6 +38,13 @@ async def deliver(bot, job):
             # Existing dashboard ownership repairs grants before publishing private metadata.
             channel = await onboarding.ensure_dashboard(guild, channel)
             if str(channel.id) != job['channelId']:
+                result['error'] = 'private_channel_required'
+                return result
+        elif job['kind'] == 'reminder' and not individual:
+            onboarding = bot.get_cog('LMSOnboarding')
+            admin = await onboarding.store.get(guild.id, 'role', 'admin') if onboarding else None
+            allowed = {int(payload.get('roleId') or 0), guild.me.id, int((admin or {}).get('id') or 0)}
+            if channel.permissions_for(guild.default_role).view_channel or any(overwrite.view_channel is True and target.id not in allowed for target, overwrite in channel.overwrites.items()):
                 result['error'] = 'private_channel_required'
                 return result
         marker = f"LMS:{job['id']}"
@@ -43,7 +56,6 @@ async def deliver(bot, job):
                     return result
             result.update(state='uncertain', error='not_found')
             return result
-        payload = job['payload']
         embed = discord.Embed(title=payload['title'][:256], description=payload['description'][:4096], color=0x315C48)
         if payload.get('course'):
             embed.add_field(name='과정', value=payload['course'][:1024], inline=False)

@@ -6,7 +6,7 @@ const key = z.string().min(1).max(200)
 const fingerprint = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const publicRow = row => row ? { id: row.id, kind: row.kind, state: row.state, attempts: row.attempts, channelId: row.channel_id, messageId: row.message_id, guildId: row.guild_id, error: row.error, actor: row.actor, createdAt: row.created_at, completedAt: row.completed_at } : null
 
-export function createOutbox(main, workspaces, { now = Date.now } = {}) {
+export function createOutbox(main, workspaces, { now = Date.now, prepare = () => {} } = {}) {
   function access(id, user, write = false) {
     workspaces.requireRole(id, user, ['admin'])
     if (write && workspaces.metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스입니다.')
@@ -60,7 +60,7 @@ export function createOutbox(main, workspaces, { now = Date.now } = {}) {
     const row = db.prepare('SELECT * FROM lms_outbox WHERE id=?').get(jobId)
     if (!row || !['failed', 'uncertain'].includes(row.state)) throw new ApiError(409, '실패하거나 결과 확인이 필요한 발송만 재시도하세요.')
     // Uncertain sends retain their original channel and only search for the prior message.
-    const target = row.state === 'failed' ? channel(id, row.kind) : { guildId: row.guild_id, channelId: row.channel_id }
+    const target = row.state === 'failed' && row.kind !== 'reminder' ? channel(id, row.kind) : { guildId: row.guild_id, channelId: row.channel_id }
     db.prepare("UPDATE lms_outbox SET state=?,guild_id=?,channel_id=?,claim=NULL,error='' WHERE id=?").run(row.state === 'failed' ? 'pending' : 'reconcile', target.guildId, target.channelId, jobId)
     db.prepare('INSERT INTO lms_audit(actor,action,target) VALUES(?,?,?)').run(user.username || user.id, 'outbox.retry', jobId)
     return { ok: true }
@@ -91,11 +91,12 @@ export function createOutbox(main, workspaces, { now = Date.now } = {}) {
     for (const guildId of new Set(guildIds)) {
       const id = main.prepare('SELECT workspace_id FROM lms_workspace_guilds WHERE guild_id=?').get(guildId)?.workspace_id
       if (!id || workspaces.metadata(id).archivedAt !== null) continue
+      prepare(id, channel)
       const db = workspaces.open(id).db
       db.exec('BEGIN IMMEDIATE')
       try {
         expire(db)
-        const row = db.prepare("SELECT * FROM lms_outbox WHERE guild_id=? AND state IN ('pending','reconcile','uncertain') AND (state<>'uncertain' OR error='timeout') ORDER BY created_at,rowid LIMIT 1").get(guildId)
+        const row = db.prepare("SELECT * FROM lms_outbox WHERE guild_id=? AND channel_id<>'' AND state IN ('pending','reconcile','uncertain') AND (state<>'uncertain' OR error='timeout') ORDER BY created_at,rowid LIMIT 1").get(guildId)
         if (!row) { db.exec('COMMIT'); continue }
         const claim = randomUUID(), reconcile = row.state !== 'pending'
         db.prepare("UPDATE lms_outbox SET state='sending',claim=?,lease_until=?,attempts=attempts+1,first_attempt_at=COALESCE(first_attempt_at,?) WHERE id=?").run(claim, now() + 120000, now(), row.id)

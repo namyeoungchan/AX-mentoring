@@ -15,6 +15,7 @@ import { createOnboarding } from './onboarding.mjs'
 import { createBotStorage } from './bot-storage.mjs'
 import { createStaffFlow } from './staff-flow.mjs'
 import { createOutbox } from './outbox.mjs'
+import { createAssignmentAlerts } from './assignment-alerts.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -34,7 +35,15 @@ const admissions = createAdmissions(store.db, workspaces, { token: process.env.L
 const onboarding = createOnboarding(store.db, workspaces, provision)
 const staff = createStaffFlow(store.db, workspaces, onboarding, admissions)
 const botStorage = createBotStorage(store.db, workspaces, onboarding)
-const outbox = createOutbox(store.db, workspaces)
+const assignmentAlerts = createAssignmentAlerts(store.db, workspaces)
+const outbox = createOutbox(store.db, workspaces, { prepare: assignmentAlerts.prepare })
+function prepareAssignmentAlerts() {
+  for (const row of store.db.prepare('SELECT id FROM lms_workspaces WHERE archived_at IS NULL').all()) {
+    try { assignmentAlerts.prepare(row.id, outbox.channel) } catch { console.error('Assignment notification preparation failed for workspace', row.id) }
+  }
+}
+setInterval(prepareAssignmentAlerts, 60000).unref()
+setTimeout(prepareAssignmentAlerts, 0).unref()
 const app = express()
 app.disable('x-powered-by')
 const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0)
@@ -222,6 +231,8 @@ app.post('/api/workspaces/:workspaceId/staff/verification', (req, res) => {
 })
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
 app.get('/api/workspaces/:workspaceId/notices', (req, res) => res.json(outbox.notices(req.workspaceId, req.account)))
+app.get('/api/workspaces/:workspaceId/assignment-alerts', (req, res) => res.json(assignmentAlerts.read(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/assignment-alerts/:id/course', (req, res) => res.json(assignmentAlerts.bind(req.workspaceId, req.params.id, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/notices/:noticeId/send', (req, res) => res.json(outbox.enqueueNotice(req.workspaceId, req.params.noticeId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/outbox/:id/retry', (req, res) => res.json(outbox.retry(req.workspaceId, req.params.id, req.account)))
 app.post('/api/workspaces/:workspaceId/outbox/:id/manual', (req, res) => res.json(outbox.manual(req.workspaceId, req.params.id, req.body, req.account)))

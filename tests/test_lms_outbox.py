@@ -11,6 +11,30 @@ with patch.dict(os.environ, {'DISCORD_TOKEN': 'test-only', 'GUILD_ID': '12345678
 
 
 class OutboxTests(unittest.IsolatedAsyncioTestCase):
+    async def test_submission_repairs_private_dashboard_and_individual_reminder_uses_dm(self):
+        bot, channel, job = self.fixture()
+        onboarding = SimpleNamespace(ensure_dashboard=AsyncMock(return_value=channel))
+        bot.get_cog = lambda _: onboarding
+        result = await module.deliver(bot, {**job, 'kind': 'submission'})
+        self.assertEqual(result['state'], 'sent')
+        onboarding.ensure_dashboard.assert_awaited_once()
+        member = SimpleNamespace(create_dm=AsyncMock(return_value=channel))
+        guild = SimpleNamespace(fetch_member=AsyncMock(return_value=member))
+        bot.get_guild = lambda _: guild
+        result = await module.deliver(bot, {**job, 'kind': 'reminder', 'channelId': 'dm:123', 'payload': {**job['payload'], 'audience': 'individual', 'targetId': '123'}})
+        self.assertEqual(result['state'], 'sent')
+        guild.fetch_member.assert_awaited_once_with(123)
+
+    async def test_team_reminder_rejects_public_channel_without_posting(self):
+        bot, channel, job = self.fixture()
+        guild = bot.get_guild(11)
+        guild.id, guild.me, guild.default_role = 11, SimpleNamespace(id=100), SimpleNamespace(id=0)
+        bot.get_cog = lambda _: SimpleNamespace(store=SimpleNamespace(get=AsyncMock(return_value={'id': 5})))
+        channel.permissions_for.return_value = SimpleNamespace(view_channel=True)
+        result = await module.deliver(bot, {**job, 'kind': 'reminder', 'payload': {**job['payload'], 'audience': 'team', 'targetId': 't1', 'roleId': '8'}})
+        self.assertEqual(result['error'], 'private_channel_required')
+        channel.send.assert_not_awaited()
+
     def fixture(self):
         channel = MagicMock(spec=discord.TextChannel)
         channel.id = 22
