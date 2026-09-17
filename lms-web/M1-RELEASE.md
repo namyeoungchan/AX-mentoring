@@ -23,4 +23,6 @@
 
 ## 남은 현장 확인
 
+봇의 기존 로컬 DB는 배포 전부터 외래 키 위반을 포함해 엄격 백업 검사에서 시작이 중단되었다. Web의 메인·workspace DB 8개는 엄격 검사를 통과했다. 봇에만 `--allow-existing-foreign-key-errors`를 명시하여 기존 행을 그대로 보존하고 위반 건수를 manifest·시작 로그에 기록한다. SQLite 무결성·체크섬·위반 건수 일치는 계속 검사하며 Web의 엄격 검사는 유지한다. 이 백업의 검증·복구도 동일한 명시적 옵션이 필요하다. 기존 데이터 정리는 수행하지 않았다.
+
 실제 Discord 스테이징 수업 리허설, 비개발자 문서 인수, 연락망·RPO/RTO·외부 백업 보관 정책은 미완료다. #15·#16 및 마일스톤의 현장 완료를 자동 테스트나 배포 성공으로 대체하지 않는다. [CLASS-READINESS.md](./CLASS-READINESS.md), [CLASS-RUNBOOK.md](./CLASS-RUNBOOK.md)를 따른다.
