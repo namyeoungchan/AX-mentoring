@@ -795,3 +795,13 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .team-controls label { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
 .team-controls select { border: 1px solid #d8ded9; border-radius: 8px; padding: 8px; max-width: 100%; }
 .team-operations { margin-bottom: 20px; min-width: 0; }
+/* The roster can scroll horizontally while its controls remain usable on phones. */
+.attendance-panel { padding-bottom: 20px; min-width: 0; }
+.attendance-panel fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.attendance-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px !important; }
+.attendance-controls label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; max-width: 100%; }
+.attendance-controls input, .attendance-controls select, .attendance-panel td select { border: 1px solid #d8ded9; border-radius: 8px; padding: 9px; background: white; max-width: 100%; }
+.attendance-controls input[type=file] { width: 235px; }
+.attendance-summary { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 16px; }
+.attendance-history { margin: 20px 16px 0; }
+.attendance-history summary { cursor: pointer; padding: 10px 0; }
