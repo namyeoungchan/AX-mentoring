@@ -805,6 +805,48 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .attendance-summary { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 16px; }
 .attendance-history { margin: 20px 16px 0; }
 .attendance-history summary { cursor: pointer; padding: 10px 0; }
+.attendance-count { border: 1px solid #d8ded9; border-radius: 12px; background: white; padding: 9px 12px; cursor: pointer; }
+.attendance-count.selected { background: #e8f1eb; border-color: #315c48; }
+.attendance-round-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 16px; }
+.attendance-round-actions p { flex: 1; font-size: 13px; color: #526359; min-width: 220px; }
+.attendance-filter-count { color: #526359; font-size: 13px; padding: 10px 0; }
+.attendance-panel .attendance-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; margin: 0 16px 12px; border-radius: 12px; background: #f2f6f3; }
+.attendance-bulk > div { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.attendance-bulk small { flex-basis: 100%; color: #526359; }
+.attendance-status-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
+.attendance-state { min-height: 42px; min-width: 48px; padding: 8px 12px; border-radius: 9px; border: 1px solid #d5ddd8; background: white; color: #46584c; cursor: pointer; font-weight: 600; }
+.attendance-state:hover:not(:disabled) { border-color: #315c48; background: #edf3ee; }
+.attendance-state[aria-pressed=true] { outline: 2px solid currentColor; outline-offset: -2px; }
+.attendance-state-1[aria-pressed=true] { color: #21593a; background: #dcefe1; }
+.attendance-state-2[aria-pressed=true] { color: #805410; background: #fff0cf; }
+.attendance-state-3[aria-pressed=true] { color: #913e3e; background: #fbe2e2; }
+.attendance-state-4[aria-pressed=true] { color: #3c5688; background: #e4edfa; }
+.attendance-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.attendance-roster input[type=checkbox] { width: 19px; height: 19px; accent-color: #315c48; cursor: pointer; }
+.attendance-person strong, .attendance-person span { display: block; }
+.attendance-person span, .attendance-pending { font-size: 12px; color: #647469; margin-top: 5px; }
+.attendance-row-dirty { background: #fffdf2; }
+.attendance-row-reason { max-width: 200px; white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
+.attendance-panel .attendance-savebar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; position: sticky; bottom: 10px; z-index: 2; padding: 16px; margin: 16px; border: 1px solid #c8d7cd; border-radius: 14px; background: #fff; box-shadow: 0 4px 20px #203d2612; }
+.attendance-savebar > div { flex: 1; min-width: 190px; }
+.attendance-savebar small { display: block; color: #647469; font-size: 11px; margin-top: 5px; }
+.attendance-savebar label { font-size: 12px; display: grid; gap: 5px; }
+.attendance-savebar input { border: 1px solid #d8ded9; border-radius: 8px; padding: 9px; max-width: 100%; }
+@media (max-width: 640px) {
+  .attendance-roster table, .attendance-roster tbody { display: block; min-width: 0; width: 100%; }
+  .attendance-roster thead { display: block; }
+  .attendance-roster thead tr { display: flex; }
+  .attendance-roster thead th:not(:first-child) { display: none; }
+  .attendance-roster thead th:first-child::after { content: ' 표시된 명단 전체 선택'; font-size: 12px; }
+  .attendance-roster tbody tr { display: grid; grid-template-columns: 34px minmax(0, 1fr); margin: 8px 12px; border: 1px solid #d8ded9; border-radius: 12px; padding: 10px; }
+  .attendance-roster td { border: 0; padding: 6px; }
+  .attendance-roster td:nth-child(n+3) { grid-column: 1 / -1; }
+  .attendance-roster .attendance-row-reason { max-width: none; }
+  .attendance-status-buttons { flex-wrap: nowrap; }
+  .attendance-state { flex: 1; min-width: 0; padding: 9px 10px; }
+  .attendance-savebar label { width: 100%; }
+  .attendance-panel .attendance-savebar { bottom: 0; margin: 12px; padding: 12px; }
+}
 
 .discord-quick { min-width: 0; }
 .quick-overview > p { margin: 14px 20px; }
@@ -833,3 +875,4 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .account-admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .account-admin-panel td { white-space: normal; overflow-wrap: anywhere; }
 .account-admin-panel td small { display: block; color: #647469; margin-top: 6px; }
+.attendance-discord-preview { white-space: pre-wrap; overflow-wrap: anywhere; padding: 14px; background: #f2f6f3; border-radius: 10px; }

@@ -29,7 +29,7 @@ export function createAssignmentAlerts(main, workspaces, { now = Date.now } = {}
     workspaces.requireRole(id, user, ['admin'])
     const db = workspaces.open(id).db
     return { courses: workspaces.snapshot(id).courses.map(c => ({ id: c.id, title: c.title })), policy: '개인별 1회 제출 유지 · 팀은 한 건 이상 제출하면 완료', assignments: roster(id),
-      deliveries: db.prepare("SELECT id,kind,source_id AS assignmentId,state,attempts,error,message_id AS messageId,channel_id AS channelId,guild_id AS guildId,payload,created_at AS createdAt FROM lms_outbox WHERE kind<>'notice' ORDER BY created_at DESC,rowid DESC LIMIT 200").all().map(r => ({ ...r, payload: JSON.parse(r.payload) })) }
+      deliveries: db.prepare("SELECT id,kind,source_id AS assignmentId,state,attempts,error,message_id AS messageId,channel_id AS channelId,guild_id AS guildId,payload,created_at AS createdAt FROM lms_outbox WHERE kind IN ('submission','reminder') ORDER BY created_at DESC,rowid DESC LIMIT 200").all().map(r => ({ ...r, payload: JSON.parse(r.payload) })) }
   }
   function bind(id, assignmentId, body, user) {
     workspaces.requireRole(id, user, ['admin'])
@@ -63,7 +63,7 @@ export function createAssignmentAlerts(main, workspaces, { now = Date.now } = {}
         const row = main.prepare('SELECT data FROM lms_runtime_state WHERE guild_id=? AND kind=? AND record_key=?').get(guildId, kind, key)
         return row ? String(JSON.parse(row.data).id || '') : ''
       }
-      for (const row of db.prepare("SELECT * FROM lms_outbox WHERE kind<>'notice' AND state IN ('pending','failed')").all()) {
+      for (const row of db.prepare("SELECT * FROM lms_outbox WHERE kind IN ('submission','reminder') AND state IN ('pending','failed')").all()) {
         let channelId = '', error = '', payload = JSON.parse(row.payload)
         if (row.kind === 'submission') {
           if (!assignments.some(a => a.id === row.source_id)) { db.prepare("UPDATE lms_outbox SET state='cancelled',error='assignment_removed' WHERE id=?").run(row.id); continue }

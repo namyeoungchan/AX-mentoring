@@ -30,7 +30,7 @@ async def deliver(bot, job):
         if not individual and not isinstance(channel, discord.TextChannel):
             result['error'] = 'channel_missing'
             return result
-        if job['kind'] == 'submission':
+        if job['kind'] in ('submission', 'attendance'):
             onboarding = bot.get_cog('LMSOnboarding')
             if not onboarding:
                 result['error'] = 'private_channel_required'
