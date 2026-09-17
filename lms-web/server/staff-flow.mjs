@@ -76,7 +76,9 @@ export function createStaffFlow(db, workspaces, onboarding, admissions, { now = 
     const guildId = workspaces.metadata(id).guildIds[0] || ''
     const verified = Boolean(guildId && workspaceVerified(db, id, user.id, guildId))
     const invitation = admissions.own(user).find(a => a.workspaceId === id) || null
-    return { profile: profile ? { ...profile, steps: JSON.parse(profile.steps) } : null, guildId, verified, invitation,
+    const steps = profile ? JSON.parse(profile.steps) : []
+    return { profile: profile ? { ...profile, steps } : null, guildId, verified, invitation,
+      completed: Boolean(profile && verified && mentorGuides.every(guide => steps.includes(guide.id))),
       ...workspaces.mentorScope(id, user.id), teams: workspaces.snapshot(id).teams.map(t => ({ id: t.id, name: t.name })), guides: mentorGuides }
   }
   function profile(id, body, user) {

@@ -22,7 +22,8 @@ COPY lms-web/scripts/reset-account.mjs ./scripts/reset-account.mjs
 COPY lms-web/shared ./shared
 COPY database.py /app/database.py
 COPY config.py storage_codec.py /app/
+COPY scripts/lms_backup.py scripts/start_with_backup.py /app/scripts/
 RUN mkdir -p /app/data && chown -R node:node /app/data
 USER node
 EXPOSE 3001
-CMD ["node", "server/index.mjs"]
+CMD ["python3", "/app/scripts/start_with_backup.py", "BOT_DB_PATH", "/app/data/mentoring.db", "node", "server/index.mjs"]

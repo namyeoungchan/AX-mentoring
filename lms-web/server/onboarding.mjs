@@ -12,6 +12,8 @@ export function createOnboarding(db, workspaces, provision, { now = Date.now } =
   db.exec(`CREATE TABLE IF NOT EXISTS lms_onboarding_settings(guild_id TEXT PRIMARY KEY REFERENCES lms_workspace_guilds(guild_id), data TEXT NOT NULL, revision TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lms_onboarding_reports(guild_id TEXT PRIMARY KEY, revision TEXT NOT NULL, state TEXT NOT NULL, error TEXT NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS lms_onboarding_members(guild_id TEXT NOT NULL, discord_id TEXT NOT NULL, intro_done INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, PRIMARY KEY(guild_id,discord_id));`)
+  db.exec(`CREATE TABLE IF NOT EXISTS lms_member_sync(guild_id TEXT NOT NULL,discord_id TEXT NOT NULL,revision TEXT NOT NULL,state TEXT NOT NULL,error TEXT NOT NULL,updated_at INTEGER NOT NULL,PRIMARY KEY(guild_id,discord_id));
+    CREATE TABLE IF NOT EXISTS lms_member_retry(guild_id TEXT NOT NULL,discord_id TEXT NOT NULL,PRIMARY KEY(guild_id,discord_id));`)
   function owner(guildId) { return db.prepare('SELECT workspace_id FROM lms_workspace_guilds WHERE guild_id=?').get(guildId)?.workspace_id }
   function config(guildId) {
     const row = db.prepare('SELECT * FROM lms_onboarding_settings WHERE guild_id=?').get(guildId)
@@ -65,17 +67,23 @@ export function createOnboarding(db, workspaces, provision, { now = Date.now } =
     }
     const channels = provision.read([guildId]).plans[0]?.channels || []
     const value = { ...cfg, workspaceName: data.name, teams, participants, channels }
-    return { ...value, revision: digest(value) }
+    return { ...value, revision: digest(value), retryDiscordIds: db.prepare('SELECT discord_id FROM lms_member_retry WHERE guild_id=?').all(guildId).map(r => r.discord_id) }
   }
   function poll(body) {
     const { guildIds } = z.object({ guildIds: z.array(snowflake).max(10000) }).strict().parse(body)
     return { configs: [...new Set(guildIds)].map(bundle).filter(Boolean) }
   }
   function report(body) {
-    const input = z.object({ guildId: snowflake, revision: z.string().length(64), state: z.enum(['ready', 'failed', 'disabled']), error: z.enum(['', 'permissions', 'role_hierarchy', 'discord_error', 'api_error', 'conflict', 'team_limit']) }).strict().parse(body)
+    const member = z.object({ discordId: snowflake, state: z.enum(['ready', 'waiting', 'failed']), error: z.enum(['', 'permissions', 'role_hierarchy', 'discord_error', 'api_error', 'conflict', 'member_missing']) }).strict()
+    const input = z.object({ guildId: snowflake, revision: z.string().length(64), state: z.enum(['ready', 'failed', 'disabled']), error: z.enum(['', 'permissions', 'role_hierarchy', 'discord_error', 'api_error', 'conflict', 'team_limit']), members: z.array(member).max(10000).default([]) }).strict().parse(body)
     if (!owner(input.guildId)) throw new ApiError(404, '연결된 서버가 아닙니다.')
     if (bundle(input.guildId).revision !== input.revision) throw new ApiError(409, '설정이 변경되었습니다. 최신 설정을 가져오세요.')
     db.prepare('INSERT INTO lms_onboarding_reports VALUES(?,?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET revision=excluded.revision,state=excluded.state,error=excluded.error,updated_at=excluded.updated_at').run(input.guildId, input.revision, input.state, input.error, now())
+    const valid = new Set(bundle(input.guildId).participants?.map(p => p.discordId) || [])
+    for (const member of input.members.filter(m => valid.has(m.discordId))) {
+      db.prepare('INSERT INTO lms_member_sync VALUES(?,?,?,?,?,?) ON CONFLICT(guild_id,discord_id) DO UPDATE SET revision=excluded.revision,state=excluded.state,error=excluded.error,updated_at=excluded.updated_at').run(input.guildId, member.discordId, input.revision, member.state, member.error, now())
+      db.prepare('DELETE FROM lms_member_retry WHERE guild_id=? AND discord_id=?').run(input.guildId, member.discordId)
+    }
     return { ok: true }
   }
   function progress(body) {
@@ -84,5 +92,30 @@ export function createOnboarding(db, workspaces, provision, { now = Date.now } =
     db.prepare('INSERT INTO lms_onboarding_members VALUES(?,?,1,?) ON CONFLICT(guild_id,discord_id) DO UPDATE SET intro_done=1,updated_at=excluded.updated_at').run(input.guildId, input.discordId, now())
     return { ok: true }
   }
-  return { read, save, poll, report, progress }
+  function memberStates(id, learners) {
+    const guildId = workspaces.metadata(id).guildIds[0], cfg = guildId ? bundle(guildId) : null
+    return learners.map(learner => {
+      const proof = guildId && db.prepare(`SELECT 1 FROM lms_workspace_verifications v JOIN lms_workspace_members m ON m.workspace_id=v.workspace_id AND m.user_id=v.user_id JOIN lms_users u ON u.id=v.user_id AND u.discord_id=v.discord_id WHERE v.workspace_id=? AND v.guild_id=? AND v.discord_id=?`).get(id, guildId, learner.discordId || '')
+      const current = guildId && db.prepare('SELECT * FROM lms_member_sync WHERE guild_id=? AND discord_id=?').get(guildId, learner.discordId || '')
+      const report = guildId && db.prepare('SELECT * FROM lms_onboarding_reports WHERE guild_id=?').get(guildId)
+      const pending = guildId && db.prepare('SELECT 1 FROM lms_member_retry WHERE guild_id=? AND discord_id=?').get(guildId, learner.discordId || '')
+      const enabled = cfg?.enabled && cfg.courseIds?.includes(learner.courseId)
+      const fresh = current?.revision === cfg?.revision && current?.updated_at > now() - 120000 && !pending
+      const globalFailure = report?.revision === cfg?.revision && report?.state === 'failed' && report?.updated_at > now() - 120000
+      const syncState = !proof ? 'Discord 미인증' : !enabled ? '연동 미설정' : fresh ? ({ ready: '적용 완료', waiting: '자기소개 대기', failed: '동기화 실패' }[current.state]) : globalFailure && !pending ? '동기화 실패' : '적용 대기'
+      return { ...learner, syncState, syncError: fresh ? current.error : globalFailure ? report.error : '', syncedAt: current?.updated_at || null }
+    })
+  }
+  function retryMembers(id, learners, actor) {
+    const guildId = workspaces.metadata(id).guildIds[0]
+    if (!guildId) throw new ApiError(409, '연결된 Discord 서버가 없습니다.')
+    if (memberStates(id, learners).some(l => l.syncState !== '동기화 실패')) throw new ApiError(409, '실패한 구성원만 선택해 재시도하세요.')
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      for (const l of learners) db.prepare('INSERT OR IGNORE INTO lms_member_retry VALUES(?,?)').run(guildId, l.discordId)
+      db.prepare('INSERT INTO lms_audit(actor,action,target,after_json) VALUES(?,?,?,?)').run(actor, 'teams.retry', id, JSON.stringify(learners.map(l => l.id)))
+      db.exec('COMMIT')
+    } catch (e) { db.exec('ROLLBACK'); throw e }
+  }
+  return { read, save, poll, report, progress, memberStates, retryMembers }
 }

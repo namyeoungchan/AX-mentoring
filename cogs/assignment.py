@@ -1079,6 +1079,8 @@ class Assignment(commands.Cog):
     @tasks.loop(time=datetime.time(hour=0, minute=0, tzinfo=datetime.timezone.utc))
     @each_workspace
     async def deadline_reminder(self) -> None:
+        if config.managed_storage:
+            return  # The web outbox owns durable team and individual D-1 notifications.
         # Tomorrow in KST = today UTC+9 + 1 day
         tomorrow_kst = (
             datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))

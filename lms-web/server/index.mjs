@@ -14,6 +14,10 @@ import { configuredOrigins } from './origins.mjs'
 import { createOnboarding } from './onboarding.mjs'
 import { createBotStorage } from './bot-storage.mjs'
 import { createStaffFlow } from './staff-flow.mjs'
+import { createOutbox } from './outbox.mjs'
+import { createAssignmentAlerts } from './assignment-alerts.mjs'
+import { createTeamOperations } from './team-operations.mjs'
+import { createAttendance } from './attendance.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -32,7 +36,18 @@ const workspaces = createWorkspaces({ store, dbPath, provision, syncToken: proce
 const admissions = createAdmissions(store.db, workspaces, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
 const onboarding = createOnboarding(store.db, workspaces, provision)
 const staff = createStaffFlow(store.db, workspaces, onboarding, admissions)
+const teamOperations = createTeamOperations(workspaces, onboarding)
+const attendance = createAttendance(workspaces)
 const botStorage = createBotStorage(store.db, workspaces, onboarding)
+const assignmentAlerts = createAssignmentAlerts(store.db, workspaces)
+const outbox = createOutbox(store.db, workspaces, { prepare: assignmentAlerts.prepare })
+function prepareAssignmentAlerts() {
+  for (const row of store.db.prepare('SELECT id FROM lms_workspaces WHERE archived_at IS NULL').all()) {
+    try { assignmentAlerts.prepare(row.id, outbox.channel) } catch { console.error('Assignment notification preparation failed for workspace', row.id) }
+  }
+}
+setInterval(prepareAssignmentAlerts, 60000).unref()
+setTimeout(prepareAssignmentAlerts, 0).unref()
 const app = express()
 app.disable('x-powered-by')
 const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0)
@@ -124,6 +139,12 @@ app.post('/api/integrations/discord/onboarding/:operation', (req, res) => {
   if (req.params.operation === 'progress') return res.json(onboarding.progress(req.body))
   return res.status(404).json({ error: '지원하지 않는 작업입니다.' })
 })
+app.post('/api/integrations/discord/outbox/:operation', (req, res) => {
+  if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
+  if (req.params.operation === 'poll') return res.json(outbox.poll(req.body))
+  if (req.params.operation === 'complete') return res.json(outbox.complete(req.body))
+  res.status(404).json({ error: '지원하지 않는 작업입니다.' })
+})
 app.post('/api/integrations/discord/storage/:operation', async (req, res) => {
   if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
   if (req.params.operation === 'registry') return res.json(botStorage.registry(req.body))
@@ -149,6 +170,7 @@ const sessionToken = req => req.get('authorization')?.startsWith('Bearer ') ? re
 app.use('/api', (req, res, next) => {
   req.account = auth.session(sessionToken(req))
   if (!req.account) return res.status(401).json({ error: '로그인이 필요합니다.' })
+  if (req.account.mustChangePassword && !['/auth/me', '/auth/password', '/logout'].includes(req.path)) return res.status(403).json({ error: '초기 비밀번호를 변경한 뒤 이용하세요.', code: 'PASSWORD_CHANGE_REQUIRED' })
   next()
 })
 app.get('/api/auth/me', (req, res) => res.json({ user: req.account }))
@@ -186,7 +208,7 @@ app.use('/api/workspaces/:workspaceId', (req, _res, next) => {
 })
 app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace))
 app.post('/api/workspaces/:workspaceId/me/verification', (req, res) => {
-  workspaces.requireRole(req.workspaceId, req.account, ['student'])
+  workspaces.requireRole(req.workspaceId, req.account, ['admin', 'student'])
   if (req.workspace.guildIds.length !== 1) throw new ApiError(409, '워크스페이스에 Discord 서버 하나를 연결해야 합니다.')
   res.json(auth.issueVerification(req.account, req.workspace.guildIds[0]))
 })
@@ -196,12 +218,17 @@ app.get('/api/workspaces/:workspaceId/me/learning', (req, res) => {
 })
 app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
   workspaces.requireRole(req.workspaceId, req.account, ['instructor'])
-  res.json(workspaces.teaching(req.workspaceId, req.account))
+  res.json({ ...workspaces.teaching(req.workspaceId, req.account), onboardingComplete: staff.read(req.workspaceId, req.account).completed })
 })
+app.get('/api/workspaces/:workspaceId/attendance', (req, res) => res.json(attendance.view(req.workspaceId, req.query, req.account)))
+app.post('/api/workspaces/:workspaceId/attendance', (req, res) => res.json(attendance.save(req.workspaceId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admissions.reviewList(req.workspaceId, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/bulk-review', (req, res) => res.json(admissions.bulkReview(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res.json(admissions.review(req.workspaceId, req.params.id, req.body, req.account)))
 app.patch('/api/workspaces/:workspaceId/teaching', (req, res) => res.json(workspaces.teach(req.workspaceId, req.body, req.account)))
+app.get('/api/workspaces/:workspaceId/team-operations', (req, res) => res.json(teamOperations.read(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/team-operations', (req, res) => res.json(teamOperations.save(req.workspaceId, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/team-operations/retry', (req, res) => res.json(teamOperations.retry(req.workspaceId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/staff/onboarding', (req, res) => res.json(staff.read(req.workspaceId, req.account)))
 app.post('/api/workspaces/:workspaceId/staff/profile', (req, res) => res.json(staff.profile(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/staff/invite', (req, res) => { auth.limit('staff-invite', req.account.id, 5, 3600000); res.json(staff.invite(req.workspaceId, req.account)) })
@@ -212,6 +239,13 @@ app.post('/api/workspaces/:workspaceId/staff/verification', (req, res) => {
   res.json(auth.issueVerification(req.account, state.guildId))
 })
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
+app.get('/api/workspaces/:workspaceId/notices', (req, res) => res.json(outbox.notices(req.workspaceId, req.account)))
+app.get('/api/workspaces/:workspaceId/assignment-alerts', (req, res) => res.json(assignmentAlerts.read(req.workspaceId, req.account)))
+app.post('/api/workspaces/:workspaceId/assignment-alerts/:id/course', (req, res) => res.json(assignmentAlerts.bind(req.workspaceId, req.params.id, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/notices/:noticeId/send', (req, res) => res.json(outbox.enqueueNotice(req.workspaceId, req.params.noticeId, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/outbox/:id/retry', (req, res) => res.json(outbox.retry(req.workspaceId, req.params.id, req.account)))
+app.post('/api/workspaces/:workspaceId/outbox/:id/manual', (req, res) => res.json(outbox.manual(req.workspaceId, req.params.id, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/outbox/:id/hold', (req, res) => res.json(outbox.hold(req.workspaceId, req.params.id, req.account)))
 app.get('/api/workspaces/:workspaceId/discord/groups', (req, res) => res.json(staff.groups(req.workspaceId)))
 app.post('/api/workspaces/:workspaceId/discord/groups', (req, res) => res.json(staff.setupGroups(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/archive', (req, res) => res.json(workspaces.setArchived(req.workspaceId, true, req.account)))
@@ -228,6 +262,11 @@ app.post('/api/workspaces/:workspaceId/bot-data/operation', async (req, res) => 
 app.get('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.read(req.workspaceId)))
 app.post('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.save(req.workspaceId, req.body)))
 app.post('/api/workspaces/:workspaceId/invitations', (req, res) => res.status(201).json(workspaces.invite(req.workspaceId, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/invitations/account', requireAdmin, async (req, res) => {
+  auth.limit('invitation-account', req.account.id, 20, 3600000)
+  const result = await auth.createInvitationAccount(req.body, req.account, username => workspaces.invite(req.workspaceId, { username, role: 'admin' }, req.account))
+  res.status(201).json(result)
+})
 app.patch('/api/workspaces/:workspaceId/invitations/:invitationId', (req, res) => { workspaces.editInvitation(req.workspaceId, req.params.invitationId, req.body, req.account); res.json(staff.members(req.workspaceId, req.account)) })
 app.post('/api/workspaces/:workspaceId/invitations/:invitationId/revoke', (req, res) => res.json(workspaces.revokeInvitation(req.workspaceId, req.params.invitationId, req.account)))
 app.get('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(workspaces.snapshot(req.workspaceId)))
