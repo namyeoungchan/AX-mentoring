@@ -131,6 +131,7 @@ export function createBotStorage(main, workspaces, onboarding) {
     db.prepare("INSERT INTO lms_storage_imports(checksum,guild_id,archive,state) VALUES(?,?,?,'pending') ON CONFLICT(checksum) DO NOTHING").run(input.checksum, input.guildId, input.archive)
     db.exec('BEGIN IMMEDIATE')
     try {
+      db.prepare('UPDATE lms_notification_control SET importing=1 WHERE id=1').run()
       for (const name of Object.keys(BOT_TABLES)) {
         const columns = db.prepare(`PRAGMA table_info(${name})`).all().map(c => c.name)
         for (const row of data.tables[name]) {
@@ -147,6 +148,7 @@ export function createBotStorage(main, workspaces, onboarding) {
       db.prepare('INSERT INTO lms_bot_settings VALUES(?,?) ON CONFLICT(guild_id) DO NOTHING').run(input.guildId, JSON.stringify(data.settings))
       // Completion is recorded only after the shared runtime state is also durable.
       db.prepare('INSERT INTO lms_audit(actor,action,target) VALUES(?,?,?)').run('discord-bot', 'bot-storage.import', input.checksum)
+      db.prepare('UPDATE lms_notification_control SET importing=0 WHERE id=1').run()
       db.exec('COMMIT')
     } catch (error) {
       db.exec('ROLLBACK')

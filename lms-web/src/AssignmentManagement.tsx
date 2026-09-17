@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AssignmentAlerts from './AssignmentAlerts'
 import { ArrowDownToLine, ChevronRight, ExternalLink, FileText } from 'lucide-react'
 import { Badge, CardHeading, Empty } from './components'
 import type { Assignment, RecordData, Workspace } from './data'
@@ -69,7 +70,7 @@ export default function AssignmentManagement({ data, query, change }: { data: Wo
       await change(d => ({ ...d, assignments: d.assignments.map(row => row.id === assignment.id ? { ...row, status: assignment.status === '마감' ? '진행 중' : '마감' } : row) }), assignment.status === '마감' ? '과제를 다시 열었습니다.' : '과제를 마감했습니다.')
     } finally { setBusy(false) }
   }
-  return <section className="panel assignment-management">
+  return <>{data.mode === 'api' && <AssignmentAlerts key={data.workspaceId} workspaceId={data.workspaceId || ''} revision={data.revision} />}<section className="panel assignment-management">
     <CardHeading title="과제 및 제출 현황" subtitle="과제 왼쪽의 화살표를 눌러 제출 내역을 확인하세요.">
       <button className="button secondary" disabled={!data.submissions.length} onClick={() => downloadSubmissions(data)}><ArrowDownToLine size={16} />전체 내역 다운로드</button>
     </CardHeading>
@@ -96,5 +97,5 @@ export default function AssignmentManagement({ data, query, change }: { data: Wo
       </article>
     })}</div>
     {!assignments.length && <Empty />}
-  </section>
+  </section></>
 }

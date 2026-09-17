@@ -6,6 +6,8 @@ React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다
 
 <!-- <<<<<<< fix/issue-4-workspace-setup-guide -->
 현장 관리자용 버튼별 설정 순서: [WORKSPACE-SETUP-GUIDE.md](./WORKSPACE-SETUP-GUIDE.md).
+Discord 공지 발송·실패 재시도·수동 게시: [NOTICE-DELIVERY.md](./NOTICE-DELIVERY.md).
+과제 제출 대상·운영자 알림·D-1 수동 대체: [ASSIGNMENT-ALERTS.md](./ASSIGNMENT-ALERTS.md).
 <!-- ======= -->
 <!-- 웹에서 봇 초대·서버 구축을 진행할 수 있는 범위: [WEB-BOT-INVITE.md](./WEB-BOT-INVITE.md). -->
 <!-- >>>>>>> develop -->
@@ -70,7 +72,7 @@ SQLite WAL과 트랜잭션을 사용합니다. 서버가 발급한 데이터 버
 | 성적 | 학생별 항목·배점·점수 등록/수정, 합산, 배점 초과 검증 | 과정별 공통 평가항목 설정, Excel 일괄 등록 |
 | 과제 | 기존 봇 과제 조회·등록·마감·재개, 제출물 조회 | 과제 수정, 피드백, S3 제출, 웹 변경 자동 게시 |
 | 멘토링 | 기존 예약 조회, 50분 예약 생성, 승인·완료, 취소 API, 중복 슬롯 검증 | 예약 이동, 상세 상담 기록, 즉시 Discord 알림 |
-| 공지 | 대상 과정 및 수신 역할을 포함한 초안 등록·수정 | 실제 Discord 발송·예약·재시도 |
+| 공지 | 초안·미리보기, 공통 Discord 공지 채널 발송, 상태·이력·실패 재시도·수동 기록, 멘션 차단 | 예약 발송·첨부 파일·역할별 수신 |
 | 파일 | S3 미연결 상태 및 요구 구성 안내 화면 | S3 Private Bucket, 권한 검사, 업로드/다운로드, 만료 URL |
 | 서버 | 배포 환경 메타데이터 등록 및 조회 | 원격 에이전트, 실제 봇 배포·시작·중지 |
 | 내보내기 | 과정·수강생·팀·멘토·출결·성적·공지 CSV | 문서 기준 XLSX 양식 및 가져오기 |

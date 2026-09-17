@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import branding from '../shared/branding.json' with { type: 'json' }
+import { installOutbox } from './outbox-schema.mjs'
 
 const text = z.string().trim().min(1).max(200)
 const id = text
@@ -50,6 +51,7 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
     CREATE UNIQUE INDEX IF NOT EXISTS lms_attendance_unique ON lms_records(json_extract(data,'$.studentId'),json_extract(data,'$.courseId'),json_extract(data,'$.date'),json_extract(data,'$.period')) WHERE kind='attendance';
     CREATE UNIQUE INDEX IF NOT EXISTS lms_score_unique ON lms_records(json_extract(data,'$.studentId'),json_extract(data,'$.courseId'),json_extract(data,'$.item')) WHERE kind='scores';`)
   // Accounts approved through LMS do not collect email addresses. Keep real addresses unique.
+  installOutbox(db)
   const emailIndex = db.prepare("SELECT sql FROM sqlite_master WHERE name='lms_learner_email'").get()
   if (emailIndex && !emailIndex.sql.includes("<> ''")) db.exec('DROP INDEX lms_learner_email')
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS lms_learner_email ON lms_records(lower(json_extract(data,'$.email'))) WHERE kind='learners' AND json_extract(data,'$.email') <> ''")
@@ -84,6 +86,7 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
         const { kind } = change
         const value = schemas[kind].parse(change.value)
         const before = kind === 'settings' ? { name: current.name, reminders: current.reminders, onboarding: current.onboarding, qa: current.qa } : current[kind]?.find(r => r.id === value.id)
+        if (kind === 'notices' && db.prepare('SELECT 1 FROM lms_outbox WHERE event_key=?').get(`notice:${value.id}`)) throw new ApiError(409, '발송 요청한 공지는 수정할 수 없습니다. 새 공지를 작성하세요.')
         if (['learners', 'teams', 'attendance', 'scores', 'notices'].includes(kind)) requireRecord('courses', value.courseId)
         if (kind === 'learners' && value.team && !rows('teams').some(t => t.name === value.team && t.courseId === value.courseId)) throw new ApiError(422, '해당 과정에 등록된 팀을 선택하세요.')
         if (kind === 'teams' && value.mentorId && !db.prepare('SELECT id FROM mentors WHERE id=?').get(value.mentorId)) throw new ApiError(422, '등록된 멘토를 선택하세요.')
