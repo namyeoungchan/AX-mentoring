@@ -43,6 +43,8 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
     CREATE TABLE IF NOT EXISTS lms_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL, before_json TEXT, after_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE IF NOT EXISTS lms_assignment_courses (assignment_id INTEGER PRIMARY KEY REFERENCES assignments(id), course_id TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lms_booking_history (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS lms_attendance_rounds (course_id TEXT NOT NULL, date TEXT NOT NULL, period INTEGER NOT NULL, state TEXT NOT NULL CHECK(state IN ('진행 전','진행 중','마감')), version INTEGER NOT NULL, PRIMARY KEY(course_id,date,period));
+    CREATE TABLE IF NOT EXISTS lms_attendance_requests (id TEXT PRIMARY KEY, actor TEXT NOT NULL, digest TEXT NOT NULL);
     CREATE UNIQUE INDEX IF NOT EXISTS lms_course_code ON lms_records(json_extract(data,'$.code'),json_extract(data,'$.cohort')) WHERE kind='courses';
 
     CREATE UNIQUE INDEX IF NOT EXISTS lms_learner_discord ON lms_records(json_extract(data,'$.discordId')) WHERE kind='learners' AND json_extract(data,'$.discordId') <> '';
@@ -84,6 +86,7 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
         const { kind } = change
         const value = schemas[kind].parse(change.value)
         const before = kind === 'settings' ? { name: current.name, reminders: current.reminders, onboarding: current.onboarding, qa: current.qa } : current[kind]?.find(r => r.id === value.id)
+        if (kind === 'attendance' && [before, value].filter(Boolean).some(row => db.prepare('SELECT 1 FROM lms_attendance_rounds WHERE course_id=? AND date=? AND period=?').get(row.courseId, row.date, row.period))) throw new ApiError(409, '회차가 관리되는 출결은 명단 출결 화면에서 변경하세요.')
         if (['learners', 'teams', 'attendance', 'scores', 'notices'].includes(kind)) requireRecord('courses', value.courseId)
         if (kind === 'learners' && value.team && !rows('teams').some(t => t.name === value.team && t.courseId === value.courseId)) throw new ApiError(422, '해당 과정에 등록된 팀을 선택하세요.')
         if (kind === 'teams' && value.mentorId && !db.prepare('SELECT id FROM mentors WHERE id=?').get(value.mentorId)) throw new ApiError(422, '등록된 멘토를 선택하세요.')

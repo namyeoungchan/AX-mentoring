@@ -3,6 +3,7 @@ import { ArrowDownToLine, ExternalLink, FileBox, Pencil, Plus } from 'lucide-rea
 import { Badge, CardHeading, Empty, ModalShell } from './components'
 import type { RecordData, Workspace } from './data'
 import type { Change } from './Management'
+import Attendance from './Attendance'
 
 type Field = { key: string; label: string; type?: string; options?: string[]; optional?: boolean }
 type Definition = { title: string; description: string; fields: Field[] }
@@ -17,11 +18,12 @@ function exportRows(title: string, fields: Field[], rows: RecordData[], display:
   const csv = '\uFEFF' + [fields.map(f => f.label), ...rows.map(r => fields.map(f => display(f, r)))].map(row => row.map(v => `"${v.replace(/^[=+@-]/, "'$&").replaceAll('"', '""')}"`).join(',')).join('\r\n')
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const link = document.createElement('a'); link.href = url; link.download = `${title}.csv`; link.click(); URL.revokeObjectURL(url)
 }
-export default function Operations({ page, data, query, change, saving, error }: { page: string; data: Workspace; query: string; change: Change; saving: boolean; error: string }) {
+export default function Operations({ page, data, query, change, saving, error, refresh }: { page: string; data: Workspace; query: string; change: Change; saving: boolean; error: string; refresh?: () => Promise<void> }) {
   const [editing, setEditing] = useState<RecordData | null>(null)
   const [courseId, setCourseId] = useState('')
   const [courseFilter, setCourseFilter] = useState('')
   const definition = definitions[page]
+  if (page === 'attendance' && data.mode === 'api') return <Attendance key={data.workspaceId} data={data} refresh={refresh} />
   if (page === 'submissions') return <div className="panel"><CardHeading title="과제 제출 내역" subtitle="기존 봇 submissions 테이블 · 최근 제출 순" /><div className="table-scroll"><table><thead><tr><th>과제</th><th>제출자 / 팀</th><th>제출 내용</th><th>링크</th><th>제출일시</th></tr></thead><tbody>{data.submissions.filter(s => Object.values(s).join(' ').includes(query)).map(s => <tr key={s.id}><td>{data.assignments.find(a => a.id === String(s.assignmentId))?.title || s.assignmentId}</td><td>{s.name}<small>{s.team}</small></td><td className="submission-content">{s.content}</td><td>{/^https?:\/\//.test(String(s.link)) ? <a className="text-button" href={String(s.link)} target="_blank" rel="noreferrer">제출물 <ExternalLink size={13} /></a> : '—'}</td><td>{s.submittedAt}</td></tr>)}</tbody></table></div>{!data.submissions.length && <Empty />}</div>
   if (page === 'files') return <div className="panel"><CardHeading title="통합 파일함" subtitle="AWS S3 Private Bucket 연동 예정" /><div className="integration-empty"><FileBox size={40} /><h2>S3 저장소 미연결</h2><p>파일 업로드·다운로드를 사용하려면 S3 버킷과 서버 측 권한 설정이 필요합니다.</p><ul><li>과정·팀별 접근권한 확인 후 URL 발급</li><li>파일 원본은 S3, 메타데이터는 DB에 저장</li><li>브라우저에 AWS 자격증명을 저장하지 않음</li></ul><Badge tone="neutral">미구현 · 업로드 불가</Badge></div></div>
   const allRows = data[page as keyof Workspace] as RecordData[]

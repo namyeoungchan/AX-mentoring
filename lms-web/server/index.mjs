@@ -14,6 +14,7 @@ import { configuredOrigins } from './origins.mjs'
 import { createOnboarding } from './onboarding.mjs'
 import { createBotStorage } from './bot-storage.mjs'
 import { createStaffFlow } from './staff-flow.mjs'
+import { createAttendance } from './attendance.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -32,6 +33,7 @@ const workspaces = createWorkspaces({ store, dbPath, provision, syncToken: proce
 const admissions = createAdmissions(store.db, workspaces, { token: process.env.LEARNINGOPS_PROVISION_TOKEN || '' })
 const onboarding = createOnboarding(store.db, workspaces, provision)
 const staff = createStaffFlow(store.db, workspaces, onboarding, admissions)
+const attendance = createAttendance(workspaces)
 const botStorage = createBotStorage(store.db, workspaces, onboarding)
 const app = express()
 app.disable('x-powered-by')
@@ -199,6 +201,8 @@ app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
   workspaces.requireRole(req.workspaceId, req.account, ['instructor'])
   res.json({ ...workspaces.teaching(req.workspaceId, req.account), onboardingComplete: staff.read(req.workspaceId, req.account).completed })
 })
+app.get('/api/workspaces/:workspaceId/attendance', (req, res) => res.json(attendance.view(req.workspaceId, req.query, req.account)))
+app.post('/api/workspaces/:workspaceId/attendance', (req, res) => res.json(attendance.save(req.workspaceId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admissions.reviewList(req.workspaceId, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/bulk-review', (req, res) => res.json(admissions.bulkReview(req.workspaceId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/:id/review', (req, res) => res.json(admissions.review(req.workspaceId, req.params.id, req.body, req.account)))
