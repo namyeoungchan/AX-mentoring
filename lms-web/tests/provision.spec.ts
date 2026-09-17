@@ -8,6 +8,7 @@ test('channel template saves, bot join applies, failures are visible and retry s
   await page.getByLabel('관리자 비밀번호', { exact: true }).fill('test-only-password-1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Discord 채널 설정', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '상세 설정 열기' }).click()
   await page.getByLabel('설정 이름', { exact: true }).fill('테스트 교육 서버')
   await page.getByLabel('채널 2 이름', { exact: true }).fill('invalid channel name')
   await page.getByRole('button', { name: '기본 구성 저장' }).click()
@@ -27,6 +28,7 @@ test('channel template saves, bot join applies, failures are visible and retry s
   expect(stateAfter.jobs).toEqual(stateBefore.jobs)
   await expect(page.getByText('봇 연결 대기', { exact: true })).toBeVisible()
   await page.reload()
+  await page.getByRole('button', { name: '상세 설정 열기' }).click()
   await page.getByLabel('저장된 구성', { exact: true }).selectOption(guildId)
   await expect(page.getByLabel('채널 2 이름', { exact: true })).toHaveValue('학습공지')
   const poll = { guilds: [{ id: guildId, name: '테스트 교육 서버', manageChannels: false }] }
