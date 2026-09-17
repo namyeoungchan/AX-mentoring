@@ -12,7 +12,7 @@ const password = z.string().min(8, '비밀번호는 8자 이상 입력하세요.
 const registration = z.object({ username, name: z.string().trim().min(1).max(50), password, discordId: snowflake.optional() }).strict()
 const ticketSchema = z.string().regex(/^[a-f0-9]{64}$/)
 const verification = z.object({ code: z.string().trim().toUpperCase().transform(v => v.replaceAll('-', '')).pipe(z.string().regex(/^[A-F0-9]{16}$/)), discordId: snowflake, guildId: snowflake }).strict()
-const publicUser = row => ({ id: row.id, username: row.username, name: row.name, discordId: /^\d{17,20}$/.test(row.discord_id) ? row.discord_id : '', role: row.platform_role || 'student', verified: row.verified_at !== null })
+const publicUser = row => ({ id: row.id, username: row.username, name: row.name, discordId: /^\d{17,20}$/.test(row.discord_id) ? row.discord_id : '', role: row.platform_role || 'student', verified: row.verified_at !== null, mustChangePassword: Boolean(row.must_change_password) })
 const admin = { id: 'admin', username: 'admin', name: '관리자', discordId: '', role: 'admin' }
 const safeEqual = (a, b) => timingSafeEqual(Buffer.from(hash(a)), Buffer.from(hash(b)))
 const hashOptions = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 }
@@ -63,6 +63,7 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
   if (!db.prepare('PRAGMA table_info(lms_registrations)').all().some(row => row.name === 'workspace_id')) db.exec('ALTER TABLE lms_registrations ADD COLUMN workspace_id TEXT')
   initializeVerification(db)
   if (!db.prepare('PRAGMA table_info(lms_users)').all().some(row => row.name === 'platform_role')) db.exec("ALTER TABLE lms_users ADD COLUMN platform_role TEXT NOT NULL DEFAULT 'student' CHECK(platform_role IN ('admin','student'))")
+  if (!db.prepare('PRAGMA table_info(lms_users)').all().some(row => row.name === 'must_change_password')) db.exec('ALTER TABLE lms_users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0')
 
   function hasAdmin() { return Boolean(db.prepare("SELECT 1 FROM lms_users WHERE platform_role='admin'").get()) }
   function setupEnabled() { return adminPassword.length >= 16 && !hasAdmin() }
@@ -134,6 +135,24 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
       const result = issueSession(user)
       db.exec('COMMIT')
       return result
+    } catch (error) { db.exec('ROLLBACK'); throw error }
+  }
+  async function createInvitationAccount(body, actor, createInvitation) {
+    if (actor.role !== 'admin' || actor.mustChangePassword) throw new ApiError(403, '관리자 계정 발급은 전체 관리자만 할 수 있습니다.')
+    const input = z.object({ username, name: z.string().trim().min(1).max(50) }).strict().parse(body)
+    const id = randomUUID(), identity = `pending:${id}`
+    available(input.username, identity)
+    const initialPassword = randomBytes(18).toString('base64url')
+    const passwordHash = await hashPassword(initialPassword)
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      available(input.username, identity)
+      db.prepare('INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,verified_at,must_change_password) VALUES(?,?,?,?,?,?,?,NULL,1)').run(id, input.username, input.name, passwordHash, identity, '', now())
+      const invitation = createInvitation(input.username)
+      // Return the secret once. Neither invitation records nor audit logs store it.
+      db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(actor.username || actor.id, 'account.invite', id, null, JSON.stringify({ username: input.username, invitationId: invitation.id }))
+      db.exec('COMMIT')
+      return { ...invitation, name: input.name, initialPassword }
     } catch (error) { db.exec('ROLLBACK'); throw error }
   }
   function issueVerification(user, targetGuild) {
@@ -254,9 +273,9 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     const nextHash = await hashPassword(input.newPassword)
     db.exec('BEGIN IMMEDIATE')
     try {
-      if (!db.prepare('UPDATE lms_users SET password_hash=? WHERE id=? AND password_hash=?').run(nextHash, user.id, row.password_hash).changes) throw new ApiError(409, '계정 정보가 변경되었습니다. 다시 로그인하세요.')
+      if (!db.prepare('UPDATE lms_users SET password_hash=?,must_change_password=0 WHERE id=? AND password_hash=?').run(nextHash, user.id, row.password_hash).changes) throw new ApiError(409, '계정 정보가 변경되었습니다. 다시 로그인하세요.')
       db.prepare('DELETE FROM lms_auth_sessions WHERE user_id=?').run(user.id)
-      const result = issueSession(publicUser(row))
+      const result = issueSession(publicUser({ ...row, must_change_password: 0 }))
       db.exec('COMMIT')
       return result
     } catch (error) { db.exec('ROLLBACK'); throw error }
@@ -280,5 +299,5 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     db.prepare('DELETE FROM lms_auth_limits WHERE expires_at<=?').run(now())
     db.prepare('DELETE FROM lms_registrations WHERE created_at<=?').run(now() - 24 * 3600000)
   }
-  return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, register, signup, issueVerification, status, renew, botAuthorized, preview, verify, login, adminLogin, session, logout, limit, cleanup }
+  return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, register, signup, createInvitationAccount, issueVerification, status, renew, botAuthorized, preview, verify, login, adminLogin, session, logout, limit, cleanup }
 }

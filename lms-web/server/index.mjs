@@ -149,6 +149,7 @@ const sessionToken = req => req.get('authorization')?.startsWith('Bearer ') ? re
 app.use('/api', (req, res, next) => {
   req.account = auth.session(sessionToken(req))
   if (!req.account) return res.status(401).json({ error: '로그인이 필요합니다.' })
+  if (req.account.mustChangePassword && !['/auth/me', '/auth/password', '/logout'].includes(req.path)) return res.status(403).json({ error: '초기 비밀번호를 변경한 뒤 이용하세요.', code: 'PASSWORD_CHANGE_REQUIRED' })
   next()
 })
 app.get('/api/auth/me', (req, res) => res.json({ user: req.account }))
@@ -196,7 +197,7 @@ app.get('/api/workspaces/:workspaceId/me/learning', (req, res) => {
 })
 app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
   workspaces.requireRole(req.workspaceId, req.account, ['instructor'])
-  res.json(workspaces.teaching(req.workspaceId, req.account))
+  res.json({ ...workspaces.teaching(req.workspaceId, req.account), onboardingComplete: staff.read(req.workspaceId, req.account).completed })
 })
 app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admissions.reviewList(req.workspaceId, req.account)))
 app.post('/api/workspaces/:workspaceId/admissions/bulk-review', (req, res) => res.json(admissions.bulkReview(req.workspaceId, req.body, req.account)))
@@ -228,6 +229,11 @@ app.post('/api/workspaces/:workspaceId/bot-data/operation', async (req, res) => 
 app.get('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.read(req.workspaceId)))
 app.post('/api/workspaces/:workspaceId/discord/onboarding', (req, res) => res.json(onboarding.save(req.workspaceId, req.body)))
 app.post('/api/workspaces/:workspaceId/invitations', (req, res) => res.status(201).json(workspaces.invite(req.workspaceId, req.body, req.account)))
+app.post('/api/workspaces/:workspaceId/invitations/account', requireAdmin, async (req, res) => {
+  auth.limit('invitation-account', req.account.id, 20, 3600000)
+  const result = await auth.createInvitationAccount(req.body, req.account, username => workspaces.invite(req.workspaceId, { username, role: 'admin' }, req.account))
+  res.status(201).json(result)
+})
 app.patch('/api/workspaces/:workspaceId/invitations/:invitationId', (req, res) => { workspaces.editInvitation(req.workspaceId, req.params.invitationId, req.body, req.account); res.json(staff.members(req.workspaceId, req.account)) })
 app.post('/api/workspaces/:workspaceId/invitations/:invitationId/revoke', (req, res) => res.json(workspaces.revokeInvitation(req.workspaceId, req.params.invitationId, req.account)))
 app.get('/api/workspaces/:workspaceId/workspace', (req, res) => res.json(workspaces.snapshot(req.workspaceId)))

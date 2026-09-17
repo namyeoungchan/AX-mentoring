@@ -4,7 +4,11 @@ React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다
 
 워크스페이스 생성·역할별 화면·수강생 승인 절차: [WORKSPACES.md](./WORKSPACES.md), [DISCORD-LMS.md](./DISCORD-LMS.md).
 
+<!-- <<<<<<< fix/issue-4-workspace-setup-guide -->
 현장 관리자용 버튼별 설정 순서: [WORKSPACE-SETUP-GUIDE.md](./WORKSPACE-SETUP-GUIDE.md).
+<!-- ======= -->
+<!-- 웹에서 봇 초대·서버 구축을 진행할 수 있는 범위: [WEB-BOT-INVITE.md](./WEB-BOT-INVITE.md). -->
+<!-- >>>>>>> develop -->
 
 기존 봇 데이터 전체 이관·운영 작업·자동 게시 패널: [BOT-DATA.md](./BOT-DATA.md).
 

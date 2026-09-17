@@ -519,6 +519,10 @@ tbody tr:last-child td { border-bottom: none; }
 .invitation-link label { flex: 1; min-width: 180px; }
 .invitation-link input { display: block; width: 100%; padding: 10px; border: 1px solid #dae1d9; border-radius: 8px; margin-top: 8px; }
 .invitation-link p { width: 100%; color: #758278; font-size: 12px; }
+.membership-invite .invitation-link .invitation-delivery { flex-basis: 100%; }
+.invitation-delivery textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 8px; padding: 12px; border: 1px solid #dae1d9; border-radius: 8px; background: white; font: inherit; line-height: 1.7; resize: vertical; overflow-wrap: anywhere; }
+.initial-password-panel { max-width: 600px; margin: 32px auto; padding: 24px; }
+.initial-password-panel > p { line-height: 1.7; color: #617367; margin: 16px 0; }
 .invitation-banner { max-width: 900px; padding: 28px; margin: 30px auto; }
 .invitation-banner h1 { font-size: 24px; font-weight: 700; }
 .invitation-banner h2 { font-size: 20px; margin: 12px 0; }
