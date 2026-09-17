@@ -112,7 +112,7 @@ export function AdmissionStatus({ refreshWorkspace }: { refreshWorkspace: () => 
     const c = new AbortController()
     // eslint-disable-next-line react/set-state-in-effect -- Poll approval and bot delivery status.
     void refresh(c.signal)
-    apiRequest('auth/config', { signal: c.signal }).then(result => setCatalogue(result.workspaces || [])).catch(() => {})
+    apiRequest('auth/config', { signal: c.signal }).then(result => setCatalogue(result.studentRegistrationEnabled ? result.workspaces || [] : [])).catch(() => {})
     const timer = setInterval(() => { if (!document.hidden) void refresh(c.signal) }, 15000)
     return () => { c.abort(); clearInterval(timer) }
   }, [refresh])
@@ -122,7 +122,7 @@ export function AdmissionStatus({ refreshWorkspace }: { refreshWorkspace: () => 
     catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   const challengeApplication = applications.find(a => a.id === challenge?.applicationId && a.state === 'approved')
-  return <section className="admissions-status"><div className="operations-toolbar"><h2>가입 신청 현황</h2><button className="button secondary" onClick={() => void refresh()}>승인 상태 확인</button></div>{error && <p className="inline-note error-note" role="alert">{error}</p>}
+  return <section className="admissions-status"><div className="operations-toolbar"><h2>워크스페이스 참여 현황</h2><button className="button secondary" onClick={() => void refresh()}>참여 상태 확인</button></div>{error && <p className="inline-note error-note" role="alert">{error}</p>}
     {applications.map(a => <section className="panel admission-card" key={a.id}><CardHeading title={a.workspaceName}><Badge>{states[a.state]}</Badge></CardHeading>{a.state === 'pending' && <p className="admission-detail">관리자 또는 강사가 신청을 확인하고 있습니다. 승인되면 이 화면에서 Discord 초대 링크를 확인할 수 있습니다.</p>}{a.state === 'rejected' && <p className="admission-detail">{a.reason || '가입 신청이 반려됐습니다. 운영자에게 문의하세요.'}</p>}{a.state === 'approved' && <div className="admission-detail"><DiscordInvitation application={a} busy={busy} renew={() => void action(`me/admissions/${a.id}/renew`)} /><p>서버 참여 후 본인 계정을 인증하세요.</p><button className="button secondary" disabled={busy} onClick={() => void action(`me/admissions/${a.id}/verification`, {}, a.id)}>Discord 인증 코드 받기</button></div>}{a.state === 'joined' && <div className="admission-detail"><button className="button secondary" onClick={() => void refreshWorkspace()}>학습 화면 새로고침</button></div>}</section>)}
     {challenge && challengeApplication && <section className="panel admission-detail" aria-label="Discord 계정 인증">
       <h3>Discord 계정 인증</h3><p>{challengeApplication.workspaceName} 서버에 참여한 뒤 인증을 진행하세요.</p>
@@ -131,6 +131,6 @@ export function AdmissionStatus({ refreshWorkspace }: { refreshWorkspace: () => 
       <output aria-label="인증 코드">{challenge.code}</output><p>본인 계정을 확인하면 수강생 자기소개 단계로 이어집니다.</p><p>만료: {new Date(challenge.expiresAt).toLocaleTimeString('ko-KR')}</p>
       <button className="button secondary" onClick={() => void refreshWorkspace()}>인증 후 학습 화면 열기</button>
     </section>}
-    <form className="admission-apply" onSubmit={e => { e.preventDefault(); const form = new FormData(e.currentTarget); void action('me/admissions', { workspaceId: form.get('workspaceId') }) }}><label>다른 워크스페이스 신청<select name="workspaceId" required defaultValue=""><option value="" disabled>워크스페이스 선택</option>{catalogue.filter(w => !applications.some(a => a.workspaceId === w.id)).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label><button className="button secondary" disabled={busy}>가입 신청</button></form>
+    {catalogue.length > 0 && <form className="admission-apply" onSubmit={e => { e.preventDefault(); const form = new FormData(e.currentTarget); void action('me/admissions', { workspaceId: form.get('workspaceId') }) }}><label>다른 워크스페이스 신청<select name="workspaceId" required defaultValue=""><option value="" disabled>워크스페이스 선택</option>{catalogue.filter(w => !applications.some(a => a.workspaceId === w.id)).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label><button className="button secondary" disabled={busy}>가입 신청</button></form>}
   </section>
 }
