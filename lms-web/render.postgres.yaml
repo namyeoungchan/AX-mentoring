@@ -1,0 +1,10 @@
+# Provision this separately before changing the existing web service's DATABASE_URL.
+# Set region to the existing web service's region before applying this blueprint.
+databases:
+  - name: ax-learningops-postgres
+    databaseName: ax_learningops
+    user: ax_learningops
+    postgresMajorVersion: "17"
+    plan: 0.5c-1g
+    diskSizeGB: 5
+    ipAllowList: []

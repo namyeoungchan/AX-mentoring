@@ -1,6 +1,8 @@
 # AX LearningOps 웹
 
-React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다. Node.js / Express API가 워크스페이스별 SQLite 파일을 사용합니다. 기존 Python 봇 DB는 연결된 워크스페이스로 이관하고, 전환 이후 봇도 웹 API로 데이터를 읽고 저장합니다. 연동 URL과 키가 없는 기존 설치는 로컬 DB를 유지합니다.
+React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다. Node.js / Express API는 `DATABASE_URL`이 있으면 PostgreSQL, 없으면 기존 워크스페이스별 SQLite 파일을 사용합니다. 기존 Python 봇 DB는 연결된 워크스페이스로 이관하고, 전환 이후 봇도 웹 API로 데이터를 읽고 저장합니다. 연동 URL과 키가 없는 기존 설치는 로컬 DB를 유지합니다.
+
+PostgreSQL 이관·Render 설정·백업·복구 절차: [POSTGRES-MIGRATION.md](./POSTGRES-MIGRATION.md).
 
 수업 당일 점검·장애 대응·유지보수 인수는 [CLASS-RUNBOOK.md](./CLASS-RUNBOOK.md)에서 시작하세요.
 자동 통합 검증 결과와 실제 Discord 리허설의 남은 항목: [CLASS-READINESS.md](./CLASS-READINESS.md).
@@ -157,3 +159,11 @@ server/store.mjs    기존 봇 DB 연결, 검증 및 트랜잭션
 ## 관리자 백업과 초기화
 
 총관리자의 **백업 · 데이터 관리**에서 전체 백업 다운로드, 백업 파일 검증·복구, 전체 데이터 초기화를 사용할 수 있습니다. 작업 직전 자동 백업을 보관하며 초기화·복구에는 현재 비밀번호 확인이 필요합니다. 범위와 복구 절차는 [백업 · 데이터 관리](./DATA-ADMINISTRATION.md)를 참고하세요.
+
+## 워크스페이스 생성과 학생 조 변경
+
+총관리자는 좌측 워크스페이스 선택 아래 **워크스페이스 만들기**에서 새 공간을 생성합니다. 생성 후 선택된 워크스페이스에서 Discord 빠른 설정으로 조를 구성하고 학생 계정을 발급합니다.
+
+워크스페이스 관리자는 **학생 계정 발급 → 학생 목록 → 조 변경**에서 같은 과정의 다른 조로 학생을 옮길 수 있습니다. 첫 로그인이나 Discord 인증 전에도 변경할 수 있고, 인증이 끝난 학생은 기존 계정·출결·성적을 유지합니다. 인증된 학생의 Discord 반영 상태와 여러 학생의 일괄 이동은 **팀 관리**에서 확인합니다. 다른 관리자의 수정과 충돌하면 목록을 새로고침한 뒤 다시 선택하세요.
+
+명단이 생성된 학생의 현재 배정은 명단을 기준으로 표시합니다. 학생 계정 화면, 수강생 편집, 팀 일괄 배정 중 어느 경로로 변경해도 같은 배정을 읽으며, 이후 Discord 인증 시 예전 조로 되돌리지 않습니다.

@@ -6,12 +6,14 @@ import inspect
 import json
 import logging
 import os
+import random
 import uuid
 
 import aiohttp
 import aiosqlite
 import config
 from storage_codec import encode, decode, pack_runtime
+from web_transport import WebTransport
 
 log = logging.getLogger("asanAX.storage")
 client = None
@@ -20,30 +22,35 @@ SETTING_NAMES = ('ADMIN_ROLE_ID', 'STUDENT_ROLE_ID', 'ONBOARDING_COMPLETE_ROLE_I
 
 
 class StorageUnavailable(TimeoutError):
-    pass
+    def __init__(self, message, *, retryable=True):
+        super().__init__(message)
+        self.retryable = retryable
 
 
 class WebStorage:
-    def __init__(self, endpoint, token, guild_id):
+    def __init__(self, endpoint, token, guild_id, *, transport=None):
         from cogs.lms_provision import validate_provision_endpoint
         self.url = validate_provision_endpoint(endpoint).rsplit('/', 1)[0] + '/storage'
         self.token, self.guild_id = token, str(guild_id)
+        self.transport = transport or WebTransport()
+
+    async def close(self):
+        await self.transport.close()
 
     async def request(self, operation, body):
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=35)) as session:
-                async with session.post(f'{self.url}/{operation}', json=body, headers={'Authorization': f'Bearer {self.token}'}, allow_redirects=False) as response:
-                    if response.status != 200:
-                        guidance = '웹의 봇 데이터 이관 상태를 확인하세요.'
-                        if response.status == 403:
-                            guidance = (
-                                '웹에서 이 Discord 서버와 워크스페이스의 1:1 연결을 확인하세요. '
-                                '웹 서비스의 NODE_ENV=production 및 봇의 LEARNINGOPS_PROVISION_URL도 확인하세요.'
-                            )
-                        elif response.status == 401:
-                            guidance = '봇과 웹 서비스의 LEARNINGOPS_PROVISION_TOKEN이 같은지 확인하세요.'
-                        raise StorageUnavailable(f'웹 데이터 연결 오류 (HTTP {response.status}, 작업={operation}). {guidance}')
-                    return await response.json()
+            async with self.transport.session().post(f'{self.url}/{operation}', json=body, headers={'Authorization': f'Bearer {self.token}'}, allow_redirects=False) as response:
+                if response.status != 200:
+                    guidance = '웹의 봇 데이터 이관 상태를 확인하세요.'
+                    if response.status == 403:
+                        guidance = (
+                            '웹에서 이 Discord 서버와 워크스페이스의 1:1 연결을 확인하세요. '
+                            '웹 서비스의 NODE_ENV=production 및 봇의 LEARNINGOPS_PROVISION_URL도 확인하세요.'
+                        )
+                    elif response.status == 401:
+                        guidance = '봇과 웹 서비스의 LEARNINGOPS_PROVISION_TOKEN이 같은지 확인하세요.'
+                    raise StorageUnavailable(f'웹 데이터 연결 오류 (HTTP {response.status}, 작업={operation}). {guidance}', retryable=response.status in {408, 429, 500, 502, 503, 504})
+                return await response.json()
         except StorageUnavailable:
             raise
         except (aiohttp.ClientError, asyncio.TimeoutError) as error:
@@ -55,9 +62,10 @@ class WebStorage:
         for attempt in range(2):
             try:
                 return decode((await self.request('call', body))['result'])
-            except StorageUnavailable:
-                if attempt:
+            except StorageUnavailable as error:
+                if attempt or not error.retryable:
                     raise
+                await asyncio.sleep(random.uniform(0.2, 0.6))
 
     async def refresh_settings(self):
         status = await self.request('status', {'guildId': self.guild_id})
@@ -138,6 +146,10 @@ class WorkspaceStorage:
             raise StorageUnavailable('웹 저장소 연결 설정이 필요합니다.')
         return await self.transport.request(operation, body)
 
+    async def close(self):
+        if self.transport:
+            await self.transport.close()
+
     async def refresh(self, guild_ids):
         if not self.legacy_checked:
             try:
@@ -190,7 +202,7 @@ class WorkspaceStorage:
         if guild_id not in self.ready:
             raise StorageUnavailable('이 Discord 서버의 워크스페이스 저장소가 준비되지 않았습니다.')
         if guild_id not in self.clients:
-            self.clients[guild_id] = WebStorage(self.transport.url.rsplit('/', 1)[0] + '/provision', self.transport.token, guild_id)
+            self.clients[guild_id] = WebStorage(self.transport.url.rsplit('/', 1)[0] + '/provision', self.transport.token, guild_id, transport=self.transport.transport)
         return await self.clients[guild_id].call(operation, args, kwargs)
 
 

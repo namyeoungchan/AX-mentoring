@@ -68,6 +68,14 @@ class AsanAXBot(commands.Bot):
     async def on_ready(self) -> None:
         log.info("Logged in as %s (ID: %s)", self.user, self.user.id)  # type: ignore[union-attr]
 
+    async def close(self) -> None:
+        try:
+            await super().close()
+        finally:
+            from storage_client import client
+            if client:
+                await client.close()
+
 
 async def main() -> None:
     if not config.DISCORD_TOKEN:

@@ -18,8 +18,7 @@ for (const demo of [false, true]) test(`${demo ? 'demo' : 'API'} creates indepen
   }
   await expect(page.getByRole('heading', { name: '운영 대시보드' })).toBeVisible()
   await expect(page.getByRole('navigation').getByRole('button', { name: /아산 AX/ })).toHaveCount(0)
-  await page.getByRole('button', { name: '워크스페이스 선택', exact: true }).click()
-  await page.getByRole('button', { name: '새 워크스페이스', exact: true }).click()
+  await page.getByRole('button', { name: '워크스페이스 만들기', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('워크스페이스 이름').fill('세종 AX')
   await dialog.getByLabel('설명', { exact: true }).fill('별도 교육 운영')

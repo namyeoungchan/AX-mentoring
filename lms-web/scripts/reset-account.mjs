@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { config } from 'dotenv'
 import { DatabaseSync } from 'node:sqlite'
 import { createAuth } from '../server/auth.mjs'
+import { openPostgres,postgresConnection,databaseContext,closePostgresConnections } from '../server/postgres/database.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: resolve(root, '.env'), quiet: true })
@@ -22,11 +23,12 @@ try {
   const newPassword = await question('새 비밀번호 (8자 이상): ')
   const confirm = await question('새 비밀번호 확인: ')
   if (newPassword !== confirm) throw new Error('비밀번호가 일치하지 않습니다.')
-  db = new DatabaseSync(resolve(root, process.env.BOT_DB_PATH || '../data/mentoring.db'), { open: true })
-  db.exec('PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;')
-  await createAuth(db).resetPassword({ username, newPassword })
+  const postgres=postgresConnection()
+  db = postgres ? await openPostgres(postgres) : new DatabaseSync(resolve(root, process.env.BOT_DB_PATH || '../data/mentoring.db'), { open: true })
+  await db.exec('PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;')
+  await databaseContext(async()=>{const auth=await createAuth(db);await auth.resetPassword({ username, newPassword })})
   console.log('비밀번호를 변경하고 해당 계정의 모든 로그인을 해제했습니다.')
 } catch (error) {
   console.error(error.name === 'ZodError' ? error.issues.map(issue => issue.message).join(' / ') : error.message)
   process.exitCode = 1
-} finally { rl?.close(); db?.close() }
+} finally { rl?.close(); db?.close(); await closePostgresConnections() }

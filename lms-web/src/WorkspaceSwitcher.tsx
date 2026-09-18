@@ -30,6 +30,7 @@ export default function WorkspaceSwitcher({ workspaces, activeId, selectWorkspac
       <span className="workspace-icon"><GraduationCap size={20} /></span>
       <span><strong>{current?.name || '워크스페이스 없음'}</strong><small>{current?.archivedAt != null ? '보관됨 · ' : ''}워크스페이스 {activeWorkspaces.length}개</small></span><ChevronDown size={15} />
     </button>
+    {createWorkspace && <button className="workspace-new-button" disabled={saving} onClick={() => { setOpen(false); setCreating(true) }}><Plus size={16} />워크스페이스 만들기</button>}
     {open && <>
       <button className="workspace-dismiss" aria-label="워크스페이스 목록 닫기" onClick={() => setOpen(false)} />
       <div className="workspace-menu" aria-label="워크스페이스 목록">

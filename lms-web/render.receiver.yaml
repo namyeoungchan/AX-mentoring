@@ -7,6 +7,7 @@ services:
     dockerfilePath: ./lms-web/Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
+    numInstances: 1
     disk:
       name: learningops-data
       mountPath: /app/data
@@ -20,6 +21,16 @@ services:
         value: "1"
       - key: BOT_DB_PATH
         value: /app/data/mentoring.db
+      # Set the internal connection URL after provisioning Postgres in this service's region.
+      # See POSTGRES-MIGRATION.md before the first cutover.
+      - key: DATABASE_URL
+        sync: false
+      - key: PG_NAMESPACE
+        value: ax
+      - key: PG_POOL_MAX
+        value: "10"
+      - key: BOT_STORAGE_WORKERS
+        value: "2"
       - key: ADMIN_PASSWORD
         generateValue: true
       - key: ALLOWED_ORIGINS

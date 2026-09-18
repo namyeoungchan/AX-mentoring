@@ -25,6 +25,14 @@ class Role:
 
 
 class OnboardingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_member_lock_serializes_only_the_same_member(self):
+        lock = self.cog.member_lock(123, 7)
+        self.assertIs(lock, self.cog.member_lock(123, 7))
+        async with lock:
+            async with self.cog.member_lock(123, 8):
+                async with self.cog.member_lock(456, 7):
+                    self.assertTrue(lock.locked())
+
     async def test_partial_transfer_retries_after_restart_and_reports_only_requested_members(self):
         roles = {i: Role(i) for i in range(1, 7)}
         for key, value in {'student': 2, 'complete': 3, 'team:old': 4, 'team:new': 5}.items():
