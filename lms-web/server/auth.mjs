@@ -510,6 +510,8 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             }
             if (await tableExists(db, 'lms_mentor_scopes'))
                 await (db.prepare('DELETE FROM lms_mentor_scopes WHERE subject_id=?')).run(row.id);
+            if (await tableExists(db, 'lms_runtime_state'))
+                await db.prepare("DELETE FROM lms_runtime_state WHERE kind='student-profile' AND record_key=?").run(row.id);
             if (await tableExists(db, 'lms_workspace_invitations'))
                 await (db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE accepted_at IS NULL AND revoked_at IS NULL AND (username=? OR created_by=?)')).run(now(), row.username, row.id);
             await (db.prepare('DELETE FROM lms_users WHERE id=?')).run(row.id);

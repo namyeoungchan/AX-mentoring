@@ -13,7 +13,7 @@ export default function StudentRosterImport({ workspaceId, mode, onSaved }: { wo
   useEffect(() => {
     if (demoMode) return
     const controller = new AbortController()
-    workspaceRequest(workspaceId, 'discord/groups', { signal: controller.signal }).then(data => { setCourses(data.courses); setCourseId(data.courseId) }).catch(e => { if (!controller.signal.aborted) setError(e.message) })
+    workspaceRequest(workspaceId, 'discord/groups', { signal: controller.signal }).then(data => { setCourses(data.courses); setCourseId(data.courseId || data.courses[0]?.id || '') }).catch(e => { if (!controller.signal.aborted) setError(e.message) })
     return () => controller.abort()
   }, [workspaceId])
   async function upload(file?: File) {
@@ -51,7 +51,7 @@ export default function StudentRosterImport({ workspaceId, mode, onSaved }: { wo
     <p>참여자통합관리 양식의 ‘명단’ 시트를 사용합니다. 학생ID는 로그인 아이디가 되며 영문은 소문자로 저장됩니다. ‘제외’ 대상은 등록하지 않습니다.</p>
     <a className="button secondary" href={`${import.meta.env.BASE_URL}templates/student-roster-template.xlsx`} download="수강생-등록-양식.xlsx">엑셀 양식 다운로드</a>
     <fieldset disabled={busy || demoMode || !!plan || !!result}>
-      <div className="form-row"><label>명단을 등록할 과정<select value={courseId} onChange={e => setCourseId(e.target.value)}><option value="">기본 과정 준비</option>{courses.map(c => <option value={c.id} key={c.id}>{c.title}</option>)}</select></label>{!courseId && <label>새 과정 이름<input value={title} onChange={e => setTitle(e.target.value)} maxLength={100} required /></label>}</div>
+      <div className="form-row"><label>명단을 등록할 과정<select value={courseId} onChange={e => setCourseId(e.target.value)}>{!courses.length && <option value="">기본 과정 준비</option>}{courses.map(c => <option value={c.id} key={c.id}>{c.title}</option>)}</select></label>{!courses.length && <label>새 과정 이름<input value={title} onChange={e => setTitle(e.target.value)} maxLength={100} required /></label>}</div>
       <label>참여자 명단 엑셀<input type="file" accept=".xlsx" onChange={e => { void upload(e.target.files?.[0]); e.target.value = '' }} /></label>
     </fieldset>
     <p>{mode === 'groups' ? '명단의 팀 이름으로 조를 준비합니다. 서버 연결 후 조별 역할·대화·음성 채널이 생성됩니다. 계정은 학생 계정 발급에서 같은 파일로 등록하세요.' : '초기 비밀번호: bdaxuser1! · 첫 로그인 시 변경 필수 · 기존 계정과 배정은 유지됩니다.'}</p>

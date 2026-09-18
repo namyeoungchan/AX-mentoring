@@ -51,4 +51,7 @@ export async function rosterScenario(r, owner) {
   assert.ok(await r.store.db.prepare('SELECT id FROM lms_users WHERE id=?').get(account.id), 'global login account is preserved');
   const config = (await r.onboarding.read(w.id)).configs[0];
   assert.ok(config.courseIds.includes(prepared.courseId), 'Discord onboarding uses imported teams');
+  const remaining = deleted.accounts.find(a => a.username === 'test-02');
+  await r.auth.deleteAccount(owner, remaining.id, { username: remaining.username });
+  assert.equal(await r.store.db.prepare("SELECT 1 FROM lms_runtime_state WHERE kind='student-profile' AND record_key=?").get(remaining.id), undefined);
 }
