@@ -19,11 +19,12 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/lms-web/dist ./dist
 COPY lms-web/server ./server
 COPY lms-web/scripts/reset-account.mjs ./scripts/reset-account.mjs
+COPY lms-web/scripts/migrate-postgres.mjs lms-web/scripts/start-server.mjs ./scripts/
 COPY lms-web/shared ./shared
 COPY database.py /app/database.py
-COPY config.py storage_codec.py /app/
+COPY config.py storage_codec.py storage_operations.json /app/
 COPY scripts/lms_backup.py scripts/start_with_backup.py /app/scripts/
 RUN mkdir -p /app/data && chown -R node:node /app/data
 USER node
 EXPOSE 3001
-CMD ["python3", "/app/scripts/start_with_backup.py", "BOT_DB_PATH", "/app/data/mentoring.db", "node", "server/index.mjs"]
+CMD ["python3", "/app/scripts/start_with_backup.py", "BOT_DB_PATH", "/app/data/mentoring.db", "node", "scripts/start-server.mjs"]

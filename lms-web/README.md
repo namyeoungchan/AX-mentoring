@@ -1,6 +1,8 @@
 # AX LearningOps 웹
 
-React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다. Node.js / Express API가 워크스페이스별 SQLite 파일을 사용합니다. 기존 Python 봇 DB는 연결된 워크스페이스로 이관하고, 전환 이후 봇도 웹 API로 데이터를 읽고 저장합니다. 연동 URL과 키가 없는 기존 설치는 로컬 DB를 유지합니다.
+React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다. Node.js / Express API는 `DATABASE_URL`이 있으면 PostgreSQL, 없으면 기존 워크스페이스별 SQLite 파일을 사용합니다. 기존 Python 봇 DB는 연결된 워크스페이스로 이관하고, 전환 이후 봇도 웹 API로 데이터를 읽고 저장합니다. 연동 URL과 키가 없는 기존 설치는 로컬 DB를 유지합니다.
+
+PostgreSQL 이관·Render 설정·백업·복구 절차: [POSTGRES-MIGRATION.md](./POSTGRES-MIGRATION.md).
 
 수업 당일 점검·장애 대응·유지보수 인수는 [CLASS-RUNBOOK.md](./CLASS-RUNBOOK.md)에서 시작하세요.
 자동 통합 검증 결과와 실제 Discord 리허설의 남은 항목: [CLASS-READINESS.md](./CLASS-READINESS.md).

@@ -1,0 +1,13 @@
+{
+  "readOnly": [
+    "get_mentors", "get_mentor_by_id", "get_mentor_by_discord_id",
+    "get_slots_for_mentor", "get_slot", "get_booking_for_slot", "get_booking_by_user",
+    "get_all_bookings", "get_bookings_by_slot_ids", "get_dates_with_available_slots",
+    "get_slots_for_mentor_date", "get_panels", "get_slot_template", "get_blocked_dates",
+    "is_date_blocked", "get_approved_bookings_for_reminder", "is_reminder_sent",
+    "get_blocked_weekdays", "is_qa_alerted", "get_onboarding", "get_assignments",
+    "get_assignment", "get_submissions", "get_submission", "get_team_assignments_due_on",
+    "is_assignment_reminder_sent", "get_assignment_panel", "get_active_peer_round",
+    "get_peer_round", "get_peer_evaluations", "get_evaluated_target_ids"
+  ]
+}

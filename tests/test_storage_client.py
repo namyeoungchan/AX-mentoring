@@ -13,6 +13,24 @@ from cogs.lms_onboarding_store import OnboardingStore
 
 
 class StorageClientTests(unittest.IsolatedAsyncioTestCase):
+    async def test_permanent_errors_are_not_retried(self):
+        client = module.WebStorage('https://example.com/api/integrations/discord/provision', 'x' * 32, 123456789012345678)
+        client.request = AsyncMock(side_effect=module.StorageUnavailable('conflict', retryable=False))
+        with self.assertRaises(module.StorageUnavailable):
+            await client.call('add_mentor', ('555456789012345678', 'name'), {})
+        self.assertEqual(client.request.await_count, 1)
+
+    async def test_transport_reuses_a_bounded_session_and_cannot_reopen_after_close(self):
+        from web_transport import WebTransport
+        transport = WebTransport(connections=3)
+        session = transport.session()
+        self.assertIs(transport.session(), session)
+        self.assertEqual(session.connector.limit, 3)
+        await transport.close()
+        self.assertTrue(session.closed)
+        with self.assertRaises(RuntimeError):
+            transport.session()
+
     def test_typed_results_and_discord_ids_survive_json_transport(self):
         value = {123456789012345678: ({'student'}, date(2026, 9, 16), 123456789012345678)}
         self.assertEqual(decode(json.loads(json.dumps(encode(value)))), value)
