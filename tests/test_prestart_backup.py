@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+from contextlib import closing
 import subprocess
 import sys
 import tempfile
@@ -12,19 +13,19 @@ class PrestartBackupTests(unittest.TestCase):
     def test_legacy_start_records_existing_violations_without_modifying_source(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'main.db'
-            with sqlite3.connect(source) as db:
+            with closing(sqlite3.connect(source)) as db, db:
                 db.executescript('CREATE TABLE parent(id PRIMARY KEY); CREATE TABLE child(parent_id REFERENCES parent(id)); INSERT INTO child VALUES(42);')
             result = self.start(source, legacy=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout.splitlines()[0])['legacyForeignKeyViolations'], 1)
             self.assertIn('SERVICE_STARTED', result.stdout)
-            with sqlite3.connect(source) as db:
+            with closing(sqlite3.connect(source)) as db, db:
                 self.assertEqual(db.execute('SELECT parent_id FROM child').fetchone()[0], 42)
 
     def test_backup_precedes_command_and_is_reused_for_the_same_deployment(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'main.db'
-            with sqlite3.connect(source) as db:
+            with closing(sqlite3.connect(source)) as db, db:
                 db.execute('CREATE TABLE sample(value)')
                 db.execute("INSERT INTO sample VALUES ('before')")
             result = self.start(source)
@@ -32,12 +33,12 @@ class PrestartBackupTests(unittest.TestCase):
             record = json.loads(result.stdout.splitlines()[0])
             self.assertEqual(record['prestartBackup'], 'verified')
             self.assertIn('SERVICE_STARTED', result.stdout)
-            with sqlite3.connect(source) as db:
+            with closing(sqlite3.connect(source)) as db, db:
                 db.execute("UPDATE sample SET value='after'")
             repeated = self.start(source)
             self.assertEqual(repeated.returncode, 0, repeated.stderr)
             self.assertTrue(json.loads(repeated.stdout.splitlines()[0])['reused'])
-            with sqlite3.connect(Path(record['path']) / 'main.db') as db:
+            with closing(sqlite3.connect(Path(record['path']) / 'main.db')) as db, db:
                 self.assertEqual(db.execute('SELECT value FROM sample').fetchone()[0], 'before')
             (Path(record['path']) / 'main.db').write_bytes(b'corrupt')
             failed = self.start(source)

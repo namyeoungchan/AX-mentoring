@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import shutil
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timezone
 
 
@@ -17,7 +18,7 @@ def checksum(path):
 
 
 def check(path, allow_foreign_key_errors=False):
-    with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True) as db:
+    with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)) as db, db:
         if db.execute('PRAGMA integrity_check').fetchall() != [('ok',)]:
             raise ValueError(f'Integrity check failed: {path.name}')
         violations = db.execute('PRAGMA foreign_key_check').fetchall()
@@ -27,8 +28,8 @@ def check(path, allow_foreign_key_errors=False):
 
 
 def snapshot(source, destination, allow_foreign_key_errors=False):
-    with sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True) as source_db:
-        with sqlite3.connect(destination) as target_db:
+    with closing(sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True)) as source_db, source_db:
+        with closing(sqlite3.connect(destination)) as target_db, target_db:
             source_db.backup(target_db)
     return check(destination, allow_foreign_key_errors)
 
