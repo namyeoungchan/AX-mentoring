@@ -4,17 +4,17 @@
     "layout": [
       {
         "page": 1,
-        "remainingSpace": 157,
+        "remainingSpace": 104,
         "overflow": []
       },
       {
         "page": 2,
-        "remainingSpace": 116,
+        "remainingSpace": 85,
         "overflow": []
       },
       {
         "page": 3,
-        "remainingSpace": 93,
+        "remainingSpace": 50,
         "overflow": []
       }
     ]
@@ -24,17 +24,17 @@
     "layout": [
       {
         "page": 1,
-        "remainingSpace": 129,
+        "remainingSpace": 69,
         "overflow": []
       },
       {
         "page": 2,
-        "remainingSpace": 46,
+        "remainingSpace": 36,
         "overflow": []
       },
       {
         "page": 3,
-        "remainingSpace": 119,
+        "remainingSpace": 77,
         "overflow": []
       }
     ]
@@ -44,17 +44,17 @@
     "layout": [
       {
         "page": 1,
-        "remainingSpace": 176,
+        "remainingSpace": 106,
         "overflow": []
       },
       {
         "page": 2,
-        "remainingSpace": 86,
+        "remainingSpace": 56,
         "overflow": []
       },
       {
         "page": 3,
-        "remainingSpace": 25,
+        "remainingSpace": 24,
         "overflow": []
       }
     ]

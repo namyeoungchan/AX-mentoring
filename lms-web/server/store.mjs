@@ -47,6 +47,7 @@ export function createStore(dbPath, { workspaceId = 'default', defaultName = bra
     CREATE TABLE IF NOT EXISTS lms_booking_history (id TEXT PRIMARY KEY, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lms_attendance_rounds (course_id TEXT NOT NULL, date TEXT NOT NULL, period INTEGER NOT NULL, state TEXT NOT NULL CHECK(state IN ('진행 전','진행 중','마감')), version INTEGER NOT NULL, PRIMARY KEY(course_id,date,period));
     CREATE TABLE IF NOT EXISTS lms_attendance_requests (id TEXT PRIMARY KEY, actor TEXT NOT NULL, digest TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS lms_attendance_codes (id TEXT PRIMARY KEY, code_hash TEXT NOT NULL UNIQUE, course_id TEXT NOT NULL, date TEXT NOT NULL, period INTEGER NOT NULL, guild_id TEXT NOT NULL, actor_id TEXT NOT NULL, student_ids TEXT NOT NULL CHECK(json_valid(student_ids)), created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER);
     CREATE UNIQUE INDEX IF NOT EXISTS lms_course_code ON lms_records(json_extract(data,'$.code'),json_extract(data,'$.cohort')) WHERE kind='courses';
 
     CREATE UNIQUE INDEX IF NOT EXISTS lms_learner_discord ON lms_records(json_extract(data,'$.discordId')) WHERE kind='learners' AND json_extract(data,'$.discordId') <> '';

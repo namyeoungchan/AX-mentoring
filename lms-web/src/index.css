@@ -915,3 +915,10 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .data-backup-list { list-style: none; padding: 0; margin: 0; }
 .data-backup-list li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 0; border-top: 1px solid #dde4da; }
 .data-backup-list small { display: block; margin-top: 4px; }
+.attendance-code { margin: 18px 0; padding: 18px; border: 1px solid var(--border, #dce3de); border-radius: 14px; background: #f6faf7; }
+.attendance-code h3 { margin: 0 0 8px; }
+.attendance-code p, .attendance-code small { overflow-wrap: anywhere; }
+.attendance-code-controls, .attendance-code-display { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 14px 0; }
+.attendance-code-controls label { display: grid; gap: 6px; }
+.attendance-code-controls select { padding: 8px; border: 1px solid #ccd6ce; border-radius: 8px; background: white; }
+.attendance-code-display output { font-size: 32px; font-weight: 700; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
