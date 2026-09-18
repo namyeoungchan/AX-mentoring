@@ -356,6 +356,11 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     const adminCount = db.prepare("SELECT COUNT(*) AS n FROM lms_users WHERE platform_role='admin'").get().n
     return { accounts: db.prepare('SELECT * FROM lms_users ORDER BY created_at DESC,username').all().map(row => ({ ...publicUser(row), createdAt: row.created_at, canDelete: row.platform_role !== 'admin' || adminCount > 1, memberships: memberships.filter(m => m.user_id === row.id).map(m => ({ role: m.role, name: m.name })) })) }
   }
+  async function confirmAdmin(user, currentPassword) {
+    const row = platformAdmin(user)
+    if (typeof currentPassword !== 'string' || currentPassword.length > 128 || !await checkPassword(currentPassword, row.password_hash)) throw new ApiError(401, '현재 비밀번호를 확인하세요.')
+    if (platformAdmin(user).password_hash !== row.password_hash) throw new ApiError(409, '계정 정보가 변경되었습니다. 다시 로그인하세요.')
+  }
   function confirmedAccount(id, body) {
     const input = z.object({ username }).strict().parse(body)
     const row = db.prepare('SELECT * FROM lms_users WHERE id=?').get(id)
@@ -406,5 +411,5 @@ export function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, b
     db.prepare('DELETE FROM lms_auth_limits WHERE expires_at<=?').run(now())
     db.prepare('DELETE FROM lms_registrations WHERE created_at<=?').run(now() - 24 * 3600000)
   }
-  return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, accounts, resetAccount, deleteAccount, register, signup, createInvitationAccount, createStudentAccount, completeFirstLogin, issueVerification, status, renew, botAuthorized, preview, verify, login, adminLogin, session, logout, limit, cleanup }
+  return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, accounts, resetAccount, deleteAccount, register, signup, createInvitationAccount, createStudentAccount, completeFirstLogin, issueVerification, status, renew, botAuthorized, preview, verify, login, adminLogin, session, logout, limit, cleanup, platformAdmin, confirmAdmin }
 }
