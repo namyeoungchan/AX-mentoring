@@ -150,7 +150,8 @@ app.post('/api/auth/register', maintenance.track(async (req, res) => {
     res.status(201).json(await auth.register(input, process.env.LEARNINGOPS_AUTH_GUILD_ID || ''));
 }));
 app.post('/api/auth/registration/status', async (req, res) => {
-    await auth.limit('status-ip', req.ip, 120, 60000);
+    await auth.limit('status-ip-v2', req.ip, 1200, 60000);
+    await auth.limit('status-ticket', String(req.body?.ticket || '').slice(0,128), 30, 60000);
     res.json(await auth.status(req.body?.ticket));
 });
 app.post('/api/auth/registration/renew', async (req, res) => {
@@ -178,7 +179,8 @@ app.post('/api/integrations/discord/attendance/checkin', async (req, res) => {
     res.json(await attendanceCodes.checkIn(req.body));
 });
 app.post('/api/auth/login', maintenance.track(async (req, res) => {
-    await auth.limit('member-ip', req.ip, 120, 15 * 60000);
+    // A classroom shares one public IP. Account-level failed-attempt limits remain strict.
+    await auth.limit('member-ip-v2', req.ip, 1200, 15 * 60000);
     setLogin(res, await auth.login(req.body));
 }));
 app.post('/api/integrations/discord/provision/:operation', async (req, res) => {
@@ -466,10 +468,11 @@ app.get('/api/integrations/render', async (_req, res) => res.json(await renderSy
 app.use('/api', async (_req, res) => res.status(404).json({ error: '지원하지 않는 API입니다.' }));
 app.use(express.static(resolve(root, 'dist')));
 app.use(async (error, _req, res, _next) => {
+    if (Number.isInteger(error.retryAfter) && error.retryAfter > 0) res.set('Retry-After', String(error.retryAfter));
     if (error instanceof ZodError)
         return res.status(422).json({ error: error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(' / ') });
     if (error.status)
-        return res.status(error.status).json({ error: error.message });
+        return res.status(error.status).json({ error: error.message, ...(error.retryAfter ? { retryAfter: error.retryAfter } : {}) });
     if (/UNIQUE constraint/.test(error.message) || error.code==='23505')
         return res.status(409).json({ error: '중복된 과정 코드·기수, 이메일, Discord ID 또는 데이터입니다.' });
     if(['55P03','57014','40001','40P01','53300'].includes(error.code)) return res.status(503).json({error:'데이터 저장소가 사용 중입니다. 잠시 후 다시 시도하세요.'});

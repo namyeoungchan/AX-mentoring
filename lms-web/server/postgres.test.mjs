@@ -21,6 +21,16 @@ import { courseVideosScenario } from './course-videos-scenario.mjs'
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL handles 80 queued classroom logins without sharing account attempt limits', async t => {
+  const f = await fixture(t), db = f.runtime.store.db, auth = f.runtime.auth;
+  const names = [];
+  for (let i = 0; i < 80; i++) {
+    const name = `classroom.${i}`; names.push(name);
+    await db.prepare("INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at) SELECT ?,?,?,password_hash,?,'',? FROM lms_users WHERE id=?").run(name,name,name,`pending:${name}`,Date.now(),f.login.user.id);
+  }
+  const logins = await Promise.all(names.map(username => databaseContext(() => auth.login({username,password:'strong-test-password'}))));
+  assert.equal(new Set(logins.map(login => login.user.id)).size,80);
+})
 pgTest('PostgreSQL course videos enforce enrollment, owner access and upload retry semantics', async t => {
   const f = await fixture(t)
   await courseVideosScenario(f.runtime)

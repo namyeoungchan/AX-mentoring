@@ -10,6 +10,42 @@ import { studentLearning } from './student.mjs';
 const options = { adminPassword: 'test-admin-password-1234', allowLegacyAdmin: true, botToken: 'test-discord-auth-token-123456789012345', guildId: '123456789012345678' };
 const member = { username: 'student.test', name: '테스트 학생', password: 'test-password-1234', discordId: '555456789012345678' };
 const verify = (code, overrides = {}) => ({ code, discordId: member.discordId, guildId: options.guildId, ...overrides });
+test('80 classroom logins queue safely; successful login clears attempts while wrong passwords stay limited', async () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+        const auth = await createAuth(db, options);
+        const seed = await auth.signup(member, () => {});
+        const usernames = [];
+        for (let i = 0; i < 80; i++) {
+            const name = `classroom.${i}`; usernames.push(name);
+            db.prepare("INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at) SELECT ?,?,?,password_hash,?,'',? FROM lms_users WHERE id=?").run(name,name,name,`pending:${name}`,Date.now(),seed.user.id);
+        }
+        const logins = await Promise.all(usernames.map(username => auth.login({username,password:member.password})));
+        assert.equal(logins.length,80); assert.equal(new Set(logins.map(login=>login.token)).size,80);
+        for (let i = 0; i < 12; i++) await auth.login({username:member.username,password:member.password});
+        for (let i = 0; i < 10; i++) await assert.rejects(auth.login({username:member.username,password:'wrong-password'}), {status:401});
+        await assert.rejects(auth.login({username:member.username,password:member.password}), error => error.status===429 && error.retryAfter>0 && error.retryAfter<=900);
+    } finally { db.close(); }
+});
+
+test('repeated and simultaneous code requests reuse the live proof without storing plaintext', async () => {
+    const db = new DatabaseSync(':memory:'); let now = Date.now();
+    try {
+        const auth = await createAuth(db, {...options,now:()=>now});
+        const first = await auth.signup(member, () => {});
+        const codes = await Promise.all(Array.from({length:12},()=>auth.issueVerification(first.user,options.guildId)));
+        for (const code of codes) assert.deepEqual(code,codes[0]);
+        assert.equal(db.prepare('SELECT COUNT(*) AS n FROM lms_registrations').get().n,1);
+        const stored = JSON.stringify(db.prepare('SELECT * FROM lms_registrations').all());
+        assert.equal(stored.includes(codes[0].ticket),false); assert.equal(stored.includes(codes[0].code.replaceAll('-','')),false);
+        now+=600001;
+        const next = await auth.issueVerification(first.user,options.guildId);
+        assert.notEqual(next.code,codes[0].code);
+        await assert.rejects(auth.verify(verify(codes[0].code)),{status:410});
+        await auth.verify(verify(next.code));
+        await assert.rejects(auth.verify(verify(next.code)),{status:410});
+    } finally { db.close(); }
+});
 test('signup without Discord ID binds the bot identity once and rejects duplicate accounts', async () => {
     const db = new DatabaseSync(':memory:');
     try {

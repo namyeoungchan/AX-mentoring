@@ -7,16 +7,17 @@ export default function FirstLoginSetup({ name, username, changed }: { name: str
     event.preventDefault(); if (busy) return
     const form = new FormData(event.currentTarget)
     if (form.get('newPassword') !== form.get('confirmation')) { setError('새 비밀번호가 일치하지 않습니다.'); return }
+    if (form.get('currentPassword') === form.get('newPassword')) { setError('초기 비밀번호와 다른 새 비밀번호를 입력하세요.'); return }
     setBusy(true); setError('')
     try {
-      const result = await apiRequest('auth/first-login', { method: 'POST', body: JSON.stringify({ name: form.get('name'), currentPassword: form.get('currentPassword'), newPassword: form.get('newPassword') }) })
+      const result = await apiRequest('auth/first-login', { method: 'POST', signal: AbortSignal.timeout(90000), body: JSON.stringify({ name: form.get('name'), currentPassword: form.get('currentPassword'), newPassword: form.get('newPassword') }) })
       setSessionToken(result.token || '')
       await changed()
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   return <section className="panel initial-password-panel first-login-panel">
     <span className="eyebrow">처음 시작하기</span><h1>내 정보와 비밀번호 설정</h1>
-    <p>관리자가 발급한 계정입니다. 본인 이름을 입력하고 초기 비밀번호를 변경하면 학습 준비를 시작할 수 있습니다.</p>
+    <p>관리자가 발급한 계정입니다. 본인 이름을 입력하고 초기 비밀번호를 변경하면 다음 화면에서 Discord 초대 링크와 인증 패널 이용 방법을 안내합니다.</p>
     <ol className="first-login-steps"><li aria-current="step"><b>1</b>내 정보·비밀번호</li><li><b>2</b>Discord 참여·인증</li><li><b>3</b>학습 시작</li></ol>
     <form className="modal-form" onSubmit={submit}><fieldset disabled={busy}>
       <label>아이디<input readOnly value={username} autoComplete="username" /></label>

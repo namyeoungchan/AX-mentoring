@@ -100,7 +100,7 @@ export function useWorkspace() {
     await refresh(created.id); return true
   }
   async function login(username: string, password: string, admin = false) {
-    try { const result = await request(admin ? 'login' : 'auth/login', { method: 'POST', body: JSON.stringify(admin ? { password } : { username, password }) }); setSessionToken(result.token || ''); await refresh() }
+    try { const result = await request(admin ? 'login' : 'auth/login', { method: 'POST', signal: AbortSignal.timeout(90000), body: JSON.stringify(admin ? { password } : { username, password }) }); setSessionToken(result.token || ''); await refresh() }
     catch (e) { setError((e as Error).message) }
   }
   async function setWorkspaceArchived(id: string, archived: boolean) {
