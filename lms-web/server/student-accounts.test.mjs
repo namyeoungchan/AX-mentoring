@@ -29,7 +29,7 @@ async function fixture(t) {
 }
 test('workspace owner issues an approved student; first setup is mandatory before Discord and revokes old sessions', async (t) => {
     const f = await fixture(t), issued = await f.issue('new.student');
-    assert.equal(issued.initialPassword.length, 24);
+    assert.equal(issued.initialPassword, 'bdaxuser1!');
     const first = await f.auth.login({ username: issued.username, password: issued.initialPassword });
     assert.equal(first.user.mustCompleteProfile, true);
     assert.equal(first.user.mustChangePassword, true);

@@ -13,6 +13,8 @@ export async function createAdmissions(db, workspaces, { token = '', now = Date.
     invite_state TEXT NOT NULL DEFAULT 'none', invite_code TEXT, invite_expires INTEGER, claim_hash TEXT, lease_until INTEGER,
     UNIQUE(workspace_id,user_id)
   );`);
+    await db.exec('CREATE TABLE IF NOT EXISTS lms_runtime_state(guild_id TEXT NOT NULL,kind TEXT NOT NULL,record_key TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(guild_id,kind,record_key))');
+    const studentProfile = async (id, userId) => JSON.parse((await db.prepare("SELECT data FROM lms_runtime_state WHERE guild_id=? AND kind='student-profile' AND record_key=?").get(`workspace:${id}`, userId))?.data || '{}');
     if (!(await (db.prepare('PRAGMA table_info(lms_admissions)')).all()).some(row => row.name === 'purpose'))
         await db.exec("ALTER TABLE lms_admissions ADD COLUMN purpose TEXT NOT NULL DEFAULT 'student'");
     if (!(await (db.prepare('PRAGMA table_info(lms_admissions)')).all()).some(row => row.name === 'team_id'))
@@ -25,11 +27,12 @@ export async function createAdmissions(db, workspaces, { token = '', now = Date.
     }
     async function syncLearner(row, team, account, active = false) {
         const data = await workspaces.snapshot(row.workspace_id);
+        const profile = await studentProfile(row.workspace_id, account.id);
         const discordId = active ? account.discord_id : '';
         const existing = data.learners.find(l => l.id === `admission-${row.id}`) ||
             (account.verified_at !== null && data.learners.find(l => l.discordId === account.discord_id));
         const learner = { ...(existing || { id: `admission-${row.id}`, email: '', progress: 0, color: 'sage' }),
-            name: account.name, discordId: discordId || existing?.discordId || '', courseId: team.courseId, team: team.name,
+            name: profile.name || account.name, email: profile.email || existing?.email || '', discordId: discordId || existing?.discordId || '', courseId: team.courseId, team: team.name,
             status: active ? '정상' : existing?.status || '대기' };
         await workspaces.mutate(row.workspace_id, { revision: data.revision, changes: [{ kind: 'learners', value: learner }] }, active ? 'admission-verification' : 'admission-approval');
     }
@@ -61,7 +64,8 @@ export async function createAdmissions(db, workspaces, { token = '', now = Date.
             accounts: await Promise.all((await (db.prepare("SELECT u.id,u.username,u.name,u.must_complete_profile AS setupPending,u.must_change_password AS passwordPending,a.id AS applicationId,a.team_id AS teamId,a.state FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.purpose='student' ORDER BY a.created_at DESC")).all(id)).map(async ({ applicationId, ...account }) => {
                 const row = { id: applicationId, user_id: account.id, team_id: account.teamId };
                 const learner = await assignedLearner(row, data), team = await assignedTeam(row, data);
-                return { ...account, teamId: team?.id || '', courseId: learner?.courseId || team?.courseId || '' };
+                const profile = await studentProfile(id, account.id);
+                return { ...account, ...profile, name: learner?.name || profile.name || account.name, email: learner?.email || profile.email || '', profileRevision: digest(JSON.stringify(profile)), teamId: team?.id || '', courseId: learner?.courseId || team?.courseId || '' };
             })) };
     }
     // Once a roster record exists it owns the assignment. This also reflects moves
@@ -272,5 +276,47 @@ export async function createAdmissions(db, workspaces, { token = '', now = Date.
         await (db.prepare('UPDATE lms_admissions SET invite_state=?,invite_code=?,invite_expires=?,claim_hash=NULL,lease_until=NULL WHERE id=?')).run(input.success ? 'ready' : 'failed', input.success ? input.code : null, input.success ? now() + 23 * 3600000 : null, input.id);
         return { ok: true };
     }
-    return { catalogue, validateStudentIssue, assignStudent, studentAccounts, changeStudentTeam, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete };
+    async function manageStudent(id, userId, body, actor, remove = false) {
+        await workspaces.requireRole(id, actor, ['admin']);
+        if ((await workspaces.metadata(id)).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스입니다.');
+        const profileFields = { name: z.string().trim().min(1).max(50), email: z.union([z.email(), z.literal('')]), phone: z.string().trim().max(100), school: z.string().trim().max(100), department: z.string().trim().max(100) };
+        const input = z.object({ username: z.string(), revision: z.string(), profileRevision: z.string(), ...(remove ? {} : profileFields) }).strict().parse(body);
+        const target = (await workspaces.open(id)).db;
+        await db.exec('BEGIN IMMEDIATE');
+        try {
+            if (target !== db) await target.exec('BEGIN IMMEDIATE');
+            await workspaces.requireRole(id, actor, ['admin']);
+            const application = await db.prepare("SELECT a.*,u.username,u.platform_role FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.user_id=? AND a.purpose='student'").get(id, userId);
+            if (!application || application.username !== input.username) throw new ApiError(404, '이 워크스페이스의 수강생을 찾을 수 없습니다.');
+            const membership = await db.prepare('SELECT role FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').get(id, userId);
+            if (application.platform_role === 'admin' || membership && membership.role !== 'student') throw new ApiError(403, '관리자·멘토 정보는 구성원 관리에서 변경하세요.');
+            const data = await workspaces.snapshot(id), profile = await studentProfile(id, userId);
+            if (data.revision !== input.revision || digest(JSON.stringify(profile)) !== input.profileRevision) throw new ApiError(409, '수강생 정보가 변경됐습니다. 목록을 새로고침하세요.');
+            const learner = await assignedLearner(application, data);
+            if (learner) {
+                const value = remove ? { ...learner, status: '비활성' } : { ...learner, name: input.name, email: input.email };
+                await target.prepare("UPDATE lms_records SET data=? WHERE kind='learners' AND id=?").run(JSON.stringify(value), learner.id);
+                await target.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(actor.username, remove ? 'student.remove' : 'student.edit', learner.id, JSON.stringify(learner), JSON.stringify(value));
+            }
+            if (remove) {
+                await db.prepare('DELETE FROM lms_admissions WHERE workspace_id=? AND user_id=?').run(id, userId);
+                await db.prepare("DELETE FROM lms_workspace_members WHERE workspace_id=? AND user_id=? AND role='student'").run(id, userId);
+                await db.prepare('DELETE FROM lms_workspace_verifications WHERE workspace_id=? AND user_id=?').run(id, userId);
+                await db.prepare('DELETE FROM lms_registrations WHERE workspace_id=? AND user_id=?').run(id, userId);
+                await db.prepare("DELETE FROM lms_runtime_state WHERE guild_id=? AND kind='student-profile' AND record_key=?").run(`workspace:${id}`, userId);
+            } else {
+                const value = Object.fromEntries(Object.keys(profileFields).map(key => [key, input[key]]));
+                await db.prepare('INSERT INTO lms_runtime_state VALUES(?,?,?,?) ON CONFLICT(guild_id,kind,record_key) DO UPDATE SET data=excluded.data').run(`workspace:${id}`, 'student-profile', userId, JSON.stringify(value));
+            }
+            await db.prepare('INSERT INTO lms_audit(actor,action,target) VALUES(?,?,?)').run(actor.username, remove ? 'student.enrollment-remove' : 'student.profile-edit', `${id}/${userId}`);
+            if (target !== db) await target.exec('COMMIT');
+            await db.exec('COMMIT');
+        } catch (error) {
+            if (target !== db && target.isTransaction) await target.exec('ROLLBACK');
+            if (db.isTransaction) await db.exec('ROLLBACK');
+            throw error;
+        }
+        return await studentAccounts(id, actor);
+    }
+    return { catalogue, validateStudentIssue, assignStudent, studentAccounts, changeStudentTeam, manageStudent, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete };
 }

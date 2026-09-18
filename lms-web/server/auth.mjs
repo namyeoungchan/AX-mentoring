@@ -189,13 +189,13 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             throw error;
         }
     }
-    async function createStudentAccount(body, actor, authorize, assign) {
+    async function createStudentAccount(body, actor, authorize, assign, { initialPassword = 'bdaxuser1!' } = {}) {
         const input = z.object({ username, name: z.string().trim().min(1).max(50).optional() }).strict().parse(body);
         await authorize();
         const actorBefore = await (db.prepare('SELECT password_hash,platform_role FROM lms_users WHERE id=?')).get(actor.id);
         if (!actorBefore && !(actor.id === 'admin' && await legacyEnabled()))
             throw new ApiError(403, '관리자 계정으로 로그인하세요.');
-        const id = randomUUID(), identity = `pending:${id}`, initialPassword = randomBytes(18).toString('base64url');
+        const id = randomUUID(), identity = `pending:${id}`;
         await available(input.username, identity);
         const passwordHash = await hashPassword(initialPassword);
         await db.exec('BEGIN IMMEDIATE');
