@@ -1,17 +1,21 @@
 """Run one allowlisted legacy operation atomically against the web-owned database."""
 import asyncio
+from contextlib import asynccontextmanager
 import hashlib
 import inspect
 import json
 import os
+import sqlite3
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-os.environ.update(DISCORD_TOKEN="storage-process", GUILD_ID="0", ADMIN_ROLE_ID="0", ONBOARDING_CHANNEL_ID="0", INTRO_CHANNEL_ID="0", DB_PATH=sys.argv[1])
+os.environ.update(DISCORD_TOKEN="storage-process", GUILD_ID="0", ADMIN_ROLE_ID="0", ONBOARDING_CHANNEL_ID="0", INTRO_CHANNEL_ID="0", DB_PATH=":memory:")
 import aiosqlite
 import database
 from storage_codec import encode, decode
+
+READ_ONLY = frozenset(json.loads((Path(__file__).resolve().parents[2] / "storage_operations.json").read_text())["readOnly"])
 
 
 class ConnectionScope:
@@ -43,7 +47,27 @@ class ConnectionScope:
         pass  # The operation and its receipt commit together below.
 
 
-async def run(request):
+@asynccontextmanager
+async def operation_connection(filename, schema, read_only):
+    if schema:
+        from postgres_legacy import connect
+        connection = await connect(os.environ['DATABASE_URL'], schema, read_only)
+        try:
+            yield connection
+        finally:
+            await connection.raw.close()
+    else:
+        async with aiosqlite.connect(filename) as connection:
+            await connection.execute("PRAGMA foreign_keys=ON")
+            await connection.execute("PRAGMA busy_timeout=5000")
+            if read_only:
+                await connection.execute("PRAGMA query_only=ON")
+            await connection.execute("BEGIN" if read_only else "BEGIN IMMEDIATE")
+            yield connection
+
+
+async def run(request, filename, schema=None):
+    database.DB_PATH = filename
     operation = request["operation"]
     fn = getattr(database, operation, None)
     if operation.startswith("_") or operation == "init_db" or not inspect.iscoroutinefunction(fn) or fn.__module__ != "database":
@@ -54,10 +78,8 @@ async def run(request):
     validate(operation, bound.arguments, request["guildId"])
     fingerprint = hashlib.sha256(json.dumps({"operation": operation, "args": request.get("args", []), "kwargs": request.get("kwargs", {})}, sort_keys=True).encode()).hexdigest()
     original_connect = aiosqlite.connect
-    async with original_connect(sys.argv[1]) as connection:
-        await connection.execute("PRAGMA foreign_keys=ON")
-        await connection.execute("PRAGMA busy_timeout=5000")
-        await connection.execute("BEGIN IMMEDIATE")
+    read_only = operation in READ_ONLY
+    async with operation_connection(filename, schema, read_only) as connection:
         try:
             async with connection.execute("SELECT fingerprint,result FROM lms_storage_receipts WHERE id=?", (request["requestId"],)) as rows:
                 cached = await rows.fetchone()
@@ -75,7 +97,7 @@ async def run(request):
             result = encode(await fn(*bound.args, **bound.kwargs))
             aiosqlite.connect = original_connect
             # Query methods have no write receipt; retries of changes reuse the same result.
-            if not operation.startswith(("get_", "is_")):
+            if not read_only:
                 await connection.execute("INSERT INTO lms_storage_receipts(id,fingerprint,result) VALUES(?,?,?)", (request["requestId"], fingerprint, json.dumps(result, ensure_ascii=False)))
                 await connection.execute("INSERT INTO lms_audit(actor,action,target) VALUES(?,?,?)", (request.get("actor", "discord-bot"), "bot-storage." + operation, request["guildId"]))
             await connection.commit()
@@ -141,11 +163,37 @@ def validate(operation, arguments, guild_id):
             raise ValueError("Invalid slot time")
 
 
-try:
-    request = json.loads(sys.stdin.read())
-    result = asyncio.run(run(request))
-    print(json.dumps({"ok": True, "result": result}, ensure_ascii=False))
-except Exception as error:
-    # Avoid echoing private submissions, SQL parameters, or filesystem paths.
-    print(json.dumps({"ok": False, "error": "stale_revision" if str(error) == "stale_revision" else "invalid_operation", "type": type(error).__name__}))
-    sys.exit(1)
+async def respond(request, filename, schema=None):
+    try:
+        return {"ok": True, "result": await run(request, filename, schema)}
+    except Exception as error:
+        # Never echo private submissions, SQL parameters, or filesystem paths.
+        code = "stale_revision" if str(error) == "stale_revision" else "invalid_operation"
+        if isinstance(error, sqlite3.OperationalError) and getattr(error, "sqlite_errorcode", 0) & 255 in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}:
+            code = "storage_busy"
+        if getattr(error, 'sqlstate', None) in {'55P03', '57014', '40001', '40P01'} or (getattr(error, 'sqlstate', None) or '').startswith('08'):
+            code = "storage_busy"
+        if schema:
+            import psycopg
+            if isinstance(error, (psycopg.OperationalError, psycopg.InterfaceError)):
+                code = "storage_busy"
+        return {"ok": False, "error": code, "type": type(error).__name__}
+
+
+async def serve():
+    # No concurrent requests in a process: legacy connection interception stays isolated.
+    for line in sys.stdin:
+        message = json.loads(line)
+        response = await respond(message["request"], message.get("filename"), message.get("schema"))
+        print(json.dumps(response, ensure_ascii=False), flush=True)
+
+
+if __name__ == "__main__":
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    if sys.argv[1] == "--serve":
+        asyncio.run(serve())
+    else:
+        response = asyncio.run(respond(json.loads(sys.stdin.read()), sys.argv[1]))
+        print(json.dumps(response, ensure_ascii=False))
+        sys.exit(0 if response["ok"] else 1)

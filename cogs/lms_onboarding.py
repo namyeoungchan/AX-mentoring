@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import time
+from weakref import WeakValueDictionary
 from urllib.parse import urlsplit
 
 import discord
@@ -15,6 +16,7 @@ from cogs.lms_provision import validate_provision_endpoint
 from cogs.panel_objects import PANEL_OBJECTS
 from cogs.lms_auth import VerificationModal
 from ui.embeds import panel_embed
+from web_transport import WebTransport
 
 log = logging.getLogger("asanAX.lms_onboarding")
 ROLE_NAMES = {"pending": "LMS 온보딩 대기", "student": "LMS 수강생", "instructor": "LMS 강사", "admin": "LMS 운영자", "complete": "LMS 온보딩 완료"}
@@ -99,6 +101,9 @@ class LMSOnboarding(commands.Cog):
         self.bot = bot
         self.store = OnboardingStore(config.DB_PATH)
         self.configs, self.locks, self.views, self.resources_checked = {}, {}, {}, {}
+        self.member_locks = WeakValueDictionary()
+        self.sync_locks = {}
+        self.transport = WebTransport(timeout=20, connections=4)
         self.token = os.getenv("LEARNINGOPS_PROVISION_TOKEN", "").strip()
         self.url = ""
         candidate = os.getenv("LEARNINGOPS_PROVISION_URL", "").strip()
@@ -123,6 +128,7 @@ class LMSOnboarding(commands.Cog):
 
     async def cog_unload(self):
         self.worker.cancel()
+        await self.transport.close()
 
     def view(self, guild_id):
         key = str(guild_id)
@@ -134,17 +140,24 @@ class LMSOnboarding(commands.Cog):
     def lock(self, guild_id):
         return self.locks.setdefault(str(guild_id), asyncio.Lock())
 
+    def member_lock(self, guild_id, user_id):
+        key = (str(guild_id), str(user_id))
+        lock = self.member_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self.member_locks[key] = lock
+        return lock
+
     async def request(self, operation, body):
         if not self.url:
             raise OnboardingError("api_error")
         import aiohttp
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
-                async with session.post(f"{self.url}/{operation}", json=body, headers={"Authorization": f"Bearer {self.token}"}, allow_redirects=False) as response:
-                    if response.status != 200:
-                        log.warning("LMS onboarding %s rejected (HTTP %s)", operation, response.status)
-                        raise OnboardingError("api_error")
-                    return await response.json()
+            async with self.transport.session().post(f"{self.url}/{operation}", json=body, headers={"Authorization": f"Bearer {self.token}"}, allow_redirects=False) as response:
+                if response.status != 200:
+                    log.warning("LMS onboarding %s rejected (HTTP %s)", operation, response.status)
+                    raise OnboardingError("api_error")
+                return await response.json()
         except aiohttp.ClientError as error:
             raise OnboardingError("api_error") from error
 
@@ -154,10 +167,12 @@ class LMSOnboarding(commands.Cog):
         for guild_id in guild_ids:
             key = str(guild_id)
             if key in received:
+                changed = self.configs.get(key) != received[key]
                 self.configs[key] = received[key]
-                await self.store.put("0", "config", key, received[key])
+                if changed:
+                    await self.store.put("0", "config", key, received[key])
                 self.view(key)
-            elif key in self.configs:
+            elif key in self.configs and self.configs[key].get("enabled"):
                 self.configs[key] = {"guildId": key, "enabled": False}
                 await self.store.put("0", "config", key, self.configs[key])
 
@@ -359,6 +374,7 @@ class LMSOnboarding(commands.Cog):
                 return
             async with self.lock(interaction.guild_id):
                 await self.ensure_resources(interaction.guild, cfg)
+            async with self.member_lock(interaction.guild_id, interaction.user.id):
                 await self.sync_member(interaction.user, cfg, welcome=False)
             participant = next((p for p in cfg["participants"] if p["discordId"] == str(interaction.user.id)), None)
             text = ("인증 완료 · 다음으로 **2 · 자기소개 작성**을 눌러 주세요." if participant and participant["role"] == "student" and participant.get("teamId") else
@@ -371,7 +387,11 @@ class LMSOnboarding(commands.Cog):
     async def sync_member(self, member, cfg, welcome=True):
         if member.bot:
             return
-        record = await self.store.get(member.guild.id, "member", member.id) or {"introDone": False, "welcomed": False}
+        current = self.configs.get(str(member.guild.id))
+        if current and current.get("revision") != cfg.get("revision"):
+            raise OnboardingError("conflict")
+        previous = await self.store.get(member.guild.id, "member", member.id)
+        record = dict(previous) if previous else {"introDone": False, "welcomed": False}
         participant = next((person for person in cfg["participants"] if person["discordId"] == str(member.id)), None)
         desired = desired_roles(participant, record["introDone"])
         if participant and participant["role"] == "student" and not any(t["id"] == participant.get("teamId") for t in cfg["teams"]):
@@ -422,7 +442,8 @@ class LMSOnboarding(commands.Cog):
         if record["introDone"] and not record.get("reported"):
             await self.request("progress", {"guildId": str(member.guild.id), "discordId": str(member.id)})
             record["reported"] = True
-        await self.store.put(member.guild.id, "member", member.id, record)
+        if record != previous:
+            await self.store.put(member.guild.id, "member", member.id, record)
         return "waiting" if "pending" in desired else "ready"
 
     async def submit_intro(self, guild_id, user_id, name, introduction):
@@ -436,12 +457,14 @@ class LMSOnboarding(commands.Cog):
         if participant and participant["role"] in {"instructor", "admin"}:
             async with self.lock(guild_id):
                 await self.ensure_resources(guild, cfg)
+            async with self.member_lock(guild_id, user_id):
                 await self.sync_member(member, cfg, welcome=False)
             return "멘토·운영자는 자기소개가 필요 없습니다. LMS의 업무 안내를 진행하세요."
         if not participant or not any(t["id"] == participant.get("teamId") for t in cfg["teams"]):
             return "LMS 인증과 팀 배정을 먼저 완료하세요. 자기소개를 저장하지 않았습니다."
         async with self.lock(guild_id):
             await self.ensure_resources(guild, cfg)
+        async with self.member_lock(guild_id, user_id):
             record = await self.store.get(guild_id, "member", user_id) or {"introDone": False, "welcomed": False}
             if not record["introDone"]:
                 channel_id = (await self.store.get(guild_id, "channel", "intro"))["id"]
@@ -461,19 +484,20 @@ class LMSOnboarding(commands.Cog):
     async def sync_guild(self, guild, cfg):
         if not cfg.get("enabled"):
             return
-        async with self.lock(guild.id):
+        # A repair scan only excludes other scans; interactive members use their own locks.
+        async with self.sync_locks.setdefault(str(guild.id), asyncio.Lock()):
             error = ""
             reports = []
             try:
-                await self.ensure_resources(guild, cfg)
+                async with self.lock(guild.id):
+                    await self.ensure_resources(guild, cfg)
                 if not guild.chunked:
                     await guild.chunk(cache=True)
-                for member in guild.members:
-                    if member.bot or (cfg.get("retryDiscordIds") and str(member.id) not in cfg["retryDiscordIds"]):
-                        continue
+                async def reconcile(member):
                     failure_code = ""
                     try:
-                        state = await self.sync_member(member, cfg)
+                        async with self.member_lock(guild.id, member.id):
+                            state = await self.sync_member(member, cfg)
                     except discord.Forbidden:
                         failure_code = "permissions"
                     except discord.HTTPException:
@@ -482,10 +506,15 @@ class LMSOnboarding(commands.Cog):
                         failure_code = str(failure)
                     except asyncio.TimeoutError:
                         failure_code = "api_error"
-                    reports.append({"discordId": str(member.id), "state": "failed" if failure_code else state or "ready", "error": failure_code})
-                    if failure_code:
-                        error = failure_code
-                    if failure_code == "api_error":
+                    return {"discordId": str(member.id), "state": "failed" if failure_code else state or "ready", "error": failure_code}
+                members = [m for m in guild.members if not m.bot and (not cfg.get("retryDiscordIds") or str(m.id) in cfg["retryDiscordIds"])]
+                for offset in range(0, len(members), 3):
+                    batch = await asyncio.gather(*(reconcile(m) for m in members[offset:offset + 3]))
+                    reports.extend(batch)
+                    failures = [row["error"] for row in batch if row["error"]]
+                    if failures:
+                        error = failures[-1]
+                    if "api_error" in failures:
                         break
                 present = {str(member.id) for member in guild.members}
                 for participant in cfg.get("participants", []):
@@ -537,6 +566,7 @@ class LMSOnboarding(commands.Cog):
             if cfg and cfg.get("enabled"):
                 async with self.lock(member.guild.id):
                     await self.ensure_resources(member.guild, cfg)
+                async with self.member_lock(member.guild.id, member.id):
                     record = await self.store.get(member.guild.id, "member", member.id)
                     if record:
                         record["welcomed"] = False

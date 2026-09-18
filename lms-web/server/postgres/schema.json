@@ -1,0 +1,969 @@
+{
+  "tables": {
+    "mentors": {
+      "columns": [
+        "id",
+        "discord_id",
+        "name",
+        "bio",
+        "is_active"
+      ],
+      "identity": true
+    },
+    "slots": {
+      "columns": [
+        "id",
+        "mentor_id",
+        "start_time",
+        "end_time",
+        "label",
+        "is_active"
+      ],
+      "identity": true
+    },
+    "bookings": {
+      "columns": [
+        "id",
+        "slot_id",
+        "user_id",
+        "user_name",
+        "booked_at",
+        "status",
+        "rejection_reason"
+      ],
+      "identity": true
+    },
+    "panels": {
+      "columns": [
+        "id",
+        "channel_id",
+        "message_id",
+        "guild_id"
+      ],
+      "identity": true
+    },
+    "slot_templates": {
+      "columns": [
+        "id",
+        "mentor_id",
+        "start_hour",
+        "start_minute",
+        "end_hour",
+        "end_minute",
+        "interval_minutes"
+      ],
+      "identity": true
+    },
+    "blocked_dates": {
+      "columns": [
+        "id",
+        "mentor_id",
+        "date"
+      ],
+      "identity": true
+    },
+    "reminders": {
+      "columns": [
+        "id",
+        "booking_id",
+        "type",
+        "sent_at"
+      ],
+      "identity": true
+    },
+    "qa_alerts": {
+      "columns": [
+        "thread_id",
+        "alerted_at"
+      ],
+      "identity": false
+    },
+    "blocked_weekdays": {
+      "columns": [
+        "id",
+        "mentor_id",
+        "weekday"
+      ],
+      "identity": true
+    },
+    "onboarding_progress": {
+      "columns": [
+        "user_id",
+        "guild_id",
+        "joined_at",
+        "intro_done",
+        "completed_at"
+      ],
+      "identity": false
+    },
+    "assignments": {
+      "columns": [
+        "id",
+        "week",
+        "title",
+        "description",
+        "due_date",
+        "type",
+        "created_at",
+        "is_active",
+        "fields"
+      ],
+      "identity": true
+    },
+    "submissions": {
+      "columns": [
+        "id",
+        "assignment_id",
+        "user_id",
+        "user_name",
+        "team",
+        "content",
+        "link",
+        "submitted_at"
+      ],
+      "identity": true
+    },
+    "assignment_panels": {
+      "columns": [
+        "panel_type",
+        "channel_id",
+        "message_id"
+      ],
+      "identity": false
+    },
+    "assignment_reminders": {
+      "columns": [
+        "assignment_id",
+        "team",
+        "sent_at"
+      ],
+      "identity": false
+    },
+    "peer_eval_rounds": {
+      "columns": [
+        "id",
+        "title",
+        "created_at",
+        "is_active"
+      ],
+      "identity": true
+    },
+    "peer_evaluations": {
+      "columns": [
+        "id",
+        "round_id",
+        "team",
+        "evaluator_id",
+        "target_id",
+        "target_name",
+        "score1",
+        "score2",
+        "score3",
+        "score4",
+        "comment",
+        "submitted_at"
+      ],
+      "identity": true
+    },
+    "lms_records": {
+      "columns": [
+        "kind",
+        "id",
+        "data"
+      ],
+      "identity": false
+    },
+    "lms_audit": {
+      "columns": [
+        "id",
+        "actor",
+        "action",
+        "target",
+        "before_json",
+        "after_json",
+        "created_at"
+      ],
+      "identity": true
+    },
+    "lms_assignment_courses": {
+      "columns": [
+        "assignment_id",
+        "course_id"
+      ],
+      "identity": false
+    },
+    "lms_assignment_publications": {
+      "columns": [
+        "assignment_id",
+        "created_at",
+        "actor"
+      ],
+      "identity": false
+    },
+    "lms_booking_history": {
+      "columns": [
+        "id",
+        "data"
+      ],
+      "identity": false
+    },
+    "lms_attendance_rounds": {
+      "columns": [
+        "course_id",
+        "date",
+        "period",
+        "state",
+        "version"
+      ],
+      "identity": false
+    },
+    "lms_attendance_requests": {
+      "columns": [
+        "id",
+        "actor",
+        "digest"
+      ],
+      "identity": false
+    },
+    "lms_attendance_codes": {
+      "columns": [
+        "id",
+        "code_hash",
+        "course_id",
+        "date",
+        "period",
+        "guild_id",
+        "actor_id",
+        "student_ids",
+        "created_at",
+        "expires_at",
+        "revoked_at"
+      ],
+      "identity": false
+    },
+    "lms_outbox": {
+      "columns": [
+        "id",
+        "event_key",
+        "kind",
+        "source_id",
+        "guild_id",
+        "channel_id",
+        "payload",
+        "state",
+        "attempts",
+        "claim",
+        "lease_until",
+        "first_attempt_at",
+        "message_id",
+        "error",
+        "actor",
+        "created_at",
+        "completed_at"
+      ],
+      "identity": false
+    },
+    "lms_outbox_attempts": {
+      "columns": [
+        "id",
+        "outbox_id",
+        "state",
+        "error",
+        "created_at"
+      ],
+      "identity": true
+    },
+    "lms_notification_control": {
+      "columns": [
+        "id",
+        "importing"
+      ],
+      "identity": false
+    },
+    "lms_submission_targets": {
+      "columns": [
+        "submission_id",
+        "target_key"
+      ],
+      "identity": false
+    },
+    "lms_remote_snapshots": {
+      "columns": [
+        "source_id",
+        "received_at",
+        "payload"
+      ],
+      "identity": false
+    },
+    "lms_users": {
+      "columns": [
+        "id",
+        "username",
+        "name",
+        "password_hash",
+        "discord_id",
+        "guild_id",
+        "created_at",
+        "verified_at",
+        "platform_role",
+        "must_change_password",
+        "must_complete_profile"
+      ],
+      "identity": false
+    },
+    "lms_registrations": {
+      "columns": [
+        "ticket_hash",
+        "code_hash",
+        "username",
+        "name",
+        "password_hash",
+        "discord_id",
+        "guild_id",
+        "created_at",
+        "expires_at",
+        "renewed_at",
+        "verified_at",
+        "user_id",
+        "workspace_id"
+      ],
+      "identity": false
+    },
+    "lms_auth_sessions": {
+      "columns": [
+        "token_hash",
+        "user_id",
+        "admin_version",
+        "expires_at"
+      ],
+      "identity": false
+    },
+    "lms_auth_limits": {
+      "columns": [
+        "key_hash",
+        "count",
+        "expires_at"
+      ],
+      "identity": false
+    },
+    "lms_account_audit": {
+      "columns": [
+        "id",
+        "actor_id",
+        "target_id",
+        "username",
+        "action",
+        "created_at"
+      ],
+      "identity": true
+    },
+    "lms_workspace_verifications": {
+      "columns": [
+        "workspace_id",
+        "user_id",
+        "guild_id",
+        "discord_id",
+        "verified_at"
+      ],
+      "identity": false
+    },
+    "lms_discord_plans": {
+      "columns": [
+        "guild_id",
+        "data",
+        "revision",
+        "updated_at"
+      ],
+      "identity": false
+    },
+    "lms_discord_guilds": {
+      "columns": [
+        "guild_id",
+        "name",
+        "manage_channels",
+        "seen_at",
+        "member_count"
+      ],
+      "identity": false
+    },
+    "lms_discord_jobs": {
+      "columns": [
+        "id",
+        "guild_id",
+        "revision",
+        "plan",
+        "state",
+        "created_at",
+        "completed_at",
+        "lease_until",
+        "claim_hash",
+        "error_code",
+        "results"
+      ],
+      "identity": false
+    },
+    "lms_discord_worker": {
+      "columns": [
+        "id",
+        "bot_id",
+        "name",
+        "ready",
+        "seen_at"
+      ],
+      "identity": false
+    },
+    "lms_workspaces": {
+      "columns": [
+        "id",
+        "name",
+        "description",
+        "source_id",
+        "created_at",
+        "archived_at"
+      ],
+      "identity": false
+    },
+    "lms_workspace_guilds": {
+      "columns": [
+        "guild_id",
+        "workspace_id"
+      ],
+      "identity": false
+    },
+    "lms_workspace_members": {
+      "columns": [
+        "workspace_id",
+        "user_id",
+        "role",
+        "joined_at"
+      ],
+      "identity": false
+    },
+    "lms_workspace_invitations": {
+      "columns": [
+        "id",
+        "workspace_id",
+        "token_hash",
+        "username",
+        "role",
+        "created_by",
+        "created_at",
+        "expires_at",
+        "accepted_at",
+        "revoked_at"
+      ],
+      "identity": false
+    },
+    "lms_workspace_migrations": {
+      "columns": [
+        "name"
+      ],
+      "identity": false
+    },
+    "lms_mentor_scopes": {
+      "columns": [
+        "workspace_id",
+        "subject_id",
+        "kind",
+        "team_ids"
+      ],
+      "identity": false
+    },
+    "lms_discord_templates": {
+      "columns": [
+        "workspace_id",
+        "data",
+        "revision",
+        "updated_at"
+      ],
+      "identity": false
+    },
+    "lms_admissions": {
+      "columns": [
+        "id",
+        "workspace_id",
+        "user_id",
+        "state",
+        "created_at",
+        "reviewed_by",
+        "reviewed_at",
+        "guild_id",
+        "reason",
+        "invite_state",
+        "invite_code",
+        "invite_expires",
+        "claim_hash",
+        "lease_until",
+        "purpose",
+        "team_id"
+      ],
+      "identity": false
+    },
+    "lms_onboarding_settings": {
+      "columns": [
+        "guild_id",
+        "data",
+        "revision"
+      ],
+      "identity": false
+    },
+    "lms_onboarding_reports": {
+      "columns": [
+        "guild_id",
+        "revision",
+        "state",
+        "error",
+        "updated_at"
+      ],
+      "identity": false
+    },
+    "lms_onboarding_members": {
+      "columns": [
+        "guild_id",
+        "discord_id",
+        "intro_done",
+        "updated_at"
+      ],
+      "identity": false
+    },
+    "lms_member_sync": {
+      "columns": [
+        "guild_id",
+        "discord_id",
+        "revision",
+        "state",
+        "error",
+        "updated_at"
+      ],
+      "identity": false
+    },
+    "lms_member_retry": {
+      "columns": [
+        "guild_id",
+        "discord_id"
+      ],
+      "identity": false
+    },
+    "lms_staff_profiles": {
+      "columns": [
+        "workspace_id",
+        "user_id",
+        "name",
+        "expertise",
+        "bio",
+        "steps",
+        "updated_at"
+      ],
+      "identity": false
+    },
+    "lms_group_setup": {
+      "columns": [
+        "workspace_id",
+        "course_id"
+      ],
+      "identity": false
+    },
+    "lms_staff_connections": {
+      "columns": [
+        "workspace_id",
+        "user_id",
+        "discord_id"
+      ],
+      "identity": false
+    },
+    "lms_runtime_state": {
+      "columns": [
+        "guild_id",
+        "kind",
+        "record_key",
+        "data"
+      ],
+      "identity": false
+    },
+    "lms_storage_state": {
+      "columns": [
+        "id",
+        "revision"
+      ],
+      "identity": false
+    },
+    "lms_storage_receipts": {
+      "columns": [
+        "id",
+        "fingerprint",
+        "result"
+      ],
+      "identity": false
+    },
+    "lms_storage_imports": {
+      "columns": [
+        "checksum",
+        "guild_id",
+        "archive",
+        "state",
+        "error",
+        "created_at"
+      ],
+      "identity": false
+    },
+    "lms_bot_settings": {
+      "columns": [
+        "guild_id",
+        "data"
+      ],
+      "identity": false
+    }
+  },
+  "legacy": [
+    {
+      "name": "mentors",
+      "type": "table",
+      "sql": "CREATE TABLE mentors (\r\n                id          INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                discord_id  TEXT    NOT NULL UNIQUE,\r\n                name        TEXT    NOT NULL,\r\n                bio         TEXT    DEFAULT '',\r\n                is_active   INTEGER NOT NULL DEFAULT 1\r\n            )"
+    },
+    {
+      "name": "slots",
+      "type": "table",
+      "sql": "CREATE TABLE slots (\r\n                id          INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                mentor_id   INTEGER NOT NULL REFERENCES mentors(id) ON DELETE CASCADE,\r\n                start_time  TEXT    NOT NULL,\r\n                end_time    TEXT    NOT NULL,\r\n                label       TEXT    NOT NULL,\r\n                is_active   INTEGER NOT NULL DEFAULT 1\r\n            )"
+    },
+    {
+      "name": "bookings",
+      "type": "table",
+      "sql": "CREATE TABLE bookings (\r\n                id          INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                slot_id     INTEGER NOT NULL UNIQUE REFERENCES slots(id) ON DELETE CASCADE,\r\n                user_id     TEXT    NOT NULL,\r\n                user_name   TEXT    NOT NULL,\r\n                booked_at   TEXT    NOT NULL DEFAULT (datetime('now'))\r\n            , status TEXT NOT NULL DEFAULT 'approved', rejection_reason TEXT DEFAULT '')"
+    },
+    {
+      "name": "panels",
+      "type": "table",
+      "sql": "CREATE TABLE panels (\r\n                id          INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                channel_id  TEXT    NOT NULL,\r\n                message_id  TEXT    NOT NULL,\r\n                guild_id    TEXT    NOT NULL\r\n            )"
+    },
+    {
+      "name": "slot_templates",
+      "type": "table",
+      "sql": "CREATE TABLE slot_templates (\r\n                id               INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                mentor_id        INTEGER NOT NULL UNIQUE REFERENCES mentors(id) ON DELETE CASCADE,\r\n                start_hour       INTEGER NOT NULL DEFAULT 19,\r\n                start_minute     INTEGER NOT NULL DEFAULT 0,\r\n                end_hour         INTEGER NOT NULL DEFAULT 21,\r\n                end_minute       INTEGER NOT NULL DEFAULT 0,\r\n                interval_minutes INTEGER NOT NULL DEFAULT 30\r\n            )"
+    },
+    {
+      "name": "blocked_dates",
+      "type": "table",
+      "sql": "CREATE TABLE blocked_dates (\r\n                id        INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                mentor_id INTEGER NOT NULL REFERENCES mentors(id) ON DELETE CASCADE,\r\n                date      TEXT    NOT NULL,\r\n                UNIQUE(mentor_id, date)\r\n            )"
+    },
+    {
+      "name": "reminders",
+      "type": "table",
+      "sql": "CREATE TABLE reminders (\r\n                id         INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,\r\n                type       TEXT    NOT NULL,\r\n                sent_at    TEXT    NOT NULL DEFAULT (datetime('now')),\r\n                UNIQUE(booking_id, type)\r\n            )"
+    },
+    {
+      "name": "qa_alerts",
+      "type": "table",
+      "sql": "CREATE TABLE qa_alerts (\r\n                thread_id  TEXT PRIMARY KEY,\r\n                alerted_at TEXT NOT NULL DEFAULT (datetime('now'))\r\n            )"
+    },
+    {
+      "name": "blocked_weekdays",
+      "type": "table",
+      "sql": "CREATE TABLE blocked_weekdays (\r\n                id        INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                mentor_id INTEGER NOT NULL REFERENCES mentors(id) ON DELETE CASCADE,\r\n                weekday   INTEGER NOT NULL,  -- 0=월 1=화 2=수 3=목 4=금 5=토 6=일\r\n                UNIQUE(mentor_id, weekday)\r\n            )"
+    },
+    {
+      "name": "onboarding_progress",
+      "type": "table",
+      "sql": "CREATE TABLE onboarding_progress (\r\n                user_id      TEXT PRIMARY KEY,\r\n                guild_id     TEXT NOT NULL,\r\n                joined_at    TEXT NOT NULL DEFAULT (datetime('now')),\r\n                intro_done   INTEGER NOT NULL DEFAULT 0,\r\n                completed_at TEXT\r\n            )"
+    },
+    {
+      "name": "assignments",
+      "type": "table",
+      "sql": "CREATE TABLE assignments (\r\n                id          INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                week        INTEGER NOT NULL,\r\n                title       TEXT    NOT NULL,\r\n                description TEXT    NOT NULL DEFAULT '',\r\n                due_date    TEXT    NOT NULL,\r\n                type        TEXT    NOT NULL DEFAULT 'team',\r\n                created_at  TEXT    NOT NULL DEFAULT (datetime('now')),\r\n                is_active   INTEGER NOT NULL DEFAULT 1\r\n            , fields TEXT NOT NULL DEFAULT '[\"제출 내용\"]')"
+    },
+    {
+      "name": "submissions",
+      "type": "table",
+      "sql": "CREATE TABLE submissions (\r\n                id            INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,\r\n                user_id       TEXT    NOT NULL,\r\n                user_name     TEXT    NOT NULL,\r\n                team          TEXT    NOT NULL DEFAULT '',\r\n                content       TEXT    NOT NULL,\r\n                link          TEXT    NOT NULL DEFAULT '',\r\n                submitted_at  TEXT    NOT NULL DEFAULT (datetime('now')),\r\n                UNIQUE(assignment_id, user_id)\r\n            )"
+    },
+    {
+      "name": "assignment_panels",
+      "type": "table",
+      "sql": "CREATE TABLE assignment_panels (\r\n                panel_type  TEXT PRIMARY KEY,\r\n                channel_id  TEXT NOT NULL,\r\n                message_id  TEXT NOT NULL\r\n            )"
+    },
+    {
+      "name": "assignment_reminders",
+      "type": "table",
+      "sql": "CREATE TABLE assignment_reminders (\r\n                assignment_id INTEGER NOT NULL,\r\n                team          TEXT    NOT NULL,\r\n                sent_at       TEXT    NOT NULL DEFAULT (datetime('now')),\r\n                UNIQUE(assignment_id, team)\r\n            )"
+    },
+    {
+      "name": "peer_eval_rounds",
+      "type": "table",
+      "sql": "CREATE TABLE peer_eval_rounds (\r\n                id          INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                title       TEXT    NOT NULL,\r\n                created_at  TEXT    NOT NULL DEFAULT (datetime('now')),\r\n                is_active   INTEGER NOT NULL DEFAULT 1\r\n            )"
+    },
+    {
+      "name": "peer_evaluations",
+      "type": "table",
+      "sql": "CREATE TABLE peer_evaluations (\r\n                id            INTEGER PRIMARY KEY AUTOINCREMENT,\r\n                round_id      INTEGER NOT NULL REFERENCES peer_eval_rounds(id) ON DELETE CASCADE,\r\n                team          TEXT    NOT NULL,\r\n                evaluator_id  TEXT    NOT NULL,\r\n                target_id     TEXT    NOT NULL,\r\n                target_name   TEXT    NOT NULL,\r\n                score1        INTEGER NOT NULL,  -- ① 과업 완수(산출물)\r\n                score2        INTEGER NOT NULL,  -- ② 협업·소통\r\n                score3        INTEGER NOT NULL,  -- ③ 책임·약속 이행\r\n                score4        INTEGER NOT NULL,  -- ④ 팀 기여·문제해결\r\n                comment       TEXT    NOT NULL DEFAULT '',\r\n                submitted_at  TEXT    NOT NULL DEFAULT (datetime('now')),\r\n                UNIQUE(round_id, evaluator_id, target_id)\r\n            )"
+    },
+    {
+      "name": "lms_records",
+      "type": "table",
+      "sql": "CREATE TABLE lms_records (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL CHECK(json_valid(data)), PRIMARY KEY(kind,id))"
+    },
+    {
+      "name": "lms_audit",
+      "type": "table",
+      "sql": "CREATE TABLE lms_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL, before_json TEXT, after_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+    },
+    {
+      "name": "lms_assignment_courses",
+      "type": "table",
+      "sql": "CREATE TABLE lms_assignment_courses (assignment_id INTEGER PRIMARY KEY REFERENCES assignments(id), course_id TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_assignment_publications",
+      "type": "table",
+      "sql": "CREATE TABLE lms_assignment_publications (assignment_id INTEGER PRIMARY KEY REFERENCES assignments(id), created_at INTEGER NOT NULL, actor TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_booking_history",
+      "type": "table",
+      "sql": "CREATE TABLE lms_booking_history (id TEXT PRIMARY KEY, data TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_attendance_rounds",
+      "type": "table",
+      "sql": "CREATE TABLE lms_attendance_rounds (course_id TEXT NOT NULL, date TEXT NOT NULL, period INTEGER NOT NULL, state TEXT NOT NULL CHECK(state IN ('진행 전','진행 중','마감')), version INTEGER NOT NULL, PRIMARY KEY(course_id,date,period))"
+    },
+    {
+      "name": "lms_attendance_requests",
+      "type": "table",
+      "sql": "CREATE TABLE lms_attendance_requests (id TEXT PRIMARY KEY, actor TEXT NOT NULL, digest TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_attendance_codes",
+      "type": "table",
+      "sql": "CREATE TABLE lms_attendance_codes (id TEXT PRIMARY KEY, code_hash TEXT NOT NULL UNIQUE, course_id TEXT NOT NULL, date TEXT NOT NULL, period INTEGER NOT NULL, guild_id TEXT NOT NULL, actor_id TEXT NOT NULL, student_ids TEXT NOT NULL CHECK(json_valid(student_ids)), created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER)"
+    },
+    {
+      "name": "lms_course_code",
+      "type": "index",
+      "sql": "CREATE UNIQUE INDEX lms_course_code ON lms_records(json_extract(data,'$.code'),json_extract(data,'$.cohort')) WHERE kind='courses'"
+    },
+    {
+      "name": "lms_learner_discord",
+      "type": "index",
+      "sql": "CREATE UNIQUE INDEX lms_learner_discord ON lms_records(json_extract(data,'$.discordId')) WHERE kind='learners' AND json_extract(data,'$.discordId') <> ''"
+    },
+    {
+      "name": "lms_team_code",
+      "type": "index",
+      "sql": "CREATE UNIQUE INDEX lms_team_code ON lms_records(json_extract(data,'$.courseId'),json_extract(data,'$.code')) WHERE kind='teams'"
+    },
+    {
+      "name": "lms_attendance_unique",
+      "type": "index",
+      "sql": "CREATE UNIQUE INDEX lms_attendance_unique ON lms_records(json_extract(data,'$.studentId'),json_extract(data,'$.courseId'),json_extract(data,'$.date'),json_extract(data,'$.period')) WHERE kind='attendance'"
+    },
+    {
+      "name": "lms_score_unique",
+      "type": "index",
+      "sql": "CREATE UNIQUE INDEX lms_score_unique ON lms_records(json_extract(data,'$.studentId'),json_extract(data,'$.courseId'),json_extract(data,'$.item')) WHERE kind='scores'"
+    },
+    {
+      "name": "lms_outbox",
+      "type": "table",
+      "sql": "CREATE TABLE lms_outbox (\n    id TEXT PRIMARY KEY,event_key TEXT NOT NULL UNIQUE,kind TEXT NOT NULL,source_id TEXT NOT NULL,\n    guild_id TEXT NOT NULL DEFAULT '',channel_id TEXT NOT NULL DEFAULT '',payload TEXT NOT NULL,\n    state TEXT NOT NULL DEFAULT 'pending',attempts INTEGER NOT NULL DEFAULT 0,\n    claim TEXT,lease_until INTEGER,first_attempt_at INTEGER,message_id TEXT NOT NULL DEFAULT '',\n    error TEXT NOT NULL DEFAULT '',actor TEXT NOT NULL,created_at INTEGER NOT NULL,completed_at INTEGER)"
+    },
+    {
+      "name": "lms_outbox_attempts",
+      "type": "table",
+      "sql": "CREATE TABLE lms_outbox_attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,outbox_id TEXT NOT NULL,state TEXT NOT NULL,error TEXT NOT NULL,created_at INTEGER NOT NULL)"
+    },
+    {
+      "name": "lms_notification_control",
+      "type": "table",
+      "sql": "CREATE TABLE lms_notification_control(id INTEGER PRIMARY KEY CHECK(id=1),importing INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+      "name": "lms_submission_targets",
+      "type": "table",
+      "sql": "CREATE TABLE lms_submission_targets(submission_id INTEGER PRIMARY KEY REFERENCES submissions(id) ON DELETE CASCADE,target_key TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_learner_email",
+      "type": "index",
+      "sql": "CREATE UNIQUE INDEX lms_learner_email ON lms_records(lower(json_extract(data,'$.email'))) WHERE kind='learners' AND json_extract(data,'$.email') <> ''"
+    },
+    {
+      "name": "lms_remote_snapshots",
+      "type": "table",
+      "sql": "CREATE TABLE lms_remote_snapshots (source_id TEXT PRIMARY KEY, received_at TEXT NOT NULL, payload TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_users",
+      "type": "table",
+      "sql": "CREATE TABLE lms_users (\n      id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL,\n      password_hash TEXT NOT NULL, discord_id TEXT NOT NULL UNIQUE, guild_id TEXT NOT NULL,\n      created_at INTEGER NOT NULL\n    , verified_at INTEGER, platform_role TEXT NOT NULL DEFAULT 'student' CHECK(platform_role IN ('admin','student')), must_change_password INTEGER NOT NULL DEFAULT 0, must_complete_profile INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+      "name": "lms_registrations",
+      "type": "table",
+      "sql": "CREATE TABLE lms_registrations (\n      ticket_hash TEXT PRIMARY KEY, code_hash TEXT NOT NULL UNIQUE, username TEXT NOT NULL,\n      name TEXT NOT NULL, password_hash TEXT NOT NULL, discord_id TEXT NOT NULL, guild_id TEXT NOT NULL,\n      created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, renewed_at INTEGER NOT NULL, verified_at INTEGER\n    , user_id TEXT, workspace_id TEXT)"
+    },
+    {
+      "name": "lms_auth_sessions",
+      "type": "table",
+      "sql": "CREATE TABLE lms_auth_sessions (\n      token_hash TEXT PRIMARY KEY, user_id TEXT REFERENCES lms_users(id), admin_version TEXT,\n      expires_at INTEGER NOT NULL\n    )"
+    },
+    {
+      "name": "lms_auth_limits",
+      "type": "table",
+      "sql": "CREATE TABLE lms_auth_limits (\n      key_hash TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL\n    )"
+    },
+    {
+      "name": "lms_sessions_expiry",
+      "type": "index",
+      "sql": "CREATE INDEX lms_sessions_expiry ON lms_auth_sessions(expires_at)"
+    },
+    {
+      "name": "lms_registration_expiry",
+      "type": "index",
+      "sql": "CREATE INDEX lms_registration_expiry ON lms_registrations(created_at)"
+    },
+    {
+      "name": "lms_account_audit",
+      "type": "table",
+      "sql": "CREATE TABLE lms_account_audit (\n      id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id TEXT NOT NULL, target_id TEXT NOT NULL,\n      username TEXT NOT NULL, action TEXT NOT NULL, created_at INTEGER NOT NULL\n    )"
+    },
+    {
+      "name": "lms_workspace_verifications",
+      "type": "table",
+      "sql": "CREATE TABLE lms_workspace_verifications (\n    workspace_id TEXT NOT NULL, user_id TEXT NOT NULL, guild_id TEXT NOT NULL,\n    discord_id TEXT NOT NULL, verified_at INTEGER NOT NULL,\n    PRIMARY KEY(workspace_id,user_id,guild_id)\n  )"
+    },
+    {
+      "name": "lms_discord_plans",
+      "type": "table",
+      "sql": "CREATE TABLE lms_discord_plans (\n      guild_id TEXT PRIMARY KEY, data TEXT NOT NULL CHECK(json_valid(data)), revision TEXT NOT NULL, updated_at INTEGER NOT NULL\n    )"
+    },
+    {
+      "name": "lms_discord_guilds",
+      "type": "table",
+      "sql": "CREATE TABLE lms_discord_guilds (\n      guild_id TEXT PRIMARY KEY, name TEXT NOT NULL, manage_channels INTEGER NOT NULL, seen_at INTEGER NOT NULL\n    , member_count INTEGER)"
+    },
+    {
+      "name": "lms_discord_jobs",
+      "type": "table",
+      "sql": "CREATE TABLE lms_discord_jobs (\n      id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, revision TEXT NOT NULL, plan TEXT NOT NULL CHECK(json_valid(plan)),\n      state TEXT NOT NULL CHECK(state IN ('queued','running','succeeded','failed')),\n      created_at INTEGER NOT NULL, completed_at INTEGER, lease_until INTEGER, claim_hash TEXT,\n      error_code TEXT, results TEXT NOT NULL DEFAULT '[]'\n    )"
+    },
+    {
+      "name": "lms_discord_active_job",
+      "type": "index",
+      "sql": "CREATE UNIQUE INDEX lms_discord_active_job ON lms_discord_jobs(guild_id) WHERE state IN ('queued','running')"
+    },
+    {
+      "name": "lms_discord_worker",
+      "type": "table",
+      "sql": "CREATE TABLE lms_discord_worker (id INTEGER PRIMARY KEY CHECK(id=1), bot_id TEXT NOT NULL, name TEXT NOT NULL, ready INTEGER NOT NULL, seen_at INTEGER NOT NULL)"
+    },
+    {
+      "name": "lms_workspaces",
+      "type": "table",
+      "sql": "CREATE TABLE lms_workspaces (\n      id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL,\n      source_id TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL\n    , archived_at INTEGER)"
+    },
+    {
+      "name": "lms_workspace_guilds",
+      "type": "table",
+      "sql": "CREATE TABLE lms_workspace_guilds (\n      guild_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES lms_workspaces(id)\n    )"
+    },
+    {
+      "name": "lms_workspace_members",
+      "type": "table",
+      "sql": "CREATE TABLE lms_workspace_members (\n      workspace_id TEXT NOT NULL REFERENCES lms_workspaces(id), user_id TEXT NOT NULL REFERENCES lms_users(id),\n      role TEXT NOT NULL CHECK(role IN ('admin','instructor','student')), joined_at INTEGER NOT NULL,\n      PRIMARY KEY(workspace_id,user_id)\n    )"
+    },
+    {
+      "name": "lms_workspace_invitations",
+      "type": "table",
+      "sql": "CREATE TABLE lms_workspace_invitations (\n      id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES lms_workspaces(id), token_hash TEXT NOT NULL UNIQUE,\n      username TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','instructor','student')),\n      created_by TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, accepted_at INTEGER, revoked_at INTEGER\n    )"
+    },
+    {
+      "name": "lms_workspace_migrations",
+      "type": "table",
+      "sql": "CREATE TABLE lms_workspace_migrations (name TEXT PRIMARY KEY)"
+    },
+    {
+      "name": "lms_mentor_scopes",
+      "type": "table",
+      "sql": "CREATE TABLE lms_mentor_scopes (workspace_id TEXT NOT NULL, subject_id TEXT NOT NULL, kind TEXT NOT NULL, team_ids TEXT NOT NULL, PRIMARY KEY(workspace_id,subject_id))"
+    },
+    {
+      "name": "lms_discord_templates",
+      "type": "table",
+      "sql": "CREATE TABLE lms_discord_templates (workspace_id TEXT PRIMARY KEY REFERENCES lms_workspaces(id), data TEXT NOT NULL CHECK(json_valid(data)), revision TEXT NOT NULL, updated_at INTEGER NOT NULL)"
+    },
+    {
+      "name": "lms_workspace_single_guild",
+      "type": "index",
+      "sql": "CREATE UNIQUE INDEX lms_workspace_single_guild ON lms_workspace_guilds(workspace_id)"
+    },
+    {
+      "name": "lms_admissions",
+      "type": "table",
+      "sql": "CREATE TABLE lms_admissions (\n    id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES lms_workspaces(id), user_id TEXT NOT NULL REFERENCES lms_users(id),\n    state TEXT NOT NULL CHECK(state IN ('pending','approved','rejected','joined')), created_at INTEGER NOT NULL,\n    reviewed_by TEXT, reviewed_at INTEGER, guild_id TEXT, reason TEXT NOT NULL DEFAULT '',\n    invite_state TEXT NOT NULL DEFAULT 'none', invite_code TEXT, invite_expires INTEGER, claim_hash TEXT, lease_until INTEGER, purpose TEXT NOT NULL DEFAULT 'student', team_id TEXT NOT NULL DEFAULT '',\n    UNIQUE(workspace_id,user_id)\n  )"
+    },
+    {
+      "name": "lms_onboarding_settings",
+      "type": "table",
+      "sql": "CREATE TABLE lms_onboarding_settings(guild_id TEXT PRIMARY KEY REFERENCES lms_workspace_guilds(guild_id), data TEXT NOT NULL, revision TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_onboarding_reports",
+      "type": "table",
+      "sql": "CREATE TABLE lms_onboarding_reports(guild_id TEXT PRIMARY KEY, revision TEXT NOT NULL, state TEXT NOT NULL, error TEXT NOT NULL, updated_at INTEGER NOT NULL)"
+    },
+    {
+      "name": "lms_onboarding_members",
+      "type": "table",
+      "sql": "CREATE TABLE lms_onboarding_members(guild_id TEXT NOT NULL, discord_id TEXT NOT NULL, intro_done INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, PRIMARY KEY(guild_id,discord_id))"
+    },
+    {
+      "name": "lms_member_sync",
+      "type": "table",
+      "sql": "CREATE TABLE lms_member_sync(guild_id TEXT NOT NULL,discord_id TEXT NOT NULL,revision TEXT NOT NULL,state TEXT NOT NULL,error TEXT NOT NULL,updated_at INTEGER NOT NULL,PRIMARY KEY(guild_id,discord_id))"
+    },
+    {
+      "name": "lms_member_retry",
+      "type": "table",
+      "sql": "CREATE TABLE lms_member_retry(guild_id TEXT NOT NULL,discord_id TEXT NOT NULL,PRIMARY KEY(guild_id,discord_id))"
+    },
+    {
+      "name": "lms_staff_profiles",
+      "type": "table",
+      "sql": "CREATE TABLE lms_staff_profiles (workspace_id TEXT NOT NULL, user_id TEXT NOT NULL, name TEXT NOT NULL, expertise TEXT NOT NULL, bio TEXT NOT NULL, steps TEXT NOT NULL DEFAULT '[]', updated_at INTEGER NOT NULL, PRIMARY KEY(workspace_id,user_id))"
+    },
+    {
+      "name": "lms_group_setup",
+      "type": "table",
+      "sql": "CREATE TABLE lms_group_setup (workspace_id TEXT PRIMARY KEY, course_id TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_staff_connections",
+      "type": "table",
+      "sql": "CREATE TABLE lms_staff_connections (workspace_id TEXT NOT NULL, user_id TEXT NOT NULL, discord_id TEXT NOT NULL, PRIMARY KEY(workspace_id,user_id))"
+    },
+    {
+      "name": "lms_runtime_state",
+      "type": "table",
+      "sql": "CREATE TABLE lms_runtime_state(guild_id TEXT NOT NULL,kind TEXT NOT NULL,record_key TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(guild_id,kind,record_key))"
+    },
+    {
+      "name": "lms_storage_state",
+      "type": "table",
+      "sql": "CREATE TABLE lms_storage_state(id INTEGER PRIMARY KEY CHECK(id=1),revision INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+      "name": "lms_storage_receipts",
+      "type": "table",
+      "sql": "CREATE TABLE lms_storage_receipts(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,result TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_storage_imports",
+      "type": "table",
+      "sql": "CREATE TABLE lms_storage_imports(checksum TEXT PRIMARY KEY,guild_id TEXT NOT NULL,archive TEXT NOT NULL,state TEXT NOT NULL,error TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT(datetime('now')))"
+    },
+    {
+      "name": "lms_bot_settings",
+      "type": "table",
+      "sql": "CREATE TABLE lms_bot_settings(guild_id TEXT PRIMARY KEY,data TEXT NOT NULL)"
+    }
+  ]
+}
