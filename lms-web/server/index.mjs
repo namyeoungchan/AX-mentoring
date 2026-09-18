@@ -337,6 +337,21 @@ app.use('/api/workspaces/:workspaceId', async (req, _res, next) => {
     next();
 });
 app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace));
+app.get('/api/workspaces/:workspaceId/videos', async (req, res) => res.json(await runtime.courseVideos.list(req.workspaceId, req.account)));
+app.post('/api/workspaces/:workspaceId/videos', async (req, res) => {
+    await auth.limit('video-upload', req.account.id, 20, 3600000);
+    res.status(201).json(await runtime.courseVideos.create(req.workspaceId, req.body, req.account));
+});
+app.post('/api/workspaces/:workspaceId/videos/:videoId/upload', async (req, res) => res.json(await runtime.courseVideos.upload(req.workspaceId, req.params.videoId, req.account)));
+app.post('/api/workspaces/:workspaceId/videos/:videoId/refresh', async (req, res) => {
+    await auth.limit('video-refresh', req.account.id, 120, 60000);
+    res.json(await runtime.courseVideos.refresh(req.workspaceId, req.params.videoId, req.account));
+});
+app.patch('/api/workspaces/:workspaceId/videos/:videoId', async (req, res) => {
+    await auth.limit('video-edit', req.account.id, 60, 60000);
+    res.json(await runtime.courseVideos.edit(req.workspaceId, req.params.videoId, req.body, req.account));
+});
+app.get('/api/workspaces/:workspaceId/videos/:videoId/playback', async (req, res) => res.json(await runtime.courseVideos.playback(req.workspaceId, req.params.videoId, req.account)));
 app.post('/api/workspaces/:workspaceId/me/verification', async (req, res) => {
     await workspaces.requireRole(req.workspaceId, req.account, ['admin', 'student']);
     if (req.workspace.guildIds.length !== 1)

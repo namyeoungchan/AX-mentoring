@@ -1,12 +1,18 @@
 import { asyncFilter } from './async-collections.mjs';
+// Video access needs enrollment only, without loading attendance, scores or assignments.
 // Callers must supply verification for this workspace, not the global account flag.
-export async function studentLearning(db, user, verified = false) {
+export async function studentEnrollment(db, user, verified = false) {
     if (!verified || !/^\d{17,20}$/.test(user.discordId || ''))
-        return { enrollment: null, courses: [], attendance: [], scores: [], assignments: [] };
-    const records = async (kind) => (await (db.prepare('SELECT data FROM lms_records WHERE kind=?')).all(kind)).map(row => JSON.parse(row.data));
-    const learner = (await records('learners')).find(row => row.discordId === user.discordId);
+        return { learner: null, course: null };
+    const row = await db.prepare("SELECT data FROM lms_records WHERE kind='learners' AND json_extract(data,'$.discordId')=? LIMIT 1").get(user.discordId);
+    const learner = row ? JSON.parse(row.data) : null;
     const enrolled = learner && ['정상', '수료'].includes(learner.status);
-    const course = enrolled ? (await records('courses')).find(row => row.id === learner.courseId) : null;
+    const courseRow = enrolled ? await db.prepare("SELECT data FROM lms_records WHERE kind='courses' AND id=?").get(learner.courseId) : null;
+    return { learner, course: courseRow ? JSON.parse(courseRow.data) : null };
+}
+export async function studentLearning(db, user, verified = false) {
+    const { learner, course } = await studentEnrollment(db, user, verified);
+    const records = async (kind) => (await (db.prepare('SELECT data FROM lms_records WHERE kind=?')).all(kind)).map(row => JSON.parse(row.data));
     const confirmed = async (row) => {
         const round = await (db.prepare('SELECT state FROM lms_attendance_rounds WHERE course_id=? AND date=? AND period=?')).get(row.courseId, row.date, row.period);
         return !round || round.state === '마감';
