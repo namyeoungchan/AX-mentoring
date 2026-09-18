@@ -985,3 +985,23 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .modal.video-player-modal { width:min(1000px, calc(100vw - 32px)); max-width:1000px; }
 .video-player { width:100%; aspect-ratio:16/9; border:0; background:#101714; }
 @media(max-width:640px) { .course-videos .card-heading { flex-wrap:wrap; gap:12px; } .video-card { padding:14px; } }
+
+/* A single web guide for Discord invitation and panel verification. */
+.discord-join-guide { padding:24px; }
+.discord-guide-heading { display:flex; gap:12px; align-items:flex-start; color:var(--forest, #244c3c); }
+.discord-guide-heading > svg { flex-shrink:0; margin-top:3px; }
+.discord-guide-heading h3 { margin:0 0 6px; font-size:18px; }
+.discord-join-guide p { color:#66746c; font-size:13px; line-height:1.75; margin:8px 0 14px; overflow-wrap:anywhere; }
+.discord-guide-steps { list-style:none; padding:0; margin:24px 0; display:grid; gap:24px; }
+.discord-guide-steps > li { display:grid; grid-template-columns:30px minmax(0,1fr); gap:14px; }
+.discord-step-number { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#eaf1eb; color:#244c3c; font-weight:700; }
+.discord-guide-steps h4 { margin:3px 0 8px; font-size:15px; }
+.discord-code-box { display:flex; flex-wrap:wrap; align-items:center; gap:12px; background:#f4f7f4; border:1px solid #dce6de; border-radius:10px; padding:14px; }
+.discord-code-box output { font-family:monospace; font-size:clamp(15px, 4.5vw, 22px); font-weight:700; letter-spacing:.02em; user-select:all; overflow-wrap:anywhere; }
+.discord-code-expiry { font-size:12px !important; }
+.discord-panel-example { padding:18px; display:flex; flex-direction:column; align-items:flex-start; gap:10px; border:1px solid #dce3e5; border-radius:12px; background:#f5f6fa; font-size:13px; }
+.discord-panel-caption { font-size:11px; color:#6a7282; }
+.discord-example-button { background:#31815a; color:white; border-radius:6px; padding:9px 14px; font-weight:600; }
+.discord-guide-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; padding-top:20px; border-top:1px solid #e5eae6; }
+.discord-guide-footer strong { font-size:14px; color:#244c3c; }.discord-guide-footer p { margin-bottom:0; }
+@media(max-width:640px) { .discord-join-guide { padding:18px 14px; }.discord-guide-steps > li { gap:10px; grid-template-columns:26px minmax(0,1fr); }.discord-step-number { width:26px;height:26px; }.discord-guide-footer > .button { width:100%; }.discord-guide-heading h3 { font-size:16px; } }
