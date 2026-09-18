@@ -189,13 +189,13 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             throw error;
         }
     }
-    async function createStudentAccount(body, actor, authorize, assign) {
+    async function createStudentAccount(body, actor, authorize, assign, { initialPassword = 'bdaxuser1!' } = {}) {
         const input = z.object({ username, name: z.string().trim().min(1).max(50).optional() }).strict().parse(body);
         await authorize();
         const actorBefore = await (db.prepare('SELECT password_hash,platform_role FROM lms_users WHERE id=?')).get(actor.id);
         if (!actorBefore && !(actor.id === 'admin' && await legacyEnabled()))
             throw new ApiError(403, '관리자 계정으로 로그인하세요.');
-        const id = randomUUID(), identity = `pending:${id}`, initialPassword = randomBytes(18).toString('base64url');
+        const id = randomUUID(), identity = `pending:${id}`;
         await available(input.username, identity);
         const passwordHash = await hashPassword(initialPassword);
         await db.exec('BEGIN IMMEDIATE');
@@ -510,6 +510,8 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             }
             if (await tableExists(db, 'lms_mentor_scopes'))
                 await (db.prepare('DELETE FROM lms_mentor_scopes WHERE subject_id=?')).run(row.id);
+            if (await tableExists(db, 'lms_runtime_state'))
+                await db.prepare("DELETE FROM lms_runtime_state WHERE kind='student-profile' AND record_key=?").run(row.id);
             if (await tableExists(db, 'lms_workspace_invitations'))
                 await (db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE accepted_at IS NULL AND revoked_at IS NULL AND (username=? OR created_by=?)')).run(now(), row.username, row.id);
             await (db.prepare('DELETE FROM lms_users WHERE id=?')).run(row.id);

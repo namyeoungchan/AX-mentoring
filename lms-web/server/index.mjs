@@ -337,6 +337,21 @@ app.use('/api/workspaces/:workspaceId', async (req, _res, next) => {
     next();
 });
 app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace));
+app.get('/api/workspaces/:workspaceId/videos', async (req, res) => res.json(await runtime.courseVideos.list(req.workspaceId, req.account)));
+app.post('/api/workspaces/:workspaceId/videos', async (req, res) => {
+    await auth.limit('video-upload', req.account.id, 20, 3600000);
+    res.status(201).json(await runtime.courseVideos.create(req.workspaceId, req.body, req.account));
+});
+app.post('/api/workspaces/:workspaceId/videos/:videoId/upload', async (req, res) => res.json(await runtime.courseVideos.upload(req.workspaceId, req.params.videoId, req.account)));
+app.post('/api/workspaces/:workspaceId/videos/:videoId/refresh', async (req, res) => {
+    await auth.limit('video-refresh', req.account.id, 120, 60000);
+    res.json(await runtime.courseVideos.refresh(req.workspaceId, req.params.videoId, req.account));
+});
+app.patch('/api/workspaces/:workspaceId/videos/:videoId', async (req, res) => {
+    await auth.limit('video-edit', req.account.id, 60, 60000);
+    res.json(await runtime.courseVideos.edit(req.workspaceId, req.params.videoId, req.body, req.account));
+});
+app.get('/api/workspaces/:workspaceId/videos/:videoId/playback', async (req, res) => res.json(await runtime.courseVideos.playback(req.workspaceId, req.params.videoId, req.account)));
 app.post('/api/workspaces/:workspaceId/me/verification', async (req, res) => {
     await workspaces.requireRole(req.workspaceId, req.account, ['admin', 'student']);
     if (req.workspace.guildIds.length !== 1)
@@ -380,7 +395,14 @@ app.post('/api/workspaces/:workspaceId/staff/verification', async (req, res) => 
 });
 app.use('/api/workspaces/:workspaceId', async (req, _res, next) => { await workspaces.requireRole(req.workspaceId, req.account, ['admin']); next(); });
 app.get('/api/workspaces/:workspaceId/student-accounts', async (req, res) => res.json(await admissions.studentAccounts(req.workspaceId, req.account)));
+app.post('/api/workspaces/:workspaceId/student-roster/preview', async (req, res) => res.json(await runtime.studentRoster.preview(req.workspaceId, req.body, req.account)));
+for (const action of ['groups', 'accounts']) app.post(`/api/workspaces/:workspaceId/student-roster/${action}`, async (req, res) => {
+    await auth.limit('student-roster-import', req.account.id, 20, 3600000);
+    res.json(await runtime.studentRoster.apply(req.workspaceId, req.body, req.account, action === 'accounts'));
+});
 app.patch('/api/workspaces/:workspaceId/student-accounts/:userId/team', async (req, res) => res.json(await admissions.changeStudentTeam(req.workspaceId, req.params.userId, req.body, req.account)));
+app.patch('/api/workspaces/:workspaceId/student-accounts/:userId', async (req, res) => res.json(await admissions.manageStudent(req.workspaceId, req.params.userId, req.body, req.account)));
+app.delete('/api/workspaces/:workspaceId/student-accounts/:userId', async (req, res) => res.json(await admissions.manageStudent(req.workspaceId, req.params.userId, req.body, req.account, true)));
 app.post('/api/workspaces/:workspaceId/student-accounts', maintenance.track(async (req, res) => {
     await auth.limit('student-account-issue', req.account.id, 100, 3600000);
     const { teamId, ...input } = req.body || {};

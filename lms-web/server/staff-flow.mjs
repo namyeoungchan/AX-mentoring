@@ -31,7 +31,8 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
     async function setupGroups(id, body, user) {
         await workspaces.requireRole(id, user, ['admin']);
         await active(id);
-        const input = z.object({ count: z.number().int().min(1).max(50), courseId: z.string().default(''), title: z.string().trim().min(1).max(100).default('기본 교육 과정'), revision: z.string() }).strict().parse(body);
+        const input = z.object({ count: z.number().int().min(1).max(50), names: z.array(z.string().trim().min(1).max(80)).min(1).max(50).optional(), courseId: z.string().default(''), title: z.string().trim().min(1).max(100).default('기본 교육 과정'), revision: z.string() }).strict().parse(body);
+        if (input.names && (new Set(input.names).size !== input.names.length || input.names.length !== input.count)) throw new ApiError(422, '조 이름은 중복 없이 조 수와 맞춰 입력하세요.');
         const data = await workspaces.snapshot(id), changes = [];
         if (data.revision !== input.revision)
             throw new ApiError(409, '운영 정보가 변경됐습니다. 새로고침하세요.');
@@ -45,12 +46,16 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
             changes.push({ kind: 'courses', value: { id: courseId, title: input.title, category: 'AX', description: '워크스페이스 초기 운영 과정', progress: 0, learners: 0, weeks: '미정', mentor: '', theme: 'green', status: '모집 중', code: 'AX-' + id.slice(0, 8), cohort: '1기', guildId: '', startDate: date, endDate: date } });
         }
         const teams = data.teams.filter(t => t.courseId === courseId);
-        if (teams.length > input.count)
+        if (!input.names && teams.length > input.count)
             throw new ApiError(409, '기존 조는 자동 삭제하지 않습니다. 현재 조 수 이상으로 설정하세요.');
         const selectedCourses = new Set([courseId, ...(await onboarding.read(id)).configs.flatMap(c => c.courseIds)]);
-        if (data.teams.filter(t => selectedCourses.has(t.courseId)).length + input.count - teams.length > 50)
+        const addedCount = input.names ? input.names.filter(name => !teams.some(t => t.name === name)).length : input.count - teams.length;
+        if (data.teams.filter(t => selectedCourses.has(t.courseId)).length + addedCount > 50)
             throw new ApiError(422, '연결된 과정의 전체 조 수는 최대 50개입니다.');
-        for (let number = 1; teams.length + changes.filter(c => c.kind === 'teams').length < input.count; number++) {
+        if (input.names) for (const name of input.names) {
+            if (!teams.some(t => t.name === name)) changes.push({ kind: 'teams', value: { id: randomUUID(), name, code: `ROSTER-${randomUUID().slice(0,8)}`, courseId, mentorId: '' } });
+        }
+        for (let number = 1; !input.names && teams.length + changes.filter(c => c.kind === 'teams').length < input.count; number++) {
             if (teams.some(t => t.code === `TEAM-${number}` || t.name === `${number}조`))
                 continue;
             changes.push({ kind: 'teams', value: { id: randomUUID(), name: `${number}조`, code: `TEAM-${number}`, courseId, mentorId: '' } });

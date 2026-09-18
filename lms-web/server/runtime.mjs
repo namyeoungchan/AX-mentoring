@@ -13,6 +13,8 @@ import { createAssignmentAlerts } from './assignment-alerts.mjs';
 import { createTeamOperations } from './team-operations.mjs';
 import { createAttendance } from './attendance.mjs';
 import { createAttendanceCodes } from './attendance-codes.mjs';
+import { createStudentRoster } from './student-roster.mjs';
+import { createCourseVideos } from './course-videos.mjs';
 // All database handles belong to one generation and are replaced together.
 export async function createRuntime(dbPath, env = process.env) {
     const store = await createStore(dbPath, { postgres: postgresConnection(env) });
@@ -27,13 +29,15 @@ export async function createRuntime(dbPath, env = process.env) {
         const admissions = await createAdmissions(store.db, workspaces, { token: env.LEARNINGOPS_PROVISION_TOKEN || '' });
         const onboarding = await createOnboarding(store.db, workspaces, provision);
         const staff = await createStaffFlow(store.db, workspaces, onboarding, admissions);
+        const studentRoster = createStudentRoster(store.db, workspaces, auth, admissions, staff);
+        const courseVideos = createCourseVideos(store.db, workspaces, env);
         const teamOperations = createTeamOperations(workspaces, onboarding);
         const botStorage = await createBotStorage(store.db, workspaces, onboarding, { env });
         const assignmentAlerts = createAssignmentAlerts(store.db, workspaces);
         const outbox = createOutbox(store.db, workspaces, { prepare: assignmentAlerts.prepare });
         const attendance = createAttendance(workspaces, { outbox });
         const attendanceCodes = createAttendanceCodes(store.db, workspaces, attendance, { enabled: auth.enabled });
-        return { store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, teamOperations, botStorage, assignmentAlerts, outbox, attendance, attendanceCodes,
+        return { store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, teamOperations, botStorage, assignmentAlerts, outbox, attendance, attendanceCodes,
             close() { botStorage.close(); workspaces.close(); store.db.close(); } };
     }
     catch (error) {
