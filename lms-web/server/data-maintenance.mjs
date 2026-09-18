@@ -125,6 +125,7 @@ export function decodeBackup(bytes) {
 
 function safeRestoreState(db) {
   const names = new Set(tables(db))
+  if (names.has('lms_attendance_codes')) db.exec('UPDATE lms_attendance_codes SET expires_at=0')
   if (names.has('lms_auth_sessions')) db.exec('DELETE FROM lms_auth_sessions; DELETE FROM lms_registrations; DELETE FROM lms_auth_limits')
   // Old dispatch claims must never become valid again after a restore.
   if (names.has('lms_outbox')) db.exec("UPDATE lms_outbox SET state='held',claim=NULL,lease_until=NULL,error='백업 복구로 자동 발송 중지' WHERE state IN ('pending','sending','reconcile','failed','uncertain')")

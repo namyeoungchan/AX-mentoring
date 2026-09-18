@@ -35,6 +35,7 @@ test('backup/reset/restore covers archived workspaces, credentials, sequences, W
   f.runtime.workspaces.setArchived(extra.id, true, f.login.user)
   const db = f.runtime.workspaces.open(extra.id).db
   db.prepare("INSERT INTO mentors(discord_id,name) VALUES('123456789012345679','보관 멘토')").run()
+  db.prepare("INSERT INTO lms_attendance_codes VALUES('code','hash','course','2026-09-18',1,'guild','actor','[]',0,9999999999999,NULL)").run()
   db.prepare("INSERT INTO lms_outbox(id,event_key,kind,source_id,payload,actor,created_at,state) VALUES('pending','pending','notice','n','{}','admin',0,'pending'),('sent','sent','notice','s','{}','admin',0,'sent'),('manual','manual','notice','m','{}','admin',0,'manual')").run()
   const bytes = await m.exclusive(() => m.backup())
   assert.equal(decodeBackup(bytes).databases.length, 3)
@@ -53,6 +54,7 @@ test('backup/reset/restore covers archived workspaces, credentials, sequences, W
   await m.exclusive(() => m.replace('restore', preview.token, fresh.user.id))
   const restored = f.runtime.workspaces.open(extra.id).db
   assert.equal(restored.prepare('SELECT name FROM mentors').get().name, '보관 멘토')
+  assert.equal(restored.prepare('SELECT expires_at FROM lms_attendance_codes').get().expires_at, 0)
   assert.equal(f.runtime.workspaces.metadata(extra.id).archivedAt !== null, true)
   assert.equal(f.runtime.auth.session(f.login.token), null)
   assert.equal(f.runtime.auth.session(fresh.token), null)

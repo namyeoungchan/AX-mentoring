@@ -17,10 +17,10 @@ const host = production ? '0.0.0.0' : '127.0.0.1'
 const allowedOrigins = configuredOrigins({ production, allowedOrigins: process.env.ALLOWED_ORIGINS, renderExternalUrl: process.env.RENDER_EXTERNAL_URL })
 const dbPath = resolve(root, process.env.BOT_DB_PATH || '../data/mentoring.db')
 recoverDataMaintenance(dbPath)
-let runtime, store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, teamOperations, botStorage, assignmentAlerts, outbox, attendance
+let runtime, store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, teamOperations, botStorage, assignmentAlerts, outbox, attendance, attendanceCodes
 function openRuntime() {
   runtime = createRuntime(dbPath)
-  ;({ store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, teamOperations, botStorage, assignmentAlerts, outbox, attendance } = runtime)
+  ;({ store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, teamOperations, botStorage, assignmentAlerts, outbox, attendance, attendanceCodes } = runtime)
 }
 openRuntime()
 const maintenance = createDataMaintenance({ dbPath, getRuntime: () => runtime, closeRuntime: () => runtime.close(), openRuntime })
@@ -125,6 +125,11 @@ app.post('/api/integrations/discord/:operation', (req, res) => {
   if (req.params.operation === 'preview') return res.json(auth.preview(req.body))
   if (req.params.operation === 'verify') { const result = auth.verify(req.body); admissions.activate(req.body.discordId, req.body.guildId); staff.syncDiscord(req.body.discordId, req.body.guildId); return res.json(result) }
   return res.status(404).json({ error: '지원하지 않는 인증 작업입니다.' })
+})
+app.post('/api/integrations/discord/attendance/checkin', (req, res) => {
+  if (!auth.botAuthorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' })
+  auth.limit('attendance-checkin', `${req.body?.guildId || ''}:${req.body?.discordId || ''}`, 5, 60000)
+  res.json(attendanceCodes.checkIn(req.body))
 })
 app.post('/api/auth/login', maintenance.track(async (req, res) => {
   auth.limit('member-ip', req.ip, 120, 15 * 60000)
@@ -263,6 +268,12 @@ app.get('/api/workspaces/:workspaceId/teaching', (req, res) => {
 })
 app.get('/api/workspaces/:workspaceId/attendance', (req, res) => res.json(attendance.view(req.workspaceId, req.query, req.account)))
 app.post('/api/workspaces/:workspaceId/attendance', (req, res) => res.json(attendance.save(req.workspaceId, req.body, req.account)))
+app.get('/api/workspaces/:workspaceId/attendance/code', (req, res) => res.json(attendanceCodes.status(req.workspaceId, req.query, req.account)))
+app.post('/api/workspaces/:workspaceId/attendance/code', (req, res) => {
+  auth.limit('attendance-code-issue', req.account.id, 30, 3600000)
+  res.json(attendanceCodes.issue(req.workspaceId, req.body, req.account))
+})
+app.post('/api/workspaces/:workspaceId/attendance/code/revoke', (req, res) => res.json(attendanceCodes.revoke(req.workspaceId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/attendance/discord', (req, res) => res.json(attendance.discord(req.workspaceId, req.query, req.account)))
 app.post('/api/workspaces/:workspaceId/attendance/discord', (req, res) => res.json(attendance.share(req.workspaceId, req.body, req.account)))
 app.get('/api/workspaces/:workspaceId/admissions', (req, res) => res.json(admissions.reviewList(req.workspaceId, req.account)))

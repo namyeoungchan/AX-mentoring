@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { workspaceRequest } from './api'
 import AttendanceDiscord from './AttendanceDiscord'
+import AttendanceCode from './AttendanceCode'
 import { CardHeading, Badge } from './components'
 import type { Workspace } from './data'
 import { exportAttendance, importAttendance } from '../shared/attendance-csv.mjs'
@@ -37,6 +38,17 @@ export default function Attendance({ data, refresh }: { data: Workspace; refresh
   }, [workspaceId, courseId, date, period, reload])
   const rows = roster?.rows.map(row => ({ ...row, ...draft[row.studentId] })) || []
   const dirty = Object.keys(draft).length > 0
+  const roundState = roster?.state
+  useEffect(() => {
+    if (roundState !== '진행 중' || dirty || busy) return
+    const controller = new AbortController(), version = generation.current
+    const timer = setInterval(() => {
+      workspaceRequest(workspaceId, `attendance?${new URLSearchParams({ courseId, date, period: String(period) })}`, { signal: controller.signal })
+        .then((value: Roster) => { if (!controller.signal.aborted && version === generation.current) setRoster(value) })
+        .catch(() => { /* Manual refresh remains available after transient polling failures. */ })
+    }, 5000)
+    return () => { controller.abort(); clearInterval(timer) }
+  }, [workspaceId, courseId, date, period, roundState, dirty, busy])
   const visible = rows.filter(row => (!search.trim() || row.name.toLowerCase().includes(search.trim().toLowerCase())) && (!team || (row.team || '미배정') === team) && (!status || row.status === status))
   const selectedRows = visible.filter(row => selected.includes(row.studentId))
   const pendingRows = visible.filter(row => row.status === '미처리' && row.enrollment === '정상')
@@ -112,6 +124,7 @@ export default function Attendance({ data, refresh }: { data: Workspace; refresh
         {roster.canManage && roster.state === '진행 중' && <button className="button secondary" disabled={busy || dirty || !!roster.counts['미처리'] || !rows.length} onClick={() => void save('close')}>회차 마감</button>}
         {!roster.canManage && roster.state === '진행 전' && <span>관리자 또는 메인 강사가 회차를 시작하면 입력할 수 있습니다.</span>}
       </div>
+      <AttendanceCode key={`${workspaceId}/${courseId}/${date}/${period}`} workspaceId={workspaceId} courseId={courseId} date={date} period={period} roundState={roster.state} disabled={busy || dirty} />
       <fieldset disabled={busy} className="attendance-controls attendance-filters">
         <label>수강생 검색<input type="search" value={search} placeholder="이름으로 검색" onChange={e => { setSearch(e.target.value); setSelected([]) }} /></label>
         <label>출결 조 필터<select value={team} onChange={e => { setTeam(e.target.value); setSelected([]) }}><option value="">전체 조</option>{[...new Set(rows.map(row => row.team || '미배정'))].sort((a, b) => a.localeCompare(b, 'ko', { numeric: true })).map(value => <option key={value}>{value}</option>)}</select></label>

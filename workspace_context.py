@@ -35,8 +35,8 @@ async def enter_interaction(interaction, bound_guild_id=None):
 
 class WorkspaceTree(app_commands.CommandTree):
     async def interaction_check(self, interaction):
-        # Identity proof has its own web authorization and must remain available during import.
-        if (interaction.data or {}).get('name') == 'lms인증':
+        # These commands authorize identity and workspace on the web API, independent of bot storage import.
+        if (interaction.data or {}).get('name') in ('lms인증', '출석'):
             return True
         return await enter_interaction(interaction)
 

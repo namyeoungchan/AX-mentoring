@@ -915,3 +915,41 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .data-backup-list { list-style: none; padding: 0; margin: 0; }
 .data-backup-list li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 0; border-top: 1px solid #dde4da; }
 .data-backup-list small { display: block; margin-top: 4px; }
+.attendance-code { margin: 18px 0; padding: 18px; border: 1px solid var(--border, #dce3de); border-radius: 14px; background: #f6faf7; }
+.attendance-code h3 { margin: 0 0 8px; }
+.attendance-code p, .attendance-code small { overflow-wrap: anywhere; }
+.attendance-code-controls, .attendance-code-display { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 14px 0; }
+.attendance-code-controls label { display: grid; gap: 6px; }
+.attendance-code-controls select { padding: 8px; border: 1px solid #ccd6ce; border-radius: 8px; background: white; }
+.attendance-code-display output { font-size: 32px; font-weight: 700; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
+.role-content { display: grid; gap: 20px; min-width: 0; }
+.role-content > * { min-width: 0; }
+.role-content .student-course, .role-content .student-empty { margin: 0; }
+.role-breadcrumb { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.role-breadcrumb > strong, .role-breadcrumb > .breadcrumb { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-workspace .page-heading h1:focus { outline: none; }
+.role-workspace .demo-indicator { flex-wrap: wrap; gap: 10px; }
+.role-workspace .profile { cursor: default; }
+.role-workspace .profile > span { min-width: 0; overflow-wrap: anywhere; }
+.role-workspace footer a { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.role-guide-link { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: #315c48; font-size: 12px; }
+.role-menu-close { display: none; }
+.role-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.role-shortcut { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 24px; text-align: left; color: #315c48; }
+.role-shortcut > strong { grid-column: 1; font-size: 17px; }
+.role-shortcut > span { grid-column: 1; color: #617268; }
+.role-shortcut > svg:last-child { grid-column: 2; grid-row: 2 / 4; }
+.role-shortcut:hover { border-color: #8fae99; background: #f6faf7; }
+.role-guidance ol { margin: 0; padding: 0 30px 16px 44px; display: grid; gap: 12px; line-height: 1.8; list-style: decimal; }
+.role-guidance > p { padding: 0 24px 24px; color: #617268; line-height: 1.8; }
+.role-workspace code { overflow-wrap: anywhere; }
+.skip-content { position: fixed; left: 16px; top: -60px; z-index: 200; padding: 12px 20px; background: white; border: 2px solid #315c48; border-radius: 8px; }
+.skip-content:focus { top: 12px; }
+@media (max-width: 760px) {
+  .role-menu-close { display: inline-flex; position: absolute; top: 20px; right: 12px; }
+  .role-shortcuts { grid-template-columns: 1fr; gap: 12px; }
+  .role-shortcut { padding: 20px; }
+  .role-workspace .header-tools { flex-shrink: 0; }
+  .role-workspace .nav-item { min-height: 44px; }
+  .role-workspace .topbar { gap: 12px; }
+}

@@ -2,25 +2,25 @@
   {
     "file": "admin-guide.pdf",
     "pages": 3,
-    "embeddedFonts": 140,
+    "embeddedFonts": 107,
     "links": 4,
-    "textCharacters": 2332,
+    "textCharacters": 2397,
     "a4": true
   },
   {
     "file": "mentor-guide.pdf",
     "pages": 3,
-    "embeddedFonts": 140,
+    "embeddedFonts": 113,
     "links": 4,
-    "textCharacters": 2290,
+    "textCharacters": 2436,
     "a4": true
   },
   {
     "file": "student-guide.pdf",
     "pages": 3,
-    "embeddedFonts": 134,
+    "embeddedFonts": 108,
     "links": 4,
-    "textCharacters": 2330,
+    "textCharacters": 2367,
     "a4": true
   }
 ]
