@@ -12,6 +12,9 @@ import { databaseContext, closePostgresConnections, identifier } from './postgre
 import { discard, importPostgres } from './postgres/backup.mjs'
 import { migrateBackup, verifyImportedData } from './postgres/migrate.mjs'
 import { schemas, exportPostgres } from './postgres/backup.mjs'
+import { createPythonStorageExecutor } from './python-storage-executor.mjs'
+import { createServer } from 'node:net'
+import { once } from 'node:events'
 
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
@@ -176,4 +179,12 @@ pgTest('PostgreSQL bot reads bypass a blocked writer and abandoned request trans
   await pendingWrite
   assert.equal((await db.prepare("SELECT name FROM mentors WHERE discord_id='523456789012345678'").get()).name,'committed')
   assert.equal(r.botStorage.diagnostics().workerStarts,2)
+})
+
+pgTest('a PostgreSQL connection outage is retryable for the bot bridge',async t=>{
+  const probe=createServer().listen(0,'127.0.0.1');await once(probe,'listening')
+  const port=probe.address().port;await new Promise(resolve=>probe.close(resolve))
+  const executor=createPythonStorageExecutor({python:process.env.PYTHON_EXECUTABLE||'python3',script:'server/storage_worker.py',env:{DATABASE_URL:`postgresql://test:test@127.0.0.1:${port}/test`}})
+  t.after(()=>executor.close())
+  await assert.rejects(executor.execute({schema:'outage_main',request:{operation:'get_mentors',args:[],requestId:randomUUID(),guildId:'123456789012345678'}},0),{status:503})
 })

@@ -173,6 +173,10 @@ async def respond(request, filename, schema=None):
             code = "storage_busy"
         if getattr(error, 'sqlstate', None) in {'55P03', '57014', '40001', '40P01'} or (getattr(error, 'sqlstate', None) or '').startswith('08'):
             code = "storage_busy"
+        if schema:
+            import psycopg
+            if isinstance(error, (psycopg.OperationalError, psycopg.InterfaceError)):
+                code = "storage_busy"
         return {"ok": False, "error": code, "type": type(error).__name__}
 
 
