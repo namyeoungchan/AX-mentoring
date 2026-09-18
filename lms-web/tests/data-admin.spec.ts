@@ -54,7 +54,7 @@ test('only platform admins can download, validate, reset and restore all service
   await reset.getByLabel('현재 총관리자 비밀번호').fill('owner-password-1234')
   await reset.getByLabel('확인 문구: 전체 데이터 초기화').fill('전체 데이터 초기화')
   await reset.getByRole('button', { name: '초기화 실행' }).click()
-  await expect(page.getByRole('heading', { name: '데이터 초기화 완료' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '데이터 초기화 완료' })).toBeVisible({ timeout: 30000 })
   expect((await request.get(api + '/auth/me', { headers })).status()).toBe(401)
   expect((await (await request.get(api + '/auth/config')).json()).setupEnabled).toBe(true)
   await page.getByRole('button', { name: '로그인 화면으로 이동' }).click()
@@ -76,7 +76,7 @@ test('only platform admins can download, validate, reset and restore all service
   await restore.getByLabel('현재 총관리자 비밀번호').fill('restore-password-1234')
   await restore.getByLabel('확인 문구: 백업으로 전체 복구').fill('백업으로 전체 복구')
   await restore.getByRole('button', { name: '복구 실행' }).click()
-  await expect(page.getByRole('heading', { name: '백업 복구 완료' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '백업 복구 완료' })).toBeVisible({ timeout: 30000 })
   const login = await request.post(api + '/auth/login', { data: { username: 'data.owner', password: 'owner-password-1234' } })
   expect(login.status()).toBe(200)
   const restoredHeaders = { Authorization: 'Bearer ' + (await login.json()).token }

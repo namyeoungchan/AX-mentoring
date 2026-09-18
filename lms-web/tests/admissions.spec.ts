@@ -124,6 +124,7 @@ test('workspace administrator invites an instructor; student signs up, instructo
     await gradeDialog.getByRole('button', { name: '저장', exact: true }).click()
     await expect(gradeDialog).not.toBeVisible()
     await student.getByRole('button', { name: '새로고침', exact: true }).click()
+    await student.getByRole('navigation').getByRole('button', { name: '나의 성적', exact: true }).click()
     await expect(student.getByRole('cell', { name: '승인 과정 평가' })).toBeVisible()
     await expect(student.getByRole('cell', { name: '85', exact: true })).toBeVisible()
     for (const target of [teacher, student]) {

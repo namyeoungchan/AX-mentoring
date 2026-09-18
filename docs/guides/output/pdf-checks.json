@@ -12,15 +12,15 @@
     "pages": 3,
     "embeddedFonts": 113,
     "links": 4,
-    "textCharacters": 2422,
+    "textCharacters": 2436,
     "a4": true
   },
   {
     "file": "student-guide.pdf",
     "pages": 3,
-    "embeddedFonts": 107,
+    "embeddedFonts": 108,
     "links": 4,
-    "textCharacters": 2354,
+    "textCharacters": 2367,
     "a4": true
   }
 ]
