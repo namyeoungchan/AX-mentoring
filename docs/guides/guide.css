@@ -12,6 +12,7 @@ header{display:flex;align-items:center;justify-content:space-between;border-bott
 .page-title{padding:25px 0 22px}.eyebrow{font-size:10px;letter-spacing:1.6px;font-weight:800;color:var(--accent)}
 h1{font-size:39px;line-height:1.2;letter-spacing:-1.8px;margin:10px 0 12px;font-weight:800}.page-title>p{color:#53665b;font-size:14px;line-height:1.65}
 .content{display:flex;flex-direction:column;gap:16px}
+.student:last-child .content{gap:13px}
 .section-heading{display:flex;gap:12px;align-items:baseline;margin-top:1px}.section-heading>span{font-size:9px;letter-spacing:1.2px;font-weight:800;color:var(--accent)}
 h2{font-size:19px;letter-spacing:-.5px}h3{font-size:16px;line-height:1.4;letter-spacing:-.4px}
 .access{display:flex;align-items:center;gap:21px;padding:13px 20px;border:1px solid var(--line);background:var(--pale);border-radius:14px}

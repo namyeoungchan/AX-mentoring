@@ -63,7 +63,8 @@ test('staff joins LMS first, completes mentor onboarding and keeps workspace rol
   }
   await page.reload()
   await expect(page.getByRole('heading', { name: '멘토 활동 관리', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '수업 현황', exact: true })).toHaveClass('selected')
+  await page.getByRole('button', { name: '메뉴 열기', exact: true }).click()
+  await expect(page.getByRole('button', { name: '수업 현황', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: '멘토 온보딩', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '멘토 온보딩', exact: true }).click()
   await expect(page.getByText('멘토 온보딩을 완료했습니다. 담당 조에서 활동을 시작하세요.')).toBeVisible()

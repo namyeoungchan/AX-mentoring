@@ -6,7 +6,7 @@ import AccountAdministration from './AccountAdministration'
 import DataAdministration from './DataAdministration'
 import OnboardingSetup from './OnboardingSetup'
 import BotData from './BotData'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Activity, ArrowDownToLine, ArrowRight, ArrowUpRight, Bell, BookOpen, Bot, CalendarDays, Check, CheckCheck, ChevronRight, ClipboardList, Command, ExternalLink, GraduationCap, LayoutDashboard, Menu, MoreHorizontal, Plus, Search, Settings2, Sparkles, Users, X } from 'lucide-react'
 import { Avatar, Badge, ModalShell } from './components'
 import { type Course, type Workspace } from './data'
@@ -16,14 +16,16 @@ import Management from './Management'
 import Operations from './Operations'
 import { demoMode, useWorkspace } from './useWorkspace'
 import AuthScreen from './AuthScreen'
-import StudentHome from './StudentHome'
 import DiscordSetup from './DiscordSetup'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import WorkspaceMembers from './WorkspaceMembers'
 import WorkspaceStart from './WorkspaceStart'
-import InstructorHome from './InstructorHome'
 import InvitationPage from './InvitationPage'
 import { AdmissionsReview } from './Admissions'
+
+const StudentHome = lazy(() => import('./StudentHome'))
+const InstructorHome = lazy(() => import('./InstructorHome'))
+const roleLoading = <div className="connection-screen" role="status"><Command size={32} /><p>학습 화면 불러오는 중…</p></div>
 
 const navigation = [
   { id: 'dashboard', name: '대시보드', icon: LayoutDashboard }, { id: 'courses', name: '학습 과정', icon: BookOpen },
@@ -67,8 +69,8 @@ export default function App() {
     {account?.role === 'admin' && account.id !== 'admin' && <><AccountAdministration currentId={account.id} logout={logout} /><DataAdministration /></>}
     <section className="panel student-empty"><h1>운영 중인 워크스페이스가 없습니다.</h1><p>워크스페이스 선택 메뉴의 보관함에서 기존 워크스페이스를 열 수 있습니다.</p></section>
   </main></div>
-  if (workspace.activeRole === 'instructor') return <InstructorHome key={activeId} workspace={workspace} />
-  if (account && workspace.activeRole !== 'admin') return <StudentHome user={account} learning={learning} error={error} refresh={refresh} logout={logout} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={workspace.saving} />
+  if (workspace.activeRole === 'instructor') return <Suspense fallback={roleLoading}><InstructorHome key={activeId} workspace={workspace} /></Suspense>
+  if (account && workspace.activeRole !== 'admin') return <Suspense fallback={roleLoading}><StudentHome key={activeId || account.id} user={account} learning={learning} error={error} refresh={refresh} logout={logout} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={workspace.saving} /></Suspense>
   return <AdminWorkspace key={activeId} workspace={workspace} />
 }
 function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
