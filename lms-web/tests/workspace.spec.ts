@@ -101,5 +101,7 @@ test('unconnected server actions are disabled and notices stay drafts', async ({
   await page.getByRole('dialog').getByLabel('제목').fill('운영 공지')
   await page.getByRole('dialog').getByLabel('내용').fill('발송되지 않는 초안')
   await page.getByRole('dialog').getByRole('button', { name: '저장', exact: true }).click()
-  await expect(page.getByRole('cell', { name: '운영 공지', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+  const notices = page.locator('.panel').filter({ has: page.getByRole('heading', { name: '공지 목록', exact: true }) })
+  await expect(notices.getByRole('cell', { name: '운영 공지', exact: true })).toBeVisible()
 })

@@ -15,10 +15,15 @@ import { schemas, exportPostgres } from './postgres/backup.mjs'
 import { createPythonStorageExecutor } from './python-storage-executor.mjs'
 import { createServer } from 'node:net'
 import { once } from 'node:events'
+import { rosterScenario } from './roster-scenarios.mjs'
 
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL roster import and student profile lifecycle', async t => {
+  const f = await fixture(t)
+  await rosterScenario(f.runtime, f.login.user)
+})
 async function fixture(t) {
   const dir=mkdtempSync(join(tmpdir(),'ax-pg-')),dbPath=join(dir,'unused.db')
   const env={NODE_ENV:'test',ADMIN_PASSWORD:'postgres-test-bootstrap-key',DATABASE_URL:url,PG_NAMESPACE:'t'+randomUUID().replaceAll('-','').slice(0,12)}

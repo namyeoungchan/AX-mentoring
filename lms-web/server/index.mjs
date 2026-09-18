@@ -380,7 +380,14 @@ app.post('/api/workspaces/:workspaceId/staff/verification', async (req, res) => 
 });
 app.use('/api/workspaces/:workspaceId', async (req, _res, next) => { await workspaces.requireRole(req.workspaceId, req.account, ['admin']); next(); });
 app.get('/api/workspaces/:workspaceId/student-accounts', async (req, res) => res.json(await admissions.studentAccounts(req.workspaceId, req.account)));
+app.post('/api/workspaces/:workspaceId/student-roster/preview', async (req, res) => res.json(await runtime.studentRoster.preview(req.workspaceId, req.body, req.account)));
+for (const action of ['groups', 'accounts']) app.post(`/api/workspaces/:workspaceId/student-roster/${action}`, async (req, res) => {
+    await auth.limit('student-roster-import', req.account.id, 20, 3600000);
+    res.json(await runtime.studentRoster.apply(req.workspaceId, req.body, req.account, action === 'accounts'));
+});
 app.patch('/api/workspaces/:workspaceId/student-accounts/:userId/team', async (req, res) => res.json(await admissions.changeStudentTeam(req.workspaceId, req.params.userId, req.body, req.account)));
+app.patch('/api/workspaces/:workspaceId/student-accounts/:userId', async (req, res) => res.json(await admissions.manageStudent(req.workspaceId, req.params.userId, req.body, req.account)));
+app.delete('/api/workspaces/:workspaceId/student-accounts/:userId', async (req, res) => res.json(await admissions.manageStudent(req.workspaceId, req.params.userId, req.body, req.account, true)));
 app.post('/api/workspaces/:workspaceId/student-accounts', maintenance.track(async (req, res) => {
     await auth.limit('student-account-issue', req.account.id, 100, 3600000);
     const { teamId, ...input } = req.body || {};

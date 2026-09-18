@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { demoMode, workspaceRequest } from './api'
 import { CardHeading } from './components'
+import StudentRosterImport from './StudentRosterImport'
 
 type State = { courses: { id: string; title: string }[]; teams: { id: string; courseId: string; name: string }[]; courseId: string; revision: string }
 export default function GroupSetup({ workspaceId, onSaved }: { workspaceId: string; onSaved?: () => void }) {
@@ -25,5 +26,6 @@ export default function GroupSetup({ workspaceId, onSaved }: { workspaceId: stri
     <form className="modal-form" onSubmit={save}><fieldset disabled={busy || !state || demoMode}><div className="form-row"><label>운영 과정<select value={course} onChange={e => setCourse(e.target.value)}><option value="">새 기본 과정 만들기</option>{state?.courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label>{!course && <label>과정 이름<input name="title" required maxLength={100} defaultValue="기본 교육 과정" /></label>}<label>운영할 조 수<input key={course} name="count" type="number" min={Math.max(1, state?.teams.filter(t => t.courseId === course).length || 1)} max={50} required defaultValue={Math.max(1, state?.teams.filter(t => t.courseId === course).length || 1)} /></label></div><button className="button primary">조 구성 저장</button></fieldset></form>
     <p className="discord-hint">최대 50개 조 · 기존 조는 유지됩니다. 새 과정의 기간은 과정 관리에서 수정하세요. 조 구성을 저장하면 해당 과정의 Discord 팀 연동을 켭니다.</p>
     {notice && <p role="status" className="inline-note">{notice}</p>}{error && <p role="alert" className="inline-note error-note">{error}</p>}
+    <StudentRosterImport workspaceId={workspaceId} mode="groups" onSaved={async () => { const next = await workspaceRequest(workspaceId, 'discord/groups'); setState(next); setCourse(next.courseId); onSaved?.() }} />
   </section>
 }

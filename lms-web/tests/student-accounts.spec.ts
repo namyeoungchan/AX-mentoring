@@ -30,7 +30,7 @@ test('production workspace owner issues a student who must set profile and passw
   const dialog = page.getByRole('dialog', { name: '학생 계정 발급 완료' })
   const credentials = await dialog.getByLabel('학생에게 전달할 계정 정보').inputValue()
   const initialPassword = credentials.split('\n').find(line => line.startsWith('초기 비밀번호: '))!.replace('초기 비밀번호: ', '')
-  expect(initialPassword.length).toBe(24)
+  expect(initialPassword).toBe('bdaxuser1!')
   await dialog.getByRole('button', { name: '전달 정보 확인 완료' }).click()
   await expect(page.getByRole('row').filter({ hasText: 'issued.student' })).toContainText('첫 로그인 설정 대기')
   await expect(page.getByRole('button', { name: '워크스페이스 만들기', exact: true })).toHaveCount(0)
