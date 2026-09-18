@@ -51,8 +51,48 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
   }
   function studentAccounts(id, actor) {
     workspaces.requireRole(id, actor, ['admin'])
-    return { teams: availableTeams(id, actor), guildIds: workspaces.metadata(id).guildIds, archived: workspaces.metadata(id).archivedAt !== null,
-      accounts: db.prepare("SELECT u.id,u.username,u.name,u.must_complete_profile AS setupPending,u.must_change_password AS passwordPending,a.team_id AS teamId,a.state FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.purpose='student' ORDER BY a.created_at DESC").all(id) }
+    const data = workspaces.snapshot(id)
+    return { revision: data.revision, teams: availableTeams(id, actor), guildIds: workspaces.metadata(id).guildIds, archived: workspaces.metadata(id).archivedAt !== null,
+      accounts: db.prepare("SELECT u.id,u.username,u.name,u.must_complete_profile AS setupPending,u.must_change_password AS passwordPending,a.id AS applicationId,a.team_id AS teamId,a.state FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.purpose='student' ORDER BY a.created_at DESC").all(id).map(({ applicationId, ...account }) => {
+        const row = { id: applicationId, user_id: account.id, team_id: account.teamId }
+        const learner = assignedLearner(row, data), team = assignedTeam(row, data)
+        return { ...account, teamId: team?.id || '', courseId: learner?.courseId || team?.courseId || '' }
+      }) }
+  }
+  // Once a roster record exists it owns the assignment. This also reflects moves
+  // made through learner editing or bulk team operations, without a second DB write.
+  function assignedLearner(row, data) {
+    const account = db.prepare('SELECT discord_id,verified_at FROM lms_users WHERE id=?').get(row.user_id)
+    return data.learners.find(l => l.id === `admission-${row.id}`) ||
+      (account?.discord_id && account.verified_at !== null ? data.learners.find(l => l.discordId === account.discord_id) : undefined)
+  }
+  function assignedTeam(row, data) {
+    const learner = assignedLearner(row, data)
+    return learner ? data.teams.find(t => t.courseId === learner.courseId && t.name === learner.team) : data.teams.find(t => t.id === row.team_id)
+  }
+  function changeStudentTeam(id, userId, body, actor) {
+    workspaces.requireRole(id, actor, ['admin'])
+    const input = z.object({ teamId: z.string().min(1), expectedTeamId: z.string(), revision: z.string().min(1) }).strict().parse(body)
+    if (workspaces.metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스에서는 조를 변경할 수 없습니다.')
+    const row = db.prepare("SELECT * FROM lms_admissions WHERE workspace_id=? AND user_id=? AND purpose='student'").get(id, userId)
+    if (!row) throw new ApiError(404, '이 워크스페이스의 학생 계정을 찾을 수 없습니다.')
+    if (!['approved', 'joined'].includes(row.state)) throw new ApiError(409, '승인된 학생 계정만 조를 변경할 수 있습니다.')
+    const data = workspaces.snapshot(id), learner = assignedLearner(row, data), before = assignedTeam(row, data)
+    if (data.revision !== input.revision || (before?.id || '') !== input.expectedTeamId) throw new ApiError(409, '배정 정보가 변경됐습니다. 계정 상태를 새로고침한 뒤 다시 선택하세요.')
+    const team = data.teams.find(t => t.id === input.teamId), courseId = learner?.courseId || before?.courseId
+    if (!team || courseId && team.courseId !== courseId) throw new ApiError(422, '현재 과정에 속한 조를 선택하세요.')
+    if (before?.id === team.id) return studentAccounts(id, actor)
+    if (learner) {
+      workspaces.mutate(id, { revision: input.revision, changes: [{ kind: 'learners', value: { ...learner, team: team.name } }] }, actor.username || actor.id)
+    } else {
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        db.prepare('UPDATE lms_admissions SET team_id=?,reviewed_by=?,reviewed_at=? WHERE id=?').run(team.id, actor.id, now(), row.id)
+        db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(actor.username || actor.id, 'student.team-change', `${id}/${userId}`, JSON.stringify({ teamId: before?.id || '' }), JSON.stringify({ teamId: team.id }))
+        db.exec('COMMIT')
+      } catch (error) { db.exec('ROLLBACK'); throw error }
+    }
+    return studentAccounts(id, actor)
   }
   function apply(id, user) {
     if (workspaces.metadata(id).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스에는 새 가입을 신청할 수 없습니다.')
@@ -80,7 +120,8 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
   }
   function reviewList(id, user) {
     workspaces.requireRole(id, user, ['admin', 'instructor'])
-    return { guildIds: workspaces.metadata(id).guildIds, teams: availableTeams(id, user), applications: db.prepare("SELECT a.id,u.name,u.username,a.state,a.created_at AS createdAt,a.reason,a.invite_state AS inviteState,a.guild_id AS guildId,a.team_id AS teamId FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.purpose='student' ORDER BY a.created_at DESC").all(id) }
+    const data = workspaces.snapshot(id)
+    return { guildIds: workspaces.metadata(id).guildIds, teams: availableTeams(id, user), applications: db.prepare("SELECT a.id,a.user_id,u.name,u.username,a.state,a.created_at AS createdAt,a.reason,a.invite_state AS inviteState,a.guild_id AS guildId,a.team_id AS teamId FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.purpose='student' ORDER BY a.created_at DESC").all(id).map(({ user_id, ...row }) => ({ ...row, teamId: assignedTeam({ ...row, user_id, team_id: row.teamId }, data)?.id || '' })) }
   }
   function review(id, applicationId, body, user) {
     workspaces.requireRole(id, user, ['admin', 'instructor'])
@@ -144,7 +185,7 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     // idempotent if a later registry write fails; no role is granted prematurely.
     for (const row of approvedRows.filter(a => a.purpose === 'student')) {
       const data = workspaces.snapshot(row.workspace_id)
-      const team = data.teams.find(t => t.id === row.team_id)
+      const team = assignedTeam(row, data)
       if (!team) throw new ApiError(422, '승인된 팀이 없습니다. 운영자에게 팀 배정을 요청하세요.')
       syncLearner(row, team, user, true)
     }
@@ -183,5 +224,5 @@ export function createAdmissions(db, workspaces, { token = '', now = Date.now } 
     db.prepare('UPDATE lms_admissions SET invite_state=?,invite_code=?,invite_expires=?,claim_hash=NULL,lease_until=NULL WHERE id=?').run(input.success ? 'ready' : 'failed', input.success ? input.code : null, input.success ? now() + 23 * 3600000 : null, input.id)
     return { ok: true }
   }
-  return { catalogue, validateStudentIssue, assignStudent, studentAccounts, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete }
+  return { catalogue, validateStudentIssue, assignStudent, studentAccounts, changeStudentTeam, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete }
 }

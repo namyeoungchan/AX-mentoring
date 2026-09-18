@@ -21,6 +21,7 @@ async function fixture(t) {
   workspaces.mutate('asan-ax', { revision: workspaces.snapshot('asan-ax').revision, changes: [
     { kind: 'courses', value: { id: 'c1', title: '실습 과정', category: 'AX', description: '', progress: 0, learners: 0, weeks: '4주', mentor: '', theme: 'green', status: '진행 중', code: 'C1', cohort: '1', guildId, startDate: '2026-09-01', endDate: '2026-12-01' } },
     { kind: 'teams', value: { id: 't1', name: '1조', courseId: 'c1', code: 'T1', mentorId: '' } },
+    { kind: 'teams', value: { id: 't2', name: '2조', courseId: 'c1', code: 'T2', mentorId: '' } },
   ] }, 'test')
   const issue = (username, actor = owner, team = 't1', assign) => auth.createStudentAccount({ username }, actor,
     () => admissions.validateStudentIssue('asan-ax', team, actor),
@@ -81,4 +82,55 @@ test('first setup concurrent saves cannot overwrite credentials; permission loss
   f.store.db.prepare("DELETE FROM lms_workspace_members WHERE workspace_id='asan-ax' AND user_id=?").run(f.owner.id)
   await assert.rejects(pending, { status: 403 })
   assert.equal(f.store.db.prepare("SELECT id FROM lms_users WHERE username='revoked.student'").get(), undefined)
+})
+
+test('student team changes before and after Discord verification preserve records and follow roster moves', async t => {
+  const f = await fixture(t), issued = await f.issue('moving.student')
+  const first = await f.auth.login({ username: issued.username, password: issued.initialPassword })
+  const view = () => f.admissions.studentAccounts('asan-ax', f.owner)
+  const move = teamId => f.admissions.changeStudentTeam('asan-ax', first.user.id, { teamId, expectedTeamId: view().accounts[0].teamId, revision: view().revision }, f.owner)
+  assert.equal(move('t2').accounts[0].teamId, 't2')
+  assert.equal(f.workspaces.snapshot('asan-ax').learners.length, 0)
+  const setup = await f.auth.completeFirstLogin(first.user, { name: '이동 학생', currentPassword: issued.initialPassword, newPassword: 'changed-password-1234' })
+  const code = f.auth.issueVerification(setup.user, guildId).code
+  f.auth.verify({ code, guildId, discordId: '323456789012345678' }); f.admissions.activate('323456789012345678', guildId)
+  let data = f.workspaces.snapshot('asan-ax'), learner = data.learners[0]
+  assert.equal(learner.team, '2조')
+  f.workspaces.mutate('asan-ax', { revision: data.revision, changes: [{ kind: 'scores', value: { id: 'score', courseId: 'c1', studentId: learner.id, item: '기존 평가', score: 80, maximum: 100 } }] }, 'test')
+  const scores = f.workspaces.snapshot('asan-ax').scores
+  assert.equal(move('t1').accounts[0].teamId, 't1')
+  data = f.workspaces.snapshot('asan-ax')
+  assert.deepEqual(data.scores, scores); assert.equal(data.learners[0].id, learner.id); assert.equal(data.learners[0].status, '정상')
+  // Existing bulk/learner editors must be reflected in the account screen too.
+  f.workspaces.mutate('asan-ax', { revision: data.revision, changes: [{ kind: 'learners', value: { ...data.learners[0], team: '2조' } }] }, 'bulk-test')
+  assert.equal(view().accounts[0].teamId, 't2')
+  // A pending admission with a roster must not revert to its original team on activation.
+  f.store.db.prepare("UPDATE lms_admissions SET state='approved',team_id='t1' WHERE user_id=?").run(first.user.id)
+  f.admissions.activate('323456789012345678', guildId)
+  assert.equal(f.workspaces.snapshot('asan-ax').learners[0].team, '2조')
+})
+
+test('team changes reject stale assignments, other courses, non-admin actors and archived workspaces', async t => {
+  const f = await fixture(t), issued = await f.issue('guarded.student')
+  const { user } = await f.auth.login({ username: issued.username, password: issued.initialPassword })
+  let data = f.workspaces.snapshot('asan-ax')
+  f.workspaces.mutate('asan-ax', { revision: data.revision, changes: [
+    { kind: 'courses', value: { ...data.courses[0], id: 'c2', code: 'C2' } },
+    { kind: 'teams', value: { id: 'foreign', name: '다른 과정 조', code: 'F', courseId: 'c2', mentorId: '' } },
+  ] }, 'test')
+  data = f.admissions.studentAccounts('asan-ax', f.owner)
+  const body = { revision: data.revision, expectedTeamId: 't1', teamId: 't2' }
+  const change = (input = body, actor = f.owner, id = user.id) => f.admissions.changeStudentTeam('asan-ax', id, input, actor)
+  assert.throws(() => change(body, user), { status: 403 })
+  f.store.db.prepare("UPDATE lms_workspace_members SET role='instructor' WHERE workspace_id='asan-ax' AND user_id=?").run(user.id)
+  assert.throws(() => change(body, user), { status: 403 })
+  assert.throws(() => change(body, f.owner, f.owner.id), { status: 404 })
+  assert.throws(() => change({ ...body, teamId: 'foreign' }), { status: 422 })
+  assert.throws(() => change({ ...body, teamId: 'missing' }), { status: 422 })
+  assert.throws(() => change({ ...body, revision: 'stale' }), { status: 409 })
+  change()
+  assert.throws(() => change(), { status: 409 })
+  f.store.db.prepare("UPDATE lms_workspaces SET archived_at=1 WHERE id='asan-ax'").run()
+  assert.throws(() => change({ ...body, expectedTeamId: 't2', teamId: 't1' }), { status: 409 })
+  assert.equal(f.admissions.studentAccounts('asan-ax', f.owner).accounts[0].teamId, 't2')
 })
