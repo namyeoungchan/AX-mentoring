@@ -11,7 +11,7 @@ export function workspaceRequest(workspaceId: string, path: string, init: Reques
   return apiRequest(`workspaces/${encodeURIComponent(workspaceId)}/${path}`, init)
 }
 
-export async function apiRequest(path: string, init: RequestInit = {}) {
+async function apiResponse(path: string, init: RequestInit = {}) {
   if (serviceUnavailable) throw new Error('로그인 서비스가 아직 연결되지 않았습니다. 연결 후 이용할 수 있습니다.')
   let external = false
   if (apiBaseUrl) {
@@ -24,7 +24,17 @@ export async function apiRequest(path: string, init: RequestInit = {}) {
   if (init.body) headers.set('Content-Type', 'application/json')
   if (external && sessionToken) headers.set('Authorization', `Bearer ${sessionToken}`)
   const response = await fetch(`${apiBaseUrl}/api/${path}`, { ...init, signal: init.signal || AbortSignal.timeout(15000), headers, credentials: external ? 'omit' : 'same-origin' })
-  const body = await response.json().catch(() => ({ error: 'API에 연결하지 못했습니다. API 서버 주소와 실행 상태를 확인하세요.' }))
-  if (!response.ok) throw Object.assign(new Error(body.error || '요청에 실패했습니다.'), { status: response.status })
-  return body
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ error: 'API에 연결하지 못했습니다. API 서버 주소와 실행 상태를 확인하세요.' }))
+    throw Object.assign(new Error(body.error || '요청에 실패했습니다.'), { status: response.status })
+  }
+  return response
+}
+
+export async function apiRequest(path: string, init: RequestInit = {}) {
+  return (await apiResponse(path, init)).json()
+}
+
+export async function apiDownload(path: string) {
+  return (await apiResponse(path, { signal: AbortSignal.timeout(120000) })).blob()
 }

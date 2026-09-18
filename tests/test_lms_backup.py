@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from scripts.lms_backup import backup, restore, verify
@@ -9,7 +10,7 @@ from scripts.lms_backup import backup, restore, verify
 class BackupTests(unittest.TestCase):
     def test_legacy_foreign_key_errors_require_explicit_mode_and_are_preserved(self):
         root = self.fixture()
-        with sqlite3.connect(root / 'main.db') as db:
+        with closing(sqlite3.connect(root / 'main.db')) as db, db:
             db.executescript('CREATE TABLE parent(id INTEGER PRIMARY KEY); CREATE TABLE child(parent_id REFERENCES parent(id)); INSERT INTO child VALUES(42);')
         with self.assertRaises(ValueError):
             backup(root / 'main.db', root / 'strict')
@@ -22,7 +23,7 @@ class BackupTests(unittest.TestCase):
         self.assertFalse((root / 'rejected').exists())
         verify(root / 'legacy', True)
         restore(root / 'legacy', root / 'restored', True)
-        with sqlite3.connect(root / 'restored' / 'main.db') as db:
+        with closing(sqlite3.connect(root / 'restored' / 'main.db')) as db, db:
             self.assertEqual(db.execute('SELECT parent_id FROM child').fetchone()[0], 42)
         manifest = root / 'legacy' / 'manifest.json'
         modified = json.loads(manifest.read_text()); modified['files'][0]['foreignKeyViolations'] = 0
@@ -35,7 +36,7 @@ class BackupTests(unittest.TestCase):
         root = Path(temp.name)
         (root / 'main.db.workspaces').mkdir()
         for path in [root / 'main.db', root / 'main.db.workspaces' / 'workspace.db']:
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute('PRAGMA journal_mode=WAL')
                 db.execute('CREATE TABLE sample(id INTEGER PRIMARY KEY,value TEXT)')
                 db.execute("INSERT INTO sample VALUES(1,'preserved')")
@@ -44,14 +45,14 @@ class BackupTests(unittest.TestCase):
     def test_wal_backups_restore_all_databases_into_new_location(self):
         root = self.fixture()
         # Keep a live WAL connection so this also covers committed data outside the main file.
-        with sqlite3.connect(root / 'main.db') as connection:
+        with closing(sqlite3.connect(root / 'main.db')) as connection, connection:
             connection.execute("INSERT INTO sample VALUES(2,'committed WAL')"); connection.commit()
             result = backup(root / 'main.db', root / 'backup')
         self.assertEqual(len(result['files']), 2)
         verify(root / 'backup'); restore(root / 'backup', root / 'restore')
-        with sqlite3.connect(root / 'restore' / 'main.db') as db:
+        with closing(sqlite3.connect(root / 'restore' / 'main.db')) as db, db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM sample').fetchone()[0], 2)
-        with sqlite3.connect(root / 'restore' / 'main.db.workspaces' / 'workspace.db') as db:
+        with closing(sqlite3.connect(root / 'restore' / 'main.db.workspaces' / 'workspace.db')) as db, db:
             self.assertEqual(db.execute('SELECT value FROM sample').fetchone()[0], 'preserved')
         with self.assertRaises(ValueError):
             restore(root / 'backup', root / 'restore')

@@ -16,7 +16,7 @@ const settingNames = ['ADMIN_ROLE_ID', 'STUDENT_ROLE_ID', 'ONBOARDING_COMPLETE_R
 const settingsSchema = z.object({ channels: z.partialRecord(z.enum(settingNames), z.union([snowflake, z.literal('')])), teams: z.array(z.object({ name: z.string().trim().min(1).max(100), channelId: z.union([snowflake, z.literal('')]) }).strict()).max(50), qaNotifyRoleIds: z.array(snowflake).max(25).optional(), qaUnansweredHours: z.number().int().min(1).max(168) }).strict()
 const python = process.env.PYTHON_EXECUTABLE || (existsSync(resolve(root, '.tools/venv/Scripts/python.exe')) ? resolve(root, '.tools/venv/Scripts/python.exe') : 'python3')
 
-function install(db) {
+export function installBotStorage(db) {
   db.exec(`CREATE TABLE IF NOT EXISTS lms_storage_state(id INTEGER PRIMARY KEY CHECK(id=1),revision INTEGER NOT NULL DEFAULT 0);
     INSERT OR IGNORE INTO lms_storage_state VALUES(1,0);
     CREATE TABLE IF NOT EXISTS lms_storage_receipts(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,result TEXT NOT NULL);
@@ -30,7 +30,7 @@ export function createBotStorage(main, workspaces, onboarding) {
   main.exec('CREATE TABLE IF NOT EXISTS lms_runtime_state(guild_id TEXT NOT NULL,kind TEXT NOT NULL,record_key TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(guild_id,kind,record_key))')
   function open(id) {
     const store = workspaces.open(id)
-    if (!initialized.has(id)) { install(store.db); initialized.add(id) }
+    if (!initialized.has(id)) { installBotStorage(store.db); initialized.add(id) }
     return store.db
   }
   function owner(guildId) {

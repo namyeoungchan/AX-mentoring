@@ -1,6 +1,7 @@
 import importlib
 import os
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -24,7 +25,7 @@ class RemovedMentorTests(unittest.IsolatedAsyncioTestCase):
         self.slot_id = await database.add_slot(self.mentor_id, '2030-01-01T12:00:00', '2030-01-01T13:00:00', '멘토링')
 
     def disable(self):
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute('UPDATE mentors SET is_active=0 WHERE id=?', (self.mentor_id,))
             db.execute('UPDATE slots SET is_active=0 WHERE mentor_id=?', (self.mentor_id,))
 
@@ -56,7 +57,7 @@ class RemovedMentorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_legacy_mentor_schema_migrates_without_disabling_existing_members(self):
         legacy = os.path.join(self.directory.name, 'legacy.db')
-        with sqlite3.connect(legacy) as db:
+        with closing(sqlite3.connect(legacy)) as db, db:
             db.execute("CREATE TABLE mentors(id INTEGER PRIMARY KEY, discord_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, bio TEXT DEFAULT '')")
             db.execute("INSERT INTO mentors VALUES(1,'223456789012345678','기존 멘토','AI')")
         with patch.object(database, 'DB_PATH', legacy):
