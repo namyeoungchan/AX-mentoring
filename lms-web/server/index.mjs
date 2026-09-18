@@ -294,6 +294,7 @@ app.post('/api/workspaces/:workspaceId/staff/verification', (req, res) => {
 })
 app.use('/api/workspaces/:workspaceId', (req, _res, next) => { workspaces.requireRole(req.workspaceId, req.account, ['admin']); next() })
 app.get('/api/workspaces/:workspaceId/student-accounts', (req, res) => res.json(admissions.studentAccounts(req.workspaceId, req.account)))
+app.patch('/api/workspaces/:workspaceId/student-accounts/:userId/team', (req, res) => res.json(admissions.changeStudentTeam(req.workspaceId, req.params.userId, req.body, req.account)))
 app.post('/api/workspaces/:workspaceId/student-accounts', maintenance.track(async (req, res) => {
   auth.limit('student-account-issue', req.account.id, 100, 3600000)
   const { teamId, ...input } = req.body || {}

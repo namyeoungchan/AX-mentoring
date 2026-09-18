@@ -923,6 +923,8 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .attendance-code-controls select { padding: 8px; border: 1px solid #ccd6ce; border-radius: 8px; background: white; }
 .attendance-code-display output { font-size: 32px; font-weight: 700; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
 .role-content { display: grid; gap: 20px; min-width: 0; }
+.workspace-new-button { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 40px; margin-top: 8px; border: 1px solid #d9e3da; border-radius: 8px; color: #315c48; font-size: 12px; background: #f5f8f3; }
+.workspace-new-button:hover { background: #eaf1e7; }
 .role-content > * { min-width: 0; }
 .role-content .student-course, .role-content .student-empty { margin: 0; }
 .role-breadcrumb { display: flex; align-items: center; gap: 12px; min-width: 0; }
