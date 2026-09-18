@@ -1,4 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
+test('a shared classroom IP is not blocked after 120 login requests', async ({ request }) => {
+  for (let batch = 0; batch < 15; batch++) {
+    const responses = await Promise.all(Array.from({length:10}, () => request.post('/api/auth/login', {data:{}})));
+    for (const response of responses) expect(response.status()).toBe(422);
+  }
+})
 
 test('workspace administrator invites an instructor; student signs up, instructor approves and Discord invite precedes verification', async ({ page, request, browser }) => {
   test.setTimeout(90000)
@@ -95,11 +101,28 @@ test('workspace administrator invites an instructor; student signs up, instructo
     job = (await retried.json()).job
     expect((await request.post('/api/integrations/discord/admissions/complete', { headers: workerHeaders, data: { id: job.id, claim: job.claim, success: true, code: 'test-private-guild-invite' } })).status()).toBe(200)
     await student.getByRole('button', { name: '참여 상태 확인' }).click()
-    await expect(student.getByRole('link', { name: 'Discord 서버 참여', exact: true })).toHaveAttribute('href', 'https://discord.gg/test-private-guild-invite')
+    await expect(student.getByRole('link', { name: /Discord 서버 참여/ })).toHaveCount(1)
     await expect(verification.getByRole('link', { name: '1 · Discord 서버 참여', exact: true })).toHaveAttribute('href', 'https://discord.gg/test-private-guild-invite')
     await expect(verification).toContainText('승인 프로세스 AX')
     await expect(verification.getByRole('status', { name: '서버 초대 상태', exact: true })).toHaveCount(0)
     const code = await student.getByLabel('인증 코드', { exact: true }).textContent()
+    await expect(verification).toContainText('Discord 인증 패널에 코드를 입력하세요')
+    await expect(verification).toContainText('1 · LMS 인증')
+    await expect(verification.getByRole('button', { name: 'Discord 인증 코드 받기', exact: true })).toHaveCount(0)
+    await student.context().grantPermissions(['clipboard-read','clipboard-write'])
+    await student.bringToFront()
+    await verification.getByRole('button', { name: '인증 코드 복사' }).click()
+    await expect(verification.getByRole('button', { name: '복사됨', exact: true })).toBeVisible()
+    expect(await student.evaluate(() => navigator.clipboard.readText())).toBe(code)
+    const own = await (await student.request.get('/api/me/admissions')).json()
+    const repeated = await student.request.post(`/api/me/admissions/${own.applications.find((a: {workspaceId:string}) => a.workspaceId === workspace.id).id}/verification`, {data:{}})
+    expect(repeated.status()).toBe(200)
+    expect((await repeated.json()).code).toBe(code)
+    await student.setViewportSize({width:390,height:1000})
+    expect(await student.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await student.screenshot({path:'test-results/student-discord-guide-390.png',fullPage:true,animations:'disabled'})
+    await student.setViewportSize({width:1440,height:1000})
+
     expect((await request.post('/api/integrations/discord/verify', { headers: botHeaders, data: { code, discordId: '488456789012345672', guildId: '123456789012345678' } })).status()).toBe(403)
     expect((await request.post('/api/integrations/discord/verify', { headers: botHeaders, data: { code, discordId: '488456789012345672', guildId } })).status()).toBe(200)
     await student.getByRole('button', { name: '인증 후 학습 화면 열기' }).click()

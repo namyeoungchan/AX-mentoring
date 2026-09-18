@@ -1,6 +1,4 @@
 import CourseVideos from './CourseVideos'
-import { useState } from 'react'
-import { workspaceRequest } from './api'
 import { AdmissionStatus } from './Admissions'
 import RoleWorkspace, { type RolePage } from './RoleWorkspace'
 import { useRolePage } from './useRolePage'
@@ -25,29 +23,14 @@ export type Learning = {
   scores: { id: string; item: string; score: number; maximum: number }[];
   assignments: { id: number; title: string; dueDate: string; active: number }[];
 }
-function WorkspaceVerification({ workspace, refresh }: { workspace: WorkspaceMetadata; refresh: () => Promise<void> }) {
-  const [code, setCode] = useState<{ code: string; expiresAt: number } | null>(null)
-  const [busy, setBusy] = useState(false), [error, setError] = useState('')
-  async function issue() {
-    setBusy(true); setError('')
-    try { setCode(await workspaceRequest(workspace.id, 'me/verification', { method: 'POST', body: '{}' })) }
-    catch (e) { setError((e as Error).message) } finally { setBusy(false) }
-  }
-  return <section className="panel admission-detail" aria-label="워크스페이스 인증"><h2>{workspace.name} · Discord 인증</h2><p>이 워크스페이스의 Discord 서버에서 별도로 인증해 주세요.</p>
-    <button className="button secondary" disabled={busy || workspace.guildIds.length !== 1 || workspace.archivedAt != null} onClick={() => void issue()}>워크스페이스 인증 코드 받기</button>
-    {code && <><p>‘시작하기’ 채널에서 LMS 인증 버튼을 누르거나 아래 명령어를 실행하세요.</p><code>/lms인증 코드:{code.code}</code><p>만료: {new Date(code.expiresAt).toLocaleTimeString('ko-KR')}</p><button className="button secondary" onClick={() => void refresh()}>인증 상태 새로고침</button></>}
-    {error && <p role="alert" className="error-note">{error}</p>}
-  </section>
-}
 export default function StudentHome({ user, learning, error, refresh, logout, workspaces, activeId, selectWorkspace, setWorkspaceArchived, saving }: { setWorkspaceArchived?: (id: string, archived: boolean) => Promise<boolean>; saving?: boolean; workspaces: WorkspaceMetadata[]; activeId: string; selectWorkspace: (id: string) => Promise<void>; user: Account; learning: Learning | null; error: string; refresh: () => Promise<void>; logout: () => Promise<void> }) {
   const activeWorkspace = workspaces.find(w => w.id === activeId)
   const [page, go] = useRolePage(pages, 'learning')
   return <RoleWorkspace role="student" username={user.username} name={user.name} title={pages.find(p => p.id === page)!.name} pages={pages} page={page} go={go} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={setWorkspaceArchived} saving={saving} error={error} refresh={refresh} logout={logout} status={<Badge>{activeWorkspace?.discordVerified ? 'Discord 인증 완료' : 'Discord 참여 대기'}</Badge>}>
     {(page === 'participation' || page === 'learning' && !activeWorkspace?.discordVerified) && <>
-      {activeWorkspace && !activeWorkspace.discordVerified && <WorkspaceVerification key={activeId} workspace={activeWorkspace} refresh={refresh} />}
-      <AdmissionStatus refreshWorkspace={refresh} />
+      <AdmissionStatus key={activeId || user.id} workspace={activeWorkspace} refreshWorkspace={refresh} />
     </>}
-    {page === 'learning' && <>
+    {page === 'learning' && activeWorkspace?.discordVerified && <>
       {!learning?.courses.length && <section className="panel student-empty"><BookOpen size={28} /><h2>{learning?.enrollment ? '수강 상태를 확인해 주세요.' : '등록된 학습 과정이 없습니다.'}</h2><p>{learning?.enrollment ? `현재 상태: ${learning.enrollment.status}` : '운영자가 인증된 Discord 계정을 과정에 등록하면 학습 정보가 표시됩니다.'}</p></section>}
       {learning?.courses.map(course => <section key={course.id} className="panel student-course"><Badge>{course.status}</Badge><h2>{course.title}</h2><p>{course.description}</p><span>{course.startDate} — {course.endDate}</span>{learning.enrollment?.team && <span> · {learning.enrollment.team}</span>}</section>)}
       <div className="role-shortcuts">{pages.slice(1, 4).map(item => <button key={item.id} className="panel role-shortcut" onClick={() => go(item.id)}><item.icon size={23} /><strong>{item.name}</strong><span>{item.id === 'attendance' ? `확정 기록 ${learning?.attendance.length || 0}건` : item.id === 'scores' ? `평가항목 ${learning?.scores.length || 0}개` : `진행 중 ${learning?.assignments.filter(a => a.active).length || 0}개`}</span><ArrowRight size={17} /></button>)}</div>

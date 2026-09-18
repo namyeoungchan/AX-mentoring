@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { ApiError } from './store.mjs';
 import { initializeVerification, tableExists, workspaceForGuild } from './workspace-verification.mjs';
+import { createOperationQueue } from './operation-queue.mjs';
 const derive = promisify(scrypt);
 const hash = value => createHash('sha256').update(value).digest('hex');
 const snowflake = z.string().regex(/^\d{17,20}$/, 'Discord ID는 17~20자리 숫자여야 합니다.');
@@ -16,16 +17,12 @@ const admin = { id: 'admin', username: 'admin', name: '관리자', discordId: ''
 const safeEqual = (a, b) => timingSafeEqual(Buffer.from(hash(a)), Buffer.from(hash(b)));
 const hashOptions = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 };
 const dummyHash = `scrypt$${'0'.repeat(32)}$${'0'.repeat(128)}`;
-let hashing = 0;
+const passwordQueue = createOperationQueue(({ value, salt }) => derive(value, salt, 64, hashOptions), { concurrency: 4, maxPending: 128, perWorkspace: 128, queueTimeoutMs: 60000 });
 async function passwordKey(value, salt) {
-    if (hashing >= 4)
-        throw new ApiError(429, '로그인 요청이 많습니다. 잠시 후 다시 시도하세요.');
-    hashing++;
-    try {
-        return await derive(value, salt, 64, hashOptions);
-    }
-    finally {
-        hashing--;
+    try { return await passwordQueue.run('authentication', true, { value, salt }); }
+    catch (error) {
+        if (error.status === 503) throw Object.assign(new ApiError(503, '로그인 처리 대기 중입니다. 5초 후 다시 시도하세요.'), { retryAfter: 5 });
+        throw error;
     }
 }
 async function hashPassword(value) {
@@ -38,6 +35,7 @@ async function checkPassword(value, stored) {
 }
 export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = false, botToken = '', guildId = '', now = Date.now, guildAllowed = id => id === guildId } = {}) {
     const enabled = botToken.length >= 32;
+    const verificationCache = new Map(), verificationPending = new Map();
     await db.exec(`
     CREATE TABLE IF NOT EXISTS lms_users (
       id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
@@ -111,9 +109,11 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
       ON CONFLICT(key_hash) DO UPDATE SET
         count=CASE WHEN lms_auth_limits.expires_at<=? THEN 1 ELSE lms_auth_limits.count+1 END,
         expires_at=CASE WHEN lms_auth_limits.expires_at<=? THEN excluded.expires_at ELSE lms_auth_limits.expires_at END
-      RETURNING count`)).get(key, now() + windowMs, now(), now());
-        if (entry.count > maximum)
-            throw new ApiError(429, '요청 횟수를 초과했습니다. 잠시 후 다시 시도하세요.');
+      RETURNING count,expires_at`)).get(key, now() + windowMs, now(), now());
+        if (entry.count > maximum) {
+            const retryAfter = Math.max(1, Math.ceil((entry.expires_at - now()) / 1000));
+            throw Object.assign(new ApiError(429, `요청 횟수를 초과했습니다. ${retryAfter}초 후 다시 시도하세요.`), { retryAfter });
+        }
     }
     function requireEnabled() {
         if (!enabled)
@@ -221,14 +221,14 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
     }
     async function completeFirstLogin(user, body) {
         const input = z.object({ name: z.string().trim().min(1).max(50), currentPassword: z.string().min(1).max(128), newPassword: password }).strict().parse(body);
-        await limit('first-login', user.id, 5, 15 * 60000);
+        if (input.currentPassword === input.newPassword)
+            throw new ApiError(422, '초기 비밀번호와 다른 비밀번호를 입력하세요.');
+        await limit('first-login-v2', user.id, 10, 15 * 60000);
         const row = await (db.prepare('SELECT * FROM lms_users WHERE id=?')).get(user.id);
         if (!row?.must_complete_profile || !row.must_change_password)
             throw new ApiError(409, '이미 첫 로그인 설정을 완료했습니다.');
         if (!await checkPassword(input.currentPassword, row.password_hash))
             throw new ApiError(401, '초기 비밀번호를 확인하세요.');
-        if (input.currentPassword === input.newPassword)
-            throw new ApiError(422, '초기 비밀번호와 다른 비밀번호를 입력하세요.');
         const nextHash = await hashPassword(input.newPassword);
         await db.exec('BEGIN IMMEDIATE');
         try {
@@ -253,14 +253,28 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             throw new ApiError(403, '첫 로그인 설정을 완료하세요.');
         const workspaceId = await workspaceForGuild(db, targetGuild);
         await checkWorkspace({ workspace_id: workspaceId, guild_id: targetGuild, user_id: user.id });
-        await limit('verification-code', `${user.id}:${workspaceId || targetGuild}`, 1, 60000);
         const stored = await (db.prepare('SELECT * FROM lms_users WHERE id=?')).get(user.id);
         if (!stored)
             throw new ApiError(403, '개인 계정으로 로그인하세요.');
-        const ticket = randomBytes(32).toString('hex'), value = challenge();
-        await (db.prepare('UPDATE lms_registrations SET expires_at=0 WHERE user_id=? AND guild_id=? AND verified_at IS NULL')).run(user.id, targetGuild);
-        await (db.prepare('INSERT INTO lms_registrations(ticket_hash,code_hash,username,name,password_hash,discord_id,guild_id,created_at,expires_at,renewed_at,user_id,workspace_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')).run(hash(ticket), hash(value.raw), stored.username, stored.name, '', stored.discord_id, targetGuild, now(), value.expiresAt, now(), user.id, workspaceId);
-        return { ticket, code: value.code, expiresAt: value.expiresAt };
+        const key = `${user.id}:${workspaceId || targetGuild}`;
+        if (verificationPending.has(key)) return verificationPending.get(key);
+        const pendingIssue = (async () => {
+            const cached = verificationCache.get(key);
+            if (cached && cached.expiresAt > now()) {
+                const row = await db.prepare('SELECT code_hash,expires_at,verified_at FROM lms_registrations WHERE ticket_hash=?').get(hash(cached.ticket));
+                if (row && row.verified_at === null && row.expires_at === cached.expiresAt && row.code_hash === hash(cached.code.replaceAll('-', ''))) return cached;
+            }
+            for (const [cachedKey, value] of verificationCache) if (value.expiresAt <= now()) verificationCache.delete(cachedKey);
+            await limit('verification-code-v2', key, 6, 60000);
+            const ticket = randomBytes(32).toString('hex'), value = challenge();
+            await (db.prepare('UPDATE lms_registrations SET expires_at=0 WHERE user_id=? AND guild_id=? AND verified_at IS NULL')).run(user.id, targetGuild);
+            await (db.prepare('INSERT INTO lms_registrations(ticket_hash,code_hash,username,name,password_hash,discord_id,guild_id,created_at,expires_at,renewed_at,user_id,workspace_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')).run(hash(ticket), hash(value.raw), stored.username, stored.name, '', stored.discord_id, targetGuild, now(), value.expiresAt, now(), user.id, workspaceId);
+            const result = { ticket, code: value.code, expiresAt: value.expiresAt };
+            verificationCache.set(key, result);
+            return result;
+        })();
+        verificationPending.set(key, pendingIssue);
+        try { return await pendingIssue; } finally { verificationPending.delete(key); }
     }
     async function pending(ticket) {
         const row = await (db.prepare('SELECT * FROM lms_registrations WHERE ticket_hash=?')).get(hash(ticketSchema.parse(ticket)));
@@ -359,7 +373,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
     }
     async function login(body) {
         const input = z.object({ username, password: z.string().min(1).max(128) }).strict().parse(body);
-        await limit('member-name', input.username, 10, 15 * 60000);
+        await limit('member-name-v2', input.username, 10, 15 * 60000);
         const row = await (db.prepare('SELECT * FROM lms_users WHERE username=?')).get(input.username);
         const matches = await checkPassword(input.password, row?.password_hash || dummyHash);
         if (!matches || !row)
@@ -370,6 +384,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             if (current?.password_hash !== row.password_hash)
                 throw new ApiError(401, '아이디 또는 비밀번호를 확인하세요.');
             const result = await issueSession(publicUser(current));
+            await db.prepare('DELETE FROM lms_auth_limits WHERE key_hash=?').run(hash(`member-name-v2:${input.username}`));
             await db.exec('COMMIT');
             return result;
         }
@@ -486,7 +501,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             await (db.prepare('UPDATE lms_users SET password_hash=?,must_change_password=1 WHERE id=?')).run(passwordHash, row.id);
             await (db.prepare('DELETE FROM lms_auth_sessions WHERE user_id=?')).run(row.id);
             await (db.prepare('DELETE FROM lms_registrations WHERE user_id=? OR username=?')).run(row.id, row.username);
-            await (db.prepare('DELETE FROM lms_auth_limits WHERE key_hash=?')).run(hash(`member-name:${row.username}`));
+            await (db.prepare('DELETE FROM lms_auth_limits WHERE key_hash IN (?,?,?)')).run(hash(`member-name:${row.username}`), hash(`member-name-v2:${row.username}`), hash(`first-login-v2:${row.id}`));
             await (db.prepare('INSERT INTO lms_account_audit(actor_id,target_id,username,action,created_at) VALUES(?,?,?,?,?)')).run(actor.id, row.id, row.username, 'password.reset', now());
             await db.exec('COMMIT');
             return { username: row.username, initialPassword, mustChangePassword: true };
