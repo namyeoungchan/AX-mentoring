@@ -1,0 +1,67 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { createCourseVideos } from './course-videos.mjs';
+
+export async function courseVideosScenario(r) {
+  const db = r.store.db, guild = '723456789012345678';
+  await db.prepare('INSERT INTO lms_workspace_guilds VALUES(?,?)').run(guild,'default');
+  const put = (kind,row) => db.prepare('INSERT INTO lms_records VALUES(?,?,?)').run(kind,row.id,JSON.stringify(row));
+  async function account(id,role,discordId) {
+    await db.prepare('INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,platform_role) VALUES(?,?,?,?,?,?,?,?)').run(id,id,id,'unused',discordId,guild,Date.now(),role === 'admin' ? 'admin' : 'student');
+    await db.prepare('INSERT INTO lms_workspace_members VALUES(?,?,?,?)').run('default',id,role,Date.now());
+    await db.prepare('INSERT INTO lms_workspace_verifications VALUES(?,?,?,?,?)').run('default',id,guild,discordId,Date.now());
+    return { id,username:id,discordId,role:role === 'admin' ? 'admin' : 'student' };
+  }
+  const admin = await account('video-admin','admin','723456789012345679'), mentor = await account('video-mentor','instructor','723456789012345680');
+  const student = await account('video-student','student','723456789012345681'), other = await account('video-other','student','723456789012345682'), peer = await account('video-peer','instructor','723456789012345683');
+  for (const id of ['course-a','course-b']) await put('courses',{id,title:id});
+  await put('teams',{id:'video-team',name:'1조',courseId:'course-a'});
+  await r.workspaces.assignMentor('default',mentor.id,{mentorType:'group',teamIds:['video-team']},admin);
+  for (const [user,courseId] of [[student,'course-a'],[other,'course-b']]) await put('learners',{id:user.id,name:user.id,discordId:user.discordId,courseId,status:'정상'});
+  let creates = 0, complete = false, protectionFails = false, creationFails = false;
+  const publication = [];
+  const remote = { configured:true, maxBytes:10000, verify:async()=>{}, create:async()=>{ creates++; if(creationFails)throw new Error('secret upstream payload');return {id:'123456',uploadUrl:'https://files.tus.vimeo.com/upload/one-secret'}; }, protect:async()=>{if(protectionFails)throw new Error('private token');}, read:async()=>({upload:{status:'complete'},transcode:{status:complete?'complete':'in_progress'},duration:90}), publish:async(id,published)=>{publication.push(published);} };
+  const videos = createCourseVideos(db,r.workspaces,{},remote);
+  const input = {requestId:randomUUID(),courseId:'course-a',title:'멘토 강의',description:'소개',filename:'lesson.mp4',size:100,lastModified:1};
+  await assert.rejects(videos.create('default',input,student),{status:403});
+  await assert.rejects(videos.create('default',{...input,courseId:'course-b'},mentor),{status:403});
+  await assert.rejects(videos.create('default',{...input,size:10001},mentor),{status:413});
+  let video = await videos.create('default',input,mentor);
+  assert.equal(video.status,'uploading'); assert.equal(creates,1);
+  assert.equal(JSON.stringify(video).includes('one-secret'),false);
+  await videos.create('default',input,mentor); assert.equal(creates,1,'retry must not create another remote video');
+  await assert.rejects(videos.create('default',{...input,title:'changed'},mentor),{status:409});
+  assert.ok((await videos.upload('default',video.id,mentor)).uploadUrl);
+  await assert.rejects(videos.upload('default',video.id,peer),{status:403});
+  await assert.rejects(videos.upload('default',video.id,student),{status:403});
+  assert.equal((await videos.list('default',student)).videos.length,0);
+  const edit = published => ({revision:video.revision,title:video.title,description:video.description,published});
+  await assert.rejects(videos.edit('default',video.id,edit(true),mentor),{status:409});
+  video = await videos.refresh('default',video.id,mentor); assert.equal(video.status,'processing');
+  complete = true; video = await videos.refresh('default',video.id,mentor); assert.equal(video.status,'ready');
+  const stale = edit(true); video = await videos.edit('default',video.id,stale,mentor);
+  assert.equal(video.published,true); assert.deepEqual(publication,[true]);
+  await assert.rejects(videos.edit('default',video.id,stale,mentor),{status:409});
+  assert.equal((await videos.list('default',student)).videos.length,1);
+  const publicVideo = (await videos.list('default',student)).videos[0];
+  assert.equal('filename' in publicVideo,false); assert.equal('vimeoId' in publicVideo,false);
+  assert.match((await videos.playback('default',video.id,student)).url,/^https:\/\/player.vimeo.com\/video\/123456/);
+  assert.equal((await videos.list('default',other)).videos.length,0);
+  await assert.rejects(videos.playback('default',video.id,other),{status:403});
+  const otherWorkspace = await r.workspaces.create({name:'영상 격리 워크스페이스'});
+  await assert.rejects(videos.playback(otherWorkspace.id,video.id,admin),{status:404});
+  await db.prepare("UPDATE lms_records SET data=? WHERE kind='learners' AND id=?").run(JSON.stringify({id:student.id,discordId:student.discordId,courseId:'course-a',status:'비활성'}),student.id);
+  await assert.rejects(videos.playback('default',video.id,student),{status:403});
+  video = await videos.edit('default',video.id,edit(false),admin); assert.deepEqual(publication,[true,false]);
+  await assert.rejects(videos.playback('default',video.id,admin),{status:409});
+  protectionFails = true;
+  const failed = await videos.create('default',{...input,requestId:randomUUID()},mentor);
+  assert.equal(failed.status,'error'); assert.equal(failed.published,false); assert.equal(failed.error.includes('private token'),false);
+  protectionFails = false; assert.equal((await videos.refresh('default',failed.id,mentor)).status,'ready');
+  creationFails = true;
+  const unknown = {...input,requestId:randomUUID()}; const failedCreate = await videos.create('default',unknown,mentor);
+  const count = creates; await videos.create('default',unknown,mentor); assert.equal(creates,count);
+  assert.equal(failedCreate.error.includes('secret'),false);
+  await r.workspaces.setArchived('default',true,admin);
+  await assert.rejects(videos.create('default',{...input,requestId:randomUUID()},mentor),{status:409});
+}

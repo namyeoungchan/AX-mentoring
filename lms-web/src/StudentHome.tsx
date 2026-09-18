@@ -1,3 +1,4 @@
+import CourseVideos from './CourseVideos'
 import { useState } from 'react'
 import { workspaceRequest } from './api'
 import { AdmissionStatus } from './Admissions'
@@ -12,6 +13,7 @@ const pages: RolePage[] = [
   { id: 'attendance', name: '나의 출결', description: 'Discord 코드 출석 안내 · 마감된 회차의 출결 기록', icon: CheckCheck },
   { id: 'scores', name: '나의 성적', description: '본인의 평가항목별 점수와 배점을 확인하세요.', icon: ClipboardList },
   { id: 'assignments', name: '과제', description: '등록된 과정의 과제와 마감일을 확인하세요.', icon: BookOpen },
+  { id: 'videos', name: '강의 영상', description: '내 과정의 강의 영상을 시청하세요.', icon: BookOpen },
   { id: 'participation', name: '워크스페이스 참여', description: '계정 배정 · Discord 서버 참여와 인증 상태', icon: Users },
 ]
 
@@ -50,6 +52,7 @@ export default function StudentHome({ user, learning, error, refresh, logout, wo
       {learning?.courses.map(course => <section key={course.id} className="panel student-course"><Badge>{course.status}</Badge><h2>{course.title}</h2><p>{course.description}</p><span>{course.startDate} — {course.endDate}</span>{learning.enrollment?.team && <span> · {learning.enrollment.team}</span>}</section>)}
       <div className="role-shortcuts">{pages.slice(1, 4).map(item => <button key={item.id} className="panel role-shortcut" onClick={() => go(item.id)}><item.icon size={23} /><strong>{item.name}</strong><span>{item.id === 'attendance' ? `확정 기록 ${learning?.attendance.length || 0}건` : item.id === 'scores' ? `평가항목 ${learning?.scores.length || 0}개` : `진행 중 ${learning?.assignments.filter(a => a.active).length || 0}개`}</span><ArrowRight size={17} /></button>)}</div>
     </>}
+    {page === 'videos' && <CourseVideos key={activeId} workspaceId={activeId} />}
     {page === 'attendance' && <>
       <section className="panel role-guidance"><CardHeading title="Discord 코드 출석" subtitle="멘토가 안내한 유효시간 안에 수업 서버에서 등록하세요." /><ol><li>해당 워크스페이스의 Discord 인증을 완료합니다.</li><li>멘토에게 받은 6자리 코드로 <code>/출석 코드:123456</code>을 입력합니다. 123456은 예시입니다.</li><li>본인에게 보이는 날짜·차시·출결 상태를 확인합니다. 만료 코드는 멘토에게 요청하세요.</li></ol><p>중복 등록으로 기존 출결은 바뀌지 않습니다. 지각·결석 정정은 담당 멘토에게 요청하세요.</p></section>
       <section className="panel"><CardHeading title="출결 기록" subtitle="관리자가 회차를 마감하면 확정된 본인 기록이 표시됩니다." /><div className="table-scroll"><table><thead><tr><th>날짜</th><th>차시</th><th>상태</th></tr></thead><tbody>{learning?.attendance.map(row => <tr key={row.id}><td>{row.date}</td><td>{row.period}</td><td><Badge>{row.status}</Badge></td></tr>)}</tbody></table></div>{!learning?.attendance.length && <p className="calendar-empty">확정된 출결 기록이 없습니다. 오늘의 출결은 멘토에게 회차 마감 여부를 확인하세요.</p>}</section>

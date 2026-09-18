@@ -16,10 +16,15 @@ import { createPythonStorageExecutor } from './python-storage-executor.mjs'
 import { createServer } from 'node:net'
 import { once } from 'node:events'
 import { rosterScenario } from './roster-scenarios.mjs'
+import { courseVideosScenario } from './course-videos-scenario.mjs'
 
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL course videos enforce enrollment, owner access and upload retry semantics', async t => {
+  const f = await fixture(t)
+  await courseVideosScenario(f.runtime)
+})
 pgTest('PostgreSQL roster import and student profile lifecycle', async t => {
   const f = await fixture(t)
   await rosterScenario(f.runtime, f.login.user)
