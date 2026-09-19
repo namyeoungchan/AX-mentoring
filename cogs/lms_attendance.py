@@ -55,8 +55,8 @@ class LMSAttendance(commands.Cog):
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             return 503, None
 
-    @app_commands.command(name='출석', description='멘토가 발급한 6자리 코드로 해당 회차에 출석합니다.')
-    @app_commands.describe(코드='멘토가 안내한 유효시간 내의 6자리 출석 코드')
+    @app_commands.command(name='출석', description='시작·종료 코드로 강의 입실·퇴실 출석을 기록합니다.')
+    @app_commands.describe(코드='강사가 안내한 6자리 시작 또는 종료 코드')
     @app_commands.guild_only()
     async def check_in(self, interaction: discord.Interaction, 코드: str):
         if interaction.guild_id is None or not self.url:
@@ -68,7 +68,10 @@ class LMSAttendance(commands.Cog):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         status, data = await self.request(code, interaction.user.id, interaction.guild_id)
-        if status == 200 and isinstance(data, dict) and data.get('status') in ('출석', '지각', '결석', '공결'):
+        if status == 200 and isinstance(data, dict) and data.get('checkInAt'):
+            from cogs.attendance_panel import result_text
+            message = result_text(data)
+        elif status == 200 and isinstance(data, dict) and data.get('status') in ('출석', '지각', '결석', '공결'):
             prefix = '이미 출결 기록이 있습니다' if data.get('alreadyRecorded') else '출석이 등록됐습니다'
             message = f"{prefix}.\n{data.get('date')} · {data.get('period')}차시 · {data['status']}"
             if data.get('alreadyRecorded'):

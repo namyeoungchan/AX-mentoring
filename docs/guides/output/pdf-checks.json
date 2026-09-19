@@ -4,15 +4,15 @@
     "pages": 3,
     "embeddedFonts": 107,
     "links": 4,
-    "textCharacters": 2385,
+    "textCharacters": 2393,
     "a4": true
   },
   {
     "file": "mentor-guide.pdf",
     "pages": 3,
-    "embeddedFonts": 115,
+    "embeddedFonts": 114,
     "links": 4,
-    "textCharacters": 2394,
+    "textCharacters": 2426,
     "a4": true
   },
   {
@@ -20,7 +20,7 @@
     "pages": 3,
     "embeddedFonts": 107,
     "links": 4,
-    "textCharacters": 2351,
+    "textCharacters": 2367,
     "a4": true
   }
 ]
