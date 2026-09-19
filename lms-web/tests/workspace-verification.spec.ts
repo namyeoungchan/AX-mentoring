@@ -38,6 +38,14 @@ test('one account verifies each workspace separately and switching never carries
   const verify = (code: string, guildId: string) => request.post('/api/integrations/discord/verify', { headers: botHeaders, data: { code, guildId, discordId: '856456789012345678' } })
   expect((await verify(codeA, b.guildId)).status()).toBe(403)
   expect((await verify(codeA, a.guildId)).status()).toBe(200)
+  const statePath = '/api/integrations/discord/verification-state'
+  const identity = { guildId: a.guildId, discordId: '856456789012345678' }
+  expect((await request.post(statePath, { data: identity })).status()).toBe(401)
+  expect((await request.post(statePath, { headers: memberHeaders, data: identity })).status()).toBe(401)
+  expect(await (await request.post(statePath, { headers: botHeaders, data: identity })).json()).toEqual({ verified: true })
+  expect(await (await request.post(statePath, { headers: botHeaders, data: { ...identity, guildId: b.guildId } })).json()).toEqual({ verified: false })
+  expect((await verify(codeA, a.guildId)).status()).toBe(410)
+  expect(await (await request.post(statePath, { headers: botHeaders, data: identity })).json()).toEqual({ verified: true })
   await page.getByRole('button', { name: '새로고침', exact: true }).click()
   await expect(section.getByText('Discord 인증 완료', { exact: true })).toHaveCount(0)
   await expect(section.getByRole('button', { name: '인증 코드 받기', exact: true })).toBeVisible()

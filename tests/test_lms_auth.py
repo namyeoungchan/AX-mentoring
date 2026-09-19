@@ -39,7 +39,7 @@ class AuthCommandTests(unittest.IsolatedAsyncioTestCase):
         session.__aexit__ = AsyncMock(return_value=False)
         session.post.return_value = response
         interaction = self.interaction()
-        with patch.object(auth.aiohttp, "ClientSession", return_value=session):
+        with patch.object(auth.aiohttp, "ClientSession", return_value=session), patch.object(cog, "verification_state", new=AsyncMock(return_value=(200, {"verified": False}))):
             await auth.LMSAuth.verify_registration.callback(cog, interaction, "01234567-89abcdef")
         payload = session.post.call_args.kwargs["json"]
         self.assertEqual(payload, {"code": "0123456789ABCDEF", "discordId": str(interaction.user.id), "guildId": str(interaction.guild_id)})
@@ -63,6 +63,36 @@ class AuthCommandTests(unittest.IsolatedAsyncioTestCase):
         interaction = self.interaction()
         await modal.on_submit(interaction)
         cog.begin_verification.assert_awaited_once_with(interaction, "01234567-89ABCDEF")
+
+    async def test_used_or_expired_code_resumes_existing_proof_without_preview(self):
+        cog = auth.LMSAuth(None)
+        cog.url = 'https://example.com/api/integrations/discord/verify'
+        cog.verification_state = AsyncMock(return_value=(200, {'verified': True}))
+        cog.api_request = AsyncMock()
+        interaction = self.interaction()
+        await cog.begin_verification(interaction, '01234567-89ABCDEF')
+        cog.verification_state.assert_awaited_once_with(interaction.user.id, interaction.guild_id)
+        cog.api_request.assert_not_awaited()
+        self.assertIn('재인증은 필요 없습니다', interaction.followup.send.call_args.args[0])
+        cog.verification_state.return_value = (503, None)
+        await cog.begin_verification(interaction, '01234567-89ABCDEF')
+        cog.api_request.assert_not_awaited()
+        self.assertIn('상태를 확인하지 못했습니다', interaction.followup.send.call_args.args[0])
+
+    async def test_stale_confirmation_resumes_only_current_identity_proof(self):
+        cog = SimpleNamespace(api_request=AsyncMock(return_value=(410, None)), verification_state=AsyncMock(return_value=(200, {'verified': True})), bot=None)
+        interaction = self.interaction()
+        interaction.response.edit_message = AsyncMock()
+        interaction.edit_original_response = AsyncMock()
+        view = auth.VerificationView(cog, '0123456789ABCDEF', interaction.user.id, interaction.guild_id)
+        await view.confirm.callback(interaction)
+        self.assertEqual(interaction.edit_original_response.call_args.kwargs['content'], auth.MESSAGES[200])
+        cog.verification_state.return_value = (200, {'verified': False})
+        await view.confirm.callback(interaction)
+        self.assertEqual(interaction.edit_original_response.call_args.kwargs['content'], auth.MESSAGES[410])
+        cog.verification_state.return_value = (503, None)
+        await view.confirm.callback(interaction)
+        self.assertEqual(interaction.edit_original_response.call_args.kwargs['content'], auth.MESSAGES[503])
 
     def test_endpoint_rejects_credentials_wrong_paths_and_nonlocal_http(self):
         for value in ["http://example.com/api/integrations/discord/verify", "https://user:pass@example.com/api/integrations/discord/verify", "https://example.com/wrong", "https://example.com/api/integrations/discord/verify?key=x"]:

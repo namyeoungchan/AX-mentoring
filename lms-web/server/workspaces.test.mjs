@@ -8,6 +8,7 @@ import { createAuth } from './auth.mjs';
 import { createRenderSync } from './render-sync.mjs';
 import { createProvision } from './provision.mjs';
 import { createWorkspaces } from './workspaces.mjs';
+import { verificationResumeScenario } from './verification-resume-scenario.mjs';
 const guildId = '123456789012345678';
 const admin = { id: 'admin', role: 'admin' };
 const token = 'test-only-integration-token-12345678901234567890';
@@ -28,6 +29,11 @@ async function fixture(t, seed = () => { }) {
     return { manager, store, auth, provision, options };
 }
 const write = async (manager, id, kind, value) => await manager.mutate(id, { revision: (await manager.snapshot(id)).revision, changes: [{ kind, value }] }, 'admin');
+
+test('completed Discord proof outlives codes and stays scoped to the current account and server', async t => {
+    const { store, manager } = await fixture(t);
+    await verificationResumeScenario({ store, workspaces: manager });
+});
 test('issued admin credentials require a new password, expose no stored secrets, and grant only the accepted workspace', async (t) => {
     const { manager, auth, store } = await fixture(t);
     const created = await auth.createInvitationAccount({ username: 'issued.owner', name: '초대 관리자' }, admin, async (username) => await manager.invite('default', { username, role: 'admin' }, admin));
