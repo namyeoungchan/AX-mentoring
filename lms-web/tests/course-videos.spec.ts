@@ -53,7 +53,7 @@ test('video upload recovers a TUS offset, requires publication, plays and unpubl
     await page.setViewportSize({width,height:1000})
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
     expect(await form.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true)
-    await page.screenshot({path:`test-results/video-upload-${width}.png`})
+    await page.screenshot({animations:'disabled',path:`test-results/video-upload-${width}.png`})
   }
   await form.getByRole('button',{name:'업로드 시작'}).click()
   const card = page.locator('.video-card').filter({hasText:'Vimeo 강의 검증'})
@@ -70,7 +70,7 @@ test('video upload recovers a TUS offset, requires publication, plays and unpubl
   for (const width of [1440, 390, 360]) {
     await page.setViewportSize({width,height:1000})
     expect(await settings.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true)
-    await page.screenshot({path:`test-results/video-settings-${width}.png`})
+    await page.screenshot({animations:'disabled',path:`test-results/video-settings-${width}.png`})
   }
   await settings.getByLabel('수강생에게 게시').check()
   await settings.getByRole('button',{name:'저장',exact:true}).click()
@@ -84,7 +84,7 @@ test('video upload recovers a TUS offset, requires publication, plays and unpubl
   for (const width of [1440, 390, 360]) {
     await page.setViewportSize({width,height:1000})
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
-    await page.screenshot({path:`test-results/video-list-${width}.png`,fullPage:true})
+    await page.screenshot({animations:'disabled',path:`test-results/video-list-${width}.png`,fullPage:true})
   }
   await card.getByRole('button',{name:'시청하기'}).click()
   const player = page.getByRole('dialog',{name:'Vimeo 강의 검증'})
@@ -92,7 +92,7 @@ test('video upload recovers a TUS offset, requires publication, plays and unpubl
   for (const width of [1440, 390, 360]) {
     await page.setViewportSize({width,height:1000})
     expect(await player.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true)
-    await page.screenshot({path:`test-results/video-player-${width}.png`})
+    await page.screenshot({animations:'disabled',path:`test-results/video-player-${width}.png`})
   }
   await player.getByText('영상이 재생되지 않나요?').click()
   await expect(player.getByText(/인터넷 연결을 확인한 뒤/)).toBeVisible()
@@ -104,6 +104,6 @@ test('video upload recovers a TUS offset, requires publication, plays and unpubl
   await settings.getByRole('button',{name:'저장',exact:true}).click()
   await expect(card.getByRole('button',{name:'시청하기'})).toHaveCount(0)
   expect(video!.published).toBe(false)
-  await page.screenshot({path:'test-results/course-videos-mobile.png',fullPage:true})
+  await page.screenshot({animations:'disabled',path:'test-results/course-videos-mobile.png',fullPage:true})
   expect(browserErrors).toEqual([])
 })
