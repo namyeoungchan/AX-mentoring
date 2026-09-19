@@ -1,4 +1,6 @@
-const headers = ['courseId', 'date', 'period', 'studentId', 'name', 'team', 'status', 'reason']
+const legacyHeaders = ['courseId', 'date', 'period', 'studentId', 'name', 'team', 'status', 'reason']
+const headers = [...legacyHeaders, 'checkInAtKST', 'checkOutAtKST']
+const kst = value => value ? new Date(value + 9 * 3600000).toISOString().slice(0, 19).replace('T', ' ') : ''
 const states = ['미처리', '출석', '지각', '결석', '공결']
 const escape = value => {
   let text = String(value ?? '')
@@ -6,7 +8,7 @@ const escape = value => {
   return '"' + text.replaceAll('"', '""') + '"'
 }
 export function exportAttendance(selection, rows) {
-  return '\uFEFF' + [headers, ...rows.map(row => headers.map(key => ({ ...selection, ...row })[key]))].map(row => row.map(escape).join(',')).join('\r\n')
+  return '\uFEFF' + [headers, ...rows.map(row => headers.map(key => ({ ...selection, ...row, checkInAtKST: kst(row.checkInAt), checkOutAtKST: kst(row.checkOutAt) })[key]))].map(row => row.map(escape).join(',')).join('\r\n')
 }
 export function importAttendance(source, selection, allowedIds) {
   if (source.length > 2_000_000) throw new Error('CSV는 2MB 이하로 가져오세요.')
@@ -31,12 +33,13 @@ export function importAttendance(source, selection, allowedIds) {
   }
   if (quoted) throw new Error('CSV 따옴표가 닫히지 않았습니다.')
   if (cell || row.length || ended) { field(); rows.push(row) }
-  if (JSON.stringify(rows.shift()) !== JSON.stringify(headers)) throw new Error('명단 출결 화면에서 내보낸 CSV 열을 그대로 사용하세요.')
+  const columns = rows.shift()
+  if (![headers, legacyHeaders].some(h => JSON.stringify(columns) === JSON.stringify(h))) throw new Error('명단 출결 화면에서 내보낸 CSV 열을 그대로 사용하세요.')
   if (!rows.length || rows.length > 1000) throw new Error('CSV는 1~1000명의 명단을 지원합니다.')
   const seen = new Set(), allowed = new Set(allowedIds)
   return rows.map((cells, index) => {
     const [courseId, date, period, studentId, , , status, reason] = cells
-    if (cells.length !== headers.length || courseId !== selection.courseId || date !== selection.date || Number(period) !== selection.period) throw new Error(`${index + 2}행: 선택한 과정·날짜·차시와 일치하지 않습니다.`)
+    if (cells.length !== columns.length || courseId !== selection.courseId || date !== selection.date || Number(period) !== selection.period) throw new Error(`${index + 2}행: 선택한 과정·날짜·차시와 일치하지 않습니다.`)
     if (!allowed.has(studentId) || seen.has(studentId)) throw new Error(`${index + 2}행: 담당 명단에 없거나 중복된 수강생입니다.`)
     if (!states.includes(status) || reason.length > 200) throw new Error(`${index + 2}행: 출결 상태 또는 사유를 확인하세요.`)
     seen.add(studentId)

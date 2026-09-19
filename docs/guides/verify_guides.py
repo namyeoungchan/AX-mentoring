@@ -16,7 +16,7 @@ for name, role in guides:
     text = ''.join(page.get_text() for page in doc)
     assert role in text and '\ufffd' not in text and '\u25a1' not in text
     assert 'Discord' in text
-    assert '/출석' in text and '2026.09.18' in text
+    assert '입실' in text and '퇴실' in text and '2026.09.19' in text
     font_ids = {font[0] for page in doc for font in page.get_fonts()}
     # Chrome embeds Apple Korean glyphs as Type 3 CharProcs.
     assert all(doc.extract_font(xref)[3] or doc.xref_get_key(xref, 'CharProcs')[0] in ('dict', 'xref') for xref in font_ids), 'Missing embedded glyphs'
