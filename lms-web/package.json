@@ -11,7 +11,7 @@
     "sync:setup": "node scripts/setup-render-sync.mjs",
     "bot:setup": "node scripts/setup-bot-integrations.mjs",
     "account:reset": "node scripts/reset-account.mjs",
-    "test": "node --test server/course-videos.test.mjs server/student-roster.test.mjs server/attendance-codes.test.mjs server/data-maintenance.test.mjs server/student-accounts.test.mjs server/attendance.test.mjs server/assignment-alerts.test.mjs server/outbox.test.mjs server/store.test.mjs server/render-sync.test.mjs server/auth.test.mjs server/provision.test.mjs server/workspaces.test.mjs server/admissions.test.mjs server/origins.test.mjs server/onboarding.test.mjs server/bot-storage.test.mjs server/staff-flow.test.mjs server/workspace-verification.test.mjs server/operation-queue.test.mjs",
+    "test": "node --test server/course-management.test.mjs server/course-videos.test.mjs server/student-roster.test.mjs server/attendance-codes.test.mjs server/data-maintenance.test.mjs server/student-accounts.test.mjs server/attendance.test.mjs server/assignment-alerts.test.mjs server/outbox.test.mjs server/store.test.mjs server/render-sync.test.mjs server/auth.test.mjs server/provision.test.mjs server/workspaces.test.mjs server/admissions.test.mjs server/origins.test.mjs server/onboarding.test.mjs server/bot-storage.test.mjs server/staff-flow.test.mjs server/workspace-verification.test.mjs server/operation-queue.test.mjs",
     "test:e2e": "npm run build && npm run test:rehearsal",
     "test:rehearsal": "playwright test --shard=1/3 --output=test-results/shard-1 && playwright test --shard=2/3 --output=test-results/shard-2 && playwright test --shard=3/3 --output=test-results/shard-3",
     "test:pages": "playwright test --config playwright.pages.config.ts",
