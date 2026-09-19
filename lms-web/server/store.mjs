@@ -1,3 +1,4 @@
+import { courseSchedule, validCourseSchedule } from './course-schedule.mjs';
 import { asyncSome } from './async-collections.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { openPostgres } from './postgres/database.mjs';
@@ -14,7 +15,7 @@ const date = z.string().date();
 const discord = z.string().regex(/^\d{17,20}$/, 'Discord ID는 17~20자리 숫자여야 합니다.');
 const optionalDiscord = z.union([discord, z.literal('')]).default('');
 const schemas = {
-    courses: z.object({ id, title: text, category: text, description: z.string().max(2000), progress: z.number().min(0).max(100), learners: z.number().int().nonnegative(), weeks: text, mentor: z.string().max(100), theme: z.enum(['orange', 'green', 'blue']), status: z.enum(['진행 중', '모집 중', '종료']), code: text, cohort: text, guildId: optionalDiscord, startDate: date, endDate: date }).refine(v => v.startDate <= v.endDate, '종료일은 시작일 이후여야 합니다.'),
+    courses: z.object({ id, title: text, category: text, description: z.string().max(2000), progress: z.number().min(0).max(100), learners: z.number().int().nonnegative(), weeks: text, mentor: z.string().max(100), theme: z.enum(['orange', 'green', 'blue']), status: z.enum(['진행 중', '모집 중', '종료']), code: text, cohort: text, guildId: optionalDiscord, startDate: date, endDate: date, schedule: courseSchedule.optional() }).refine(validCourseSchedule, '일정의 날짜와 주차는 과정 운영 기간 안에 있어야 합니다.').refine(v => v.startDate <= v.endDate, '종료일은 시작일 이후여야 합니다.'),
     learners: z.object({ id, name: text, email: z.union([z.email(), z.literal('')]), courseId: id, team: z.string().max(100), discordId: optionalDiscord, status: z.enum(['대기', '정상', '중도탈락', '수료', '비활성']), progress: z.number().min(0).max(100).default(0), color: z.string().default('sage') }),
     teams: z.object({ id, name: text, code: text, courseId: id, mentorId: z.string().default('') }),
     attendance: z.object({ id, studentId: id, courseId: id, date, period: z.coerce.number().int().min(1).max(100), status: z.enum(['출석', '지각', '결석', '공결']), reason: text }),

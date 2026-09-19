@@ -1048,3 +1048,53 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .discord-guide-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; padding-top:20px; border-top:1px solid #e5eae6; }
 .discord-guide-footer strong { font-size:14px; color:#244c3c; }.discord-guide-footer p { margin-bottom:0; }
 @media(max-width:640px) { .discord-join-guide { padding:18px 14px; }.discord-guide-steps > li { gap:10px; grid-template-columns:26px minmax(0,1fr); }.discord-step-number { width:26px;height:26px; }.discord-guide-footer > .button { width:100%; }.discord-guide-heading h3 { font-size:16px; } }
+
+/* Course management uses the same panels, tabs and form controls as the admin workspace. */
+.course-management-modal { width: min(820px, calc(100vw - 32px)); max-width: 820px; }
+.course-management-body { padding: 0 28px 28px; }
+.course-management-meta, .course-status-actions, .course-schedule-heading, .course-session-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.course-management-meta { justify-content: flex-start; color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.course-management-tabs { margin-bottom: 24px; }
+.course-overview > p { line-height: 1.8; font-size: 14px; }
+.course-summary { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; padding: 20px 0; }
+.course-summary dt { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.course-summary dd { font-size: 14px; margin: 0; }
+.course-status-actions { justify-content: flex-start; margin: 14px 0 24px; }
+.course-overview h3, .course-schedule-heading h3 { font-size: 15px; margin: 18px 0; }
+.course-overview > .text-button { margin-top: 20px; }
+.course-schedule-form { padding: 0; }
+.course-schedule-form fieldset { min-width: 0; }
+.course-schedule-form label { min-width: 0; }
+.course-schedule-form input, .course-schedule-form textarea { width: 100%; min-width: 0; }
+.course-schedule-form .muted { font-size: 12px; line-height: 1.7; }
+.course-period-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.course-session-title { display: grid; grid-template-columns: 85px minmax(0, 1fr); gap: 12px; }
+.course-schedule-heading h3 span { font-size: 12px; color: var(--muted); font-weight: 400; }
+.course-schedule-empty { text-align: center; background: #f7f9f5; border: 1px dashed #dce4d5; border-radius: 12px; padding: 26px; margin-bottom: 18px; color: #6d806d; }
+.course-schedule-empty p { margin: 10px 0 5px; }
+.course-schedule-list { display: grid; gap: 16px; margin-bottom: 16px; }
+.course-session-editor { padding: 18px; background: #f8faf6; border: 1px solid #e3e8de; border-radius: 12px; min-width: 0; }
+.course-session-heading { margin-bottom: 16px; font-size: 13px; }
+.course-schedule-save { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #e3e8de; padding: 16px 0 0; margin-top: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.course-schedule-save > span { font-size: 12px; color: #64765e; }
+@media (max-width: 600px) {
+  .course-management-body { padding: 0 18px 20px; }
+  .course-summary { grid-template-columns: 1fr 1fr; }
+  .course-summary > div:first-child { grid-column: 1 / -1; }
+  .course-period-fields { grid-template-columns: 1fr 1fr; }
+  .course-period-fields > label:first-child { grid-column: 1 / -1; }
+  .course-session-editor { padding: 14px; }
+  .course-schedule-save { align-items: stretch; flex-direction: column; }
+  .course-schedule-save .button { flex: 1; }
+  .course-schedule-heading { flex-wrap: wrap; }
+}
+
+.course-management-modal .modal-heading { position: sticky; top: 0; z-index: 3; background: #fff; }
+.course-session-heading { cursor: pointer; margin-bottom: 0; }
+.course-session-heading > span { min-width: 0; flex: 1; }
+.course-session-heading strong { overflow-wrap: anywhere; }
+.course-session-heading small { display: block; color: #718369; font-size: 12px; margin-top: 5px; }
+.course-session-heading::before { content: '›'; font-size: 20px; color: #718369; }
+.course-session-editor[open] > .course-session-heading { margin-bottom: 18px; }
+.course-session-editor[open] > .course-session-heading::before { transform: rotate(90deg); }
+.course-session-heading .text-button { flex-shrink: 0; }
