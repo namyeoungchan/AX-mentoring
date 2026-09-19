@@ -13,7 +13,7 @@ async function fixture(t) {
     const runtime = await createRuntime(join(dir, 'test.db'), { NODE_ENV: 'test' });
     t.after(() => { runtime.close(); rmSync(dir, { recursive: true, force: true }); });
     const { store: { db }, workspaces, attendance } = runtime;
-    let time = Date.now();
+    let time = Date.parse('2026-09-18T01:00:00Z');
     const codes = createAttendanceCodes(db, workspaces, attendance, { now: () => time });
     const put = async (kind, row) => await db.prepare('INSERT INTO lms_records VALUES(?,?,?)').run(kind, row.id, JSON.stringify(row));
     const account = async (id, role, discordId) => {
@@ -34,27 +34,30 @@ async function fixture(t) {
         await put('learners', { id: user.id, discordId: user.discordId, courseId: 'course', name: user.id, team, status: '정상' });
     await workspaces.assignMentor('default', mentor.id, { mentorType: 'group', teamIds: ['t1'] }, admin);
     const view = async () => await attendance.view('default', selected, admin);
-    const save = async (action, entries = []) => await attendance.save('default', { ...selected, action, entries, revision: (await view()).revision, requestId: randomUUID() }, admin);
-    const issue = async (user = admin, raw = {}) => await codes.issue('default', { ...selected, ...raw }, user);
+    const saveRaw = async (action, entries = []) => await attendance.save('default', { ...selected, action, entries, revision: (await view()).revision, requestId: randomUUID() }, admin);
+    const issue = async (user = admin, raw = {}) => await codes.issue('default', { ...selected, startTime: '10:00', endTime: '12:00', ...raw }, user);
+    const save = async (action, entries = []) => { if (action === 'start') { await issue(); return view(); } return saveRaw(action, entries); };
     const check = async (code, user = student, guild = guildId) => await codes.checkIn({ guildId: guild, discordId: user.discordId, code });
     return { db, codes, workspaces, admin, mentor, student, other, put, view, save, issue, check, advance: ms => { time += ms; } };
 }
 test('verified students check in once per round, change roster revision, and cannot overwrite mentor corrections', async (t) => {
     const f = await fixture(t);
-    await assert.rejects(async () => await f.issue(), { status: 409 });
-    await f.save('start');
+    await assert.rejects(async () => await f.issue(f.admin, { startTime: '12:00', endTime: '10:00' }), { status: 422 });
     const issued = await f.issue(), before = (await f.view()).revision;
     assert.match(issued.code, /^\d{6}$/);
     assert.ok(!JSON.stringify(await f.db.prepare('SELECT * FROM lms_attendance_codes').get()).includes(issued.code));
     assert.equal((await f.check(issued.code)).alreadyRecorded, false);
     assert.notEqual((await f.view()).revision, before);
     assert.equal((await f.check(issued.code)).alreadyRecorded, true);
-    assert.equal((await f.view()).history.length, 1);
+    assert.equal((await f.view()).history.length, 0);
     await f.save('save', [{ studentId: 'student', status: '지각', reason: '멘토 도착 확인' }]);
     assert.equal((await f.check(issued.code)).status, '지각');
     assert.equal((await f.check((await f.issue()).code)).status, '지각');
     assert.equal((await f.view()).counts['지각'], 1);
-    assert.equal((await f.view()).history.length, 2);
+    assert.equal((await f.view()).history.length, 1);
+    const ending = await f.issue(f.admin, { phase: 'out' });
+    assert.equal((await f.check(ending.code)).status, '지각');
+    assert.ok((await f.view()).rows.find(r => r.studentId === 'student').checkOutAt);
 });
 test('expiry boundary, replacement, explicit revocation, closure and archive reject registration', async (t) => {
     const f = await fixture(t);
@@ -68,8 +71,9 @@ test('expiry boundary, replacement, explicit revocation, closure and archive rej
     await assert.rejects(async () => await f.check(third.code), { status: 410 });
     const fourth = await f.issue();
     await f.save('save', ['student', 'other'].map(studentId => ({ studentId, status: '결석' })));
+    await f.issue(f.admin, { phase: 'out' });
     await f.save('close');
-    await assert.rejects(async () => await f.check(fourth.code), { status: 409 });
+    await assert.rejects(async () => await f.check(fourth.code), { status: 410 });
     assert.equal((await f.codes.status('default', selected, f.admin)).active, null);
     await f.db.prepare('UPDATE lms_workspaces SET archived_at=1 WHERE id=?').run('default');
     await assert.rejects(async () => await f.check(fourth.code), { status: 403 });
@@ -103,7 +107,7 @@ test('two mentors codes remain independent and codes cannot be retargeted to ano
     const whole = await f.issue(), group = await f.issue(f.mentor);
     await f.codes.revoke('default', selected, f.mentor);
     await assert.rejects(async () => await f.check(group.code), { status: 410 });
-    assert.equal((await f.check(whole.code, f.other)).status, '출석');
+    assert.equal((await f.check(whole.code, f.other)).status, '미처리');
     await f.db.prepare("UPDATE lms_records SET data=json_set(data,'$.courseId','another') WHERE kind='learners' AND id='student'").run();
     await assert.rejects(async () => await f.check(whole.code), { status: 403 });
 });
@@ -111,7 +115,7 @@ test('failed audit rolls back attendance and revision; malformed input cannot se
     const f = await fixture(t);
     await f.save('start');
     const issued = await f.issue(), before = (await f.view()).revision;
-    f.db.exec("CREATE TRIGGER fail_attendance BEFORE INSERT ON lms_audit WHEN NEW.action='attendance.checkin' BEGIN SELECT RAISE(ABORT,'disk failure'); END");
+    f.db.exec("CREATE TRIGGER fail_attendance BEFORE INSERT ON lms_audit WHEN NEW.action='attendance.presence.in' BEGIN SELECT RAISE(ABORT,'disk failure'); END");
     await assert.rejects(async () => await f.check(issued.code), /disk failure/);
     assert.equal((await f.view()).revision, before);
     assert.equal((await f.view()).counts['출석'], 0);
@@ -120,4 +124,40 @@ test('failed audit rolls back attendance and revision; malformed input cannot se
     await assert.rejects(async () => await f.codes.checkIn({ code: issued.code, guildId, discordId: f.student.discordId, studentId: 'other' }));
     for (const code of ['12345', '1234567', "' OR 1=1", '１２３４５６'])
         await assert.rejects(async () => await f.check(code));
+});
+
+
+test('lecture codes require precise hours, separate entry/exit and retain actual start/end across reissues', async t => {
+    const f = await fixture(t);
+    await assert.rejects(f.issue(f.admin, {startTime: undefined, endTime: undefined}), {status:422});
+    assert.equal((await f.view()).state, '진행 전');
+    await assert.rejects(f.issue(f.mentor), {status:403});
+    const start = await f.issue(), startedAt = start.session.startedAt;
+    await assert.rejects(f.codes.presence.mark('default', {code:start.code, action:'out'}, f.student), {status:422});
+    await f.check(start.code);
+    f.advance(1000);
+    assert.equal((await f.issue()).session.startedAt, startedAt);
+    const groupCode = await f.issue(f.mentor);
+    await assert.rejects(f.issue(f.mentor, {phase:'out'}), {status:403});
+    const end = await f.issue(f.admin, {phase:'out'}), endedAt = end.session.endedAt;
+    await assert.rejects(f.check(groupCode.code), {status:410});
+    await assert.rejects(f.check(end.code,f.other), {status:409});
+    await assert.rejects(f.codes.presence.mark('default', {code:end.code,action:'in'}, f.student), {status:422});
+    assert.equal((await f.check(end.code)).status,'출석');
+    f.advance(1000);
+    const reissued = await f.issue(f.admin, {phase:'out'});
+    assert.equal(reissued.session.endedAt,endedAt);
+    await assert.rejects(f.issue(), {status:409});
+    await assert.rejects(f.issue(f.admin,{phase:'out',endTime:'13:00'}), {status:409});
+    f.advance(5*60000);
+    await assert.rejects(f.check(reissued.code), {status:410});
+});
+
+test('failed code generation rolls back the lecture start and scheduled hours', async t => {
+    const f = await fixture(t);
+    f.db.exec("CREATE TRIGGER fail_code BEFORE INSERT ON lms_audit WHEN NEW.action='attendance.code.issue' BEGIN SELECT RAISE(ABORT,'disk failure'); END");
+    await assert.rejects(f.issue(), /disk failure/);
+    assert.equal((await f.view()).state,'진행 전');
+    assert.equal((await f.view()).session,null);
+    assert.equal((await f.db.prepare('SELECT COUNT(*) AS n FROM lms_attendance_codes').get()).n,0);
 });

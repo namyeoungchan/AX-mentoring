@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { randomUUID } from 'node:crypto'
 
 async function login(page: Page) {
   await page.goto('/')
@@ -34,8 +35,11 @@ test('create course, learner, attendance and score, persist reload, and validate
   await expect(dialog).not.toBeVisible()
   await expect(page.getByRole('cell', { name: '김테스트', exact: true })).toBeVisible()
   await page.getByRole('navigation').getByRole('button', { name: '출결 관리' }).click()
-  await page.getByRole('button', { name: '회차 시작', exact: true }).click()
-  await expect(page.locator('.attendance-panel').getByRole('status')).toHaveText('회차를 시작했습니다.')
+  const selected = {courseId: await page.getByLabel('출결 과정').inputValue(), date: await page.getByLabel('출결 날짜').inputValue(), period: 1}
+  const before = await (await page.request.get('/api/workspaces/default/attendance?' + new URLSearchParams({...selected,period:'1'}))).json()
+  expect((await page.request.post('/api/workspaces/default/attendance', {data:{...selected,action:'start',revision:before.revision,requestId:randomUUID()}})).status()).toBe(200)
+  await page.getByRole('button',{name:'명단 새로고침'}).click()
+  await expect(page.locator('.attendance-summary')).toContainText('진행 중')
   await page.getByRole('group', { name: '김테스트 출결 상태', exact: true }).getByRole('button', { name: '출석', exact: true }).click()
   await page.getByLabel('등록·정정 사유').fill('운영자 확인')
   await page.getByRole('button', { name: '출결 일괄 저장', exact: true }).click()
