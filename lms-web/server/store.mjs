@@ -79,7 +79,7 @@ export async function createStore(dbPath, { workspaceId = 'default', defaultName
     const put = async (kind, row) => await db.prepare('INSERT INTO lms_records(kind,id,data) VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data').run(kind, row.id || 'workspace', JSON.stringify(row));
     if (workspaceId === 'default') {
         const settings = await get('settings', 'workspace');
-        if (settings?.name === branding.legacyName)
+        if (branding.legacyNames.includes(settings?.name))
             await put('settings', { ...settings, name: branding.name });
     }
     async function snapshot() {

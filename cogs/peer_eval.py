@@ -193,7 +193,7 @@ def build_panel_embed(
             lines.append(f"`{_bar(done, total)}` **{team}** — {done}/{total}명 완료 ({pct}%)")
     panel_field(embed, name="✅ 팀별 진행 현황", value="\n".join(lines) or "아직 배정된 조가 없습니다.", inline=False)
 
-    embed.set_footer(text=f"AX LearningOps · 비밀평가 · {now_str}")
+    embed.set_footer(text=f"AX 학습관리시스템 · 비밀평가 · {now_str}")
     return embed
 
 
@@ -253,7 +253,7 @@ def build_team_panel_embed(round_row: dict, team: str) -> discord.Embed:
         value=rubric[:1024],
         inline=False,
     )
-    embed.set_footer(text="AX LearningOps · 비밀평가")
+    embed.set_footer(text="AX 학습관리시스템 · 비밀평가")
     return embed
 
 

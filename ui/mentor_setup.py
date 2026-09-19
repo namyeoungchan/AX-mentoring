@@ -350,5 +350,5 @@ async def build_setup_embed(mentor: dict, template: dict | None) -> discord.Embe
         inline=True,
     )
 
-    embed.set_footer(text="AX LearningOps 멘토링 · 멘토 설정")
+    embed.set_footer(text="AX 학습관리시스템 멘토링 · 멘토 설정")
     return embed

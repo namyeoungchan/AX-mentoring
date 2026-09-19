@@ -1,4 +1,4 @@
-# AX LearningOps 웹
+# AX 학습관리시스템 웹
 
 React + TypeScript + Vite + Tailwind CSS로 만든 반응형 운영 웹입니다. Node.js / Express API는 `DATABASE_URL`이 있으면 PostgreSQL, 없으면 기존 워크스페이스별 SQLite 파일을 사용합니다. 기존 Python 봇 DB는 연결된 워크스페이스로 이관하고, 전환 이후 봇도 웹 API로 데이터를 읽고 저장합니다. 연동 URL과 키가 없는 기존 설치는 로컬 DB를 유지합니다.
 

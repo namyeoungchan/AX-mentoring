@@ -32,8 +32,8 @@ NEUTRAL_COLOR = discord.Color.from_str("#7D8EA3")
 def panel_embed(title: str, description: str = "", *, section: str, color=None) -> discord.Embed:
     """Shared visual hierarchy for persistent Discord panels."""
     embed = discord.Embed(title=title[:256], description=description[:4096] or None, color=color or BRAND_COLOR)
-    embed.set_author(name=f"AX LearningOps  /  {section}")
-    embed.set_footer(text="AX LearningOps · 함께 배우고, 함께 성장하는 공간")
+    embed.set_author(name=f"AX 학습관리시스템  /  {section}")
+    embed.set_footer(text="AX 학습관리시스템 · 함께 배우고, 함께 성장하는 공간")
     return embed
 
 
@@ -69,7 +69,7 @@ def _hm(iso: str) -> str:
 def mentor_list_embed(mentors: list[dict]) -> discord.Embed:
     embed = discord.Embed(
         title="멘토 목록",
-        description="AX LearningOps 멘토 목록입니다. `/book` 명령으로 예약하세요.",
+        description="AX 학습관리시스템 멘토 목록입니다. `/book` 명령으로 예약하세요.",
         color=BRAND_COLOR,
     )
     if not mentors:
@@ -77,7 +77,7 @@ def mentor_list_embed(mentors: list[dict]) -> discord.Embed:
         return embed
     for m in mentors:
         embed.add_field(name=f"#{m['id']}  {m['name']}", value=m["bio"] or "담당 분야 준비 중", inline=False)
-    embed.set_footer(text="AX LearningOps 멘토링 예약 시스템")
+    embed.set_footer(text="AX 학습관리시스템 멘토링 예약 시스템")
     return embed
 
 
@@ -108,7 +108,7 @@ def slot_list_embed(mentor: dict, slots: list[dict], bookings_map: dict[int, dic
         description += line + "\n"
 
     embed.description = description.strip()
-    embed.set_footer(text="아래 메뉴에서 슬롯을 선택하세요 · AX LearningOps 멘토링")
+    embed.set_footer(text="아래 메뉴에서 슬롯을 선택하세요 · AX 학습관리시스템 멘토링")
     return embed
 
 
@@ -127,7 +127,7 @@ def date_select_embed(mentor: dict, dates: list[str]) -> discord.Embed:
                   + ("\n..." if len(dates) > 10 else ""),
             inline=False,
         )
-        embed.set_footer(text="아래 메뉴에서 날짜를 선택하세요 · AX LearningOps 멘토링")
+        embed.set_footer(text="아래 메뉴에서 날짜를 선택하세요 · AX 학습관리시스템 멘토링")
     else:
         embed.add_field(name="예약 가능한 날짜 없음", value="현재 신청 가능한 날짜가 없습니다.", inline=False)
     return embed
@@ -154,7 +154,7 @@ def time_slot_embed(mentor: dict, selected_date: str, slots: list[dict]) -> disc
             lines.append(f"🟢 **{start} ~ {end}** — 신청 가능")
 
     embed.description = "\n".join(lines)
-    embed.set_footer(text="🟢 신청 가능  🟡 대기 중  🔴 확정됨 · AX LearningOps 멘토링")
+    embed.set_footer(text="🟢 신청 가능  🟡 대기 중  🔴 확정됨 · AX 학습관리시스템 멘토링")
     return embed
 
 
@@ -168,7 +168,7 @@ def booking_request_confirm_embed(slot: dict, mentor: dict) -> discord.Embed:
     )
     embed.add_field(name="멘토", value=mentor["name"], inline=True)
     embed.add_field(name="시간", value=slot["label"], inline=True)
-    embed.set_footer(text="60초 내에 확인해주세요 · AX LearningOps 멘토링")
+    embed.set_footer(text="60초 내에 확인해주세요 · AX 학습관리시스템 멘토링")
     return embed
 
 
@@ -182,7 +182,7 @@ def booking_request_sent_embed(slot: dict, mentor: dict) -> discord.Embed:
         color=NEUTRAL_COLOR,
     )
     embed.add_field(name="시간", value=slot["label"], inline=False)
-    embed.set_footer(text="/mybooking 으로 신청 현황을 확인하세요 · AX LearningOps 멘토링")
+    embed.set_footer(text="/mybooking 으로 신청 현황을 확인하세요 · AX 학습관리시스템 멘토링")
     return embed
 
 
@@ -204,7 +204,7 @@ def mentor_notification_embed(slot: dict, user: discord.User | discord.Member) -
     )
     embed.add_field(name="신청자", value=f"{user.display_name} ({user.mention})", inline=True)
     embed.add_field(name="시간", value=slot["label"], inline=True)
-    embed.set_footer(text="승인 또는 반려를 선택하세요 · AX LearningOps 멘토링")
+    embed.set_footer(text="승인 또는 반려를 선택하세요 · AX 학습관리시스템 멘토링")
     return embed
 
 
@@ -241,7 +241,7 @@ def booking_approved_embed(slot: dict, mentor: dict) -> discord.Embed:
         color=SUCCESS_COLOR,
     )
     embed.add_field(name="확정 시간", value=slot["label"], inline=False)
-    embed.set_footer(text="AX LearningOps 멘토링")
+    embed.set_footer(text="AX 학습관리시스템 멘토링")
     return embed
 
 
@@ -267,7 +267,7 @@ def booking_rejected_embed(
         )
     else:
         embed.add_field(name="안내", value="다른 시간으로 다시 신청해주세요.", inline=False)
-    embed.set_footer(text="AX LearningOps 멘토링")
+    embed.set_footer(text="AX 학습관리시스템 멘토링")
     return embed
 
 
@@ -295,7 +295,7 @@ def my_booking_embed(booking: dict, mentor: dict) -> discord.Embed:
     embed.add_field(name="시간", value=booking["label"], inline=True)
     embed.add_field(name="상태", value=status_text, inline=True)
     embed.add_field(name="신청 일시", value=fmt_kst(booking["booked_at"]), inline=False)
-    embed.set_footer(text="/cancel 명령으로 취소할 수 있습니다 · AX LearningOps 멘토링")
+    embed.set_footer(text="/cancel 명령으로 취소할 수 있습니다 · AX 학습관리시스템 멘토링")
     return embed
 
 
@@ -307,7 +307,7 @@ def cancel_confirm_embed(booking: dict, mentor: dict) -> discord.Embed:
     embed = discord.Embed(title="신청 취소 확인", description=desc, color=WARNING_COLOR)
     embed.add_field(name="멘토", value=mentor["name"], inline=True)
     embed.add_field(name="시간", value=booking["label"], inline=True)
-    embed.set_footer(text="60초 내에 확인해주세요 · AX LearningOps 멘토링")
+    embed.set_footer(text="60초 내에 확인해주세요 · AX 학습관리시스템 멘토링")
     return embed
 
 
@@ -329,7 +329,7 @@ def admin_bookings_embed(bookings: list[dict], page: int, total_pages: int) -> d
             f"{status_icon} `{b['slot_id']}` | **{b['mentor_name']}** | {b['label']} | @{b['user_name']}"
         )
     embed.description = "\n".join(lines)
-    embed.set_footer(text="⏳ 대기중  ✅ 확정 · AX LearningOps 멘토링 관리자")
+    embed.set_footer(text="⏳ 대기중  ✅ 확정 · AX 학습관리시스템 멘토링 관리자")
     return embed
 
 
@@ -382,5 +382,5 @@ def reminder_embed(booking: dict, reminder_type: str, for_mentor: bool = False) 
         inline=True,
     )
     embed.add_field(name="시간", value=label, inline=True)
-    embed.set_footer(text="AX LearningOps 멘토링")
+    embed.set_footer(text="AX 학습관리시스템 멘토링")
     return embed

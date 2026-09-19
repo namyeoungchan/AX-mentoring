@@ -75,7 +75,7 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
   const remaining = challenge ? Math.max(0, Math.ceil((challenge.expiresAt - clock) / 1000)) : 0
   const expired = challenge?.state === 'expired' || (challenge?.state === 'pending' && remaining === 0)
   return <div className="auth-page">
-    <header className="auth-header"><a href="#login" onClick={() => changeMode('login')} className="auth-brand"><span><BookOpen size={21} /></span>AX <b>LearningOps</b></a><span>학습 관리 시스템</span></header>
+    <header className="auth-header"><a href="#login" onClick={() => changeMode('login')} className="auth-brand"><span><BookOpen size={21} /></span>AX <b>학습관리시스템</b></a><span>학습 관리 시스템</span></header>
     <main className="auth-layout">
       <section className="auth-intro"><span className="eyebrow">LEARNING MANAGEMENT</span><h1>학습 계정으로<br />로그인하세요.</h1><p>과정과 과제를 확인하고<br />나의 출결과 성적을 조회합니다.</p><div className="auth-discord"><ShieldCheck size={24} /><div><h2>{staffInvitation ? '초대받은 계정으로 참여' : configured ? '승인 후 Discord 참여' : '관리자가 발급한 계정으로 시작'}</h2><p>{staffInvitation ? 'LMS에 먼저 가입하고 초대를 수락한 뒤 Discord를 연결합니다.' : configured ? '관리자 또는 강사가 승인하면 Discord 초대 링크를 받습니다.' : '아이디와 초기 비밀번호를 받아 로그인하고 본인 정보를 설정하세요.'}</p></div></div><ol className="auth-steps"><li><span>01</span>{staffInvitation || configured ? '가입 정보 입력' : '발급받은 계정으로 로그인'}</li><li><span>02</span>{staffInvitation ? '초대 수락' : configured ? '관리자 · 강사 승인' : '내 정보 · 비밀번호 설정'}</li><li><span>03</span>{staffInvitation ? '기본 정보 · Discord 연결' : 'Discord 참여 및 인증'}</li></ol></section>
       <section className="auth-card" aria-label="계정 인증">
@@ -113,6 +113,6 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
           {demoMode && <button className="button secondary auth-submit" onClick={enterDemo}>데모 둘러보기 <ArrowRight size={15} /></button>}
         </>}
       </section>
-    </main><footer className="auth-footer">AX LearningOps</footer>
+    </main><footer className="auth-footer">AX 학습관리시스템</footer>
   </div>
 }

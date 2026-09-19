@@ -47,7 +47,7 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await reopened.get(self.guild.id, 'panel', 'submit:11'))['messageId'], 77)
 
     async def test_old_and_new_footer_markers_recover_owned_panels_without_duplicates(self):
-        for footer in (f'learningops:panel:{self.guild.id}:submit', 'AX LearningOps · 과제 제출 · 자동 갱신'):
+        for footer in (f'learningops:panel:{self.guild.id}:submit', 'AX LearningOps · 과제 제출 · 자동 갱신', 'AX 학습관리시스템 · 과제 제출 · 자동 갱신'):
             store = SimpleNamespace(get=AsyncMock(return_value=None), put=AsyncMock())
             self.message.embeds = [discord.Embed(title='기존 패널').set_footer(text=footer)]
             self.channel.pins = lambda **_: stream([self.message])

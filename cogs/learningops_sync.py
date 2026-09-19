@@ -87,7 +87,7 @@ class LearningOpsSync(commands.Cog):
             latency = self.bot.latency
             snapshot.update({
                 # The API routes by the bound Discord guild. No per-workspace bot setting.
-                "name": guild.name if guild else "AX LearningOps",
+                "name": guild.name if guild else "AX 학습관리시스템",
                 "capturedAt": datetime.now(timezone.utc).isoformat(),
                 "bot": {
                     "name": str(self.bot.user) if self.bot.user else "asanAX",

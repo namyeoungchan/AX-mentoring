@@ -65,7 +65,7 @@ export default function RoleWorkspace({ role, name, username, title, pages, page
     <a className="skip-content" href="#role-main" onClick={e => { e.preventDefault(); heading.current?.focus() }}>본문으로 이동</a>
     {open && mobile && <button className="sidebar-overlay" aria-label="메뉴 닫기" onClick={closeMenu} />}
     <aside ref={sidebar} className={`sidebar ${open ? 'open' : ''}`} inert={mobile && !open} aria-label={`${roleName} 메뉴`}>
-      <a href={`#${pages[0].id}`} className="brand" onClick={e => { e.preventDefault(); navigate(pages[0].id) }}><span className="brand-mark"><Command size={23} /></span><span><span className="brand-ax">AX</span><small>LEARNINGOPS</small></span></a>
+      <a href={`#${pages[0].id}`} className="brand" onClick={e => { e.preventDefault(); navigate(pages[0].id) }}><span className="brand-mark"><Command size={23} /></span><span><span className="brand-ax">AX</span><small>학습관리시스템</small></span></a>
       <button className="icon-button role-menu-close" aria-label="메뉴 접기" onClick={closeMenu}><X size={20} /></button>
       <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={async id => { setOpen(false); await selectWorkspace(id) }} setWorkspaceArchived={setWorkspaceArchived} saving={saving} error={error} />
       <p className="nav-label">WORKSPACE</p>
@@ -78,7 +78,7 @@ export default function RoleWorkspace({ role, name, username, title, pages, page
         <div className="demo-indicator"><span className="online-dot" /><span>{roleName} · {active?.name || '참여 준비'}</span>{status}<button className="text-button" disabled={saving || refreshing} onClick={() => void reload()}><RefreshCw size={13} />{refreshing ? '불러오는 중…' : '새로고침'}</button><AccountSettings /></div>
         {error && <div className="inline-note error-note" role="alert">{error}<button className="text-button" disabled={refreshing} onClick={() => void reload()}>다시 불러오기</button></div>}
         <div className="role-content">{children}</div>
-      <footer><span>© {new Date().getFullYear()} {active?.name || 'AX LearningOps'} · {roleName}</span><a href={pdf} target="_blank" rel="noreferrer">이용 가이드 PDF <ArrowUpRight size={12} /></a></footer>
+      <footer><span>© {new Date().getFullYear()} {active?.name || 'AX 학습관리시스템'} · {roleName}</span><a href={pdf} target="_blank" rel="noreferrer">이용 가이드 PDF <ArrowUpRight size={12} /></a></footer>
       </main>
     </div>
   </div>

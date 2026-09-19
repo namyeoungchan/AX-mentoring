@@ -1,4 +1,8 @@
 {
-  "name": "AX LearningOps",
-  "legacyName": "\ucc9c\uc548 AX"
+  "name": "AX 학습관리시스템",
+  "legacyNames": [
+    "천안 AX",
+    "AX LearningOps",
+    "AXLearningOps"
+  ]
 }

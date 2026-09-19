@@ -95,7 +95,7 @@ test('migration preserves existing learning rows and assigns the previous Render
         await store.mutate({ revision: (await store.snapshot()).revision, changes: [{ kind: 'courses', value: course }] });
         await sync.ingest(payload('asan-ax'));
     });
-    assert.deepEqual((await manager.list(admin)).map(w => w.name), ['AX LearningOps', '아산 AX']);
+    assert.deepEqual((await manager.list(admin)).map(w => w.name), ['AX 학습관리시스템', '아산 AX']);
     assert.equal((await manager.snapshot('default')).courses[0].id, course.id);
     assert.deepEqual((await manager.snapshot('asan-ax')).courses, []);
     assert.equal((await (await manager.remote('asan-ax')).read()).snapshot.bot.guildId, guildId);
@@ -344,13 +344,13 @@ test('old workspace schema gains archive state without losing records and all wo
 });
 test('legacy default branding migrates persisted settings and metadata while preserving custom names', async (t) => {
     const { manager, options } = await fixture(t);
-    const oldName = '\ucc9c\uc548 AX';
+    const oldName = 'AX LearningOps';
     await write(manager, 'default', 'settings', { name: oldName, reminders: true, onboarding: true, qa: true });
     const reopenedStore = await createStore(options.dbPath);
     const reopened = await createWorkspaces({ ...options, store: reopenedStore });
     try {
-        assert.equal((await reopenedStore.snapshot()).name, 'AX LearningOps');
-        assert.equal((await reopened.metadata('default')).name, 'AX LearningOps');
+        assert.equal((await reopenedStore.snapshot()).name, 'AX 학습관리시스템');
+        assert.equal((await reopened.metadata('default')).name, 'AX 학습관리시스템');
         assert.equal((await reopened.metadata('asan-ax')).name, '아산 AX');
         await write(reopened, 'default', 'settings', { name: '나의 교육 공간', reminders: true, onboarding: true, qa: true });
         const custom = await createStore(options.dbPath);
