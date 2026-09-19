@@ -408,6 +408,8 @@ app.post('/api/workspaces/:workspaceId/staff/verification', async (req, res) => 
 });
 app.use('/api/workspaces/:workspaceId', async (req, _res, next) => { await workspaces.requireRole(req.workspaceId, req.account, ['admin']); next(); });
 app.get('/api/workspaces/:workspaceId/student-accounts', async (req, res) => res.json(await admissions.studentAccounts(req.workspaceId, req.account)));
+app.get('/api/workspaces/:workspaceId/learners/:learnerId/deletion', async (req, res) => res.json(await admissions.learnerRemovalPlan(req.workspaceId, req.params.learnerId, req.account)));
+app.delete('/api/workspaces/:workspaceId/learners/:learnerId', maintenance.track(async (req, res) => res.json(await admissions.removeLearner(req.workspaceId, req.params.learnerId, req.body, req.account))));
 app.post('/api/workspaces/:workspaceId/student-roster/preview', async (req, res) => res.json(await runtime.studentRoster.preview(req.workspaceId, req.body, req.account)));
 for (const action of ['groups', 'accounts']) app.post(`/api/workspaces/:workspaceId/student-roster/${action}`, async (req, res) => {
     await auth.limit('student-roster-import', req.account.id, 20, 3600000);

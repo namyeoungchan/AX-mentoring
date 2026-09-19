@@ -27,7 +27,8 @@ export function createAttendance(workspaces, { outbox } = {}) {
         const round = await (db.prepare('SELECT state, version FROM lms_attendance_rounds WHERE course_id=? AND date=? AND period=?')).get(selected.courseId, selected.date, selected.period) || { state: '진행 전', version: 0 };
         const records = data.attendance.filter(a => a.courseId === selected.courseId && a.date === selected.date && a.period === selected.period);
         const presence = (await db.prepare("SELECT data FROM lms_records WHERE kind='attendancePresence' AND json_extract(data,'$.courseId')=? AND json_extract(data,'$.date')=? AND json_extract(data,'$.period')=?").all(selected.courseId, selected.date, selected.period)).map(row => JSON.parse(row.data));
-        const rows = data.learners.filter(l => l.courseId === selected.courseId).map(l => {
+        const historical = (data.removedLearners || []).filter(l => records.some(r => r.studentId === l.id) || presence.some(p => p.studentId === l.id));
+        const rows = [...data.learners, ...historical].filter(l => l.courseId === selected.courseId).map(l => {
             const record = records.find(a => a.studentId === l.id);
             const times = presence.find(p => p.studentId === l.id);
             return { checkInAt: times?.checkInAt || null, checkOutAt: times?.checkOutAt || null, checkInSource: times?.checkInSource || '', checkOutSource: times?.checkOutSource || '', studentId: l.id, name: l.name, team: l.team, enrollment: l.status, status: record?.status || '미처리', reason: record?.reason || '' };
