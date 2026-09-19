@@ -821,9 +821,13 @@ class DynamicSubmitModal(WorkspaceModal):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
 
-        from storage_client import client
+        from storage_client import client, StorageUnavailable
         if client:
-            await client.refresh_settings()
+            try:
+                await client.refresh_settings(config.current().GUILD_ID)
+            except StorageUnavailable:
+                await interaction.followup.send('과제 제출을 시작하지 못했습니다. 웹 연결이 복구된 뒤 다시 제출해 주세요.', ephemeral=True)
+                return
         if config.current().TEAM_MEMBERS is not None:
             user_id = str(interaction.user.id)
             team = config.current().TEAM_MEMBERS.get(user_id)
@@ -836,14 +840,18 @@ class DynamicSubmitModal(WorkspaceModal):
         link = self._link_input.value.strip()
         content_json = json.dumps(field_values, ensure_ascii=False)
 
-        ok = await database.create_submission(
-            assignment_id=self.assignment["id"],
-            user_id=str(interaction.user.id),
-            user_name=interaction.user.display_name,
-            team=self.team,
-            content=content_json,
-            link=link,
-        )
+        try:
+            ok = await database.create_submission(
+                assignment_id=self.assignment["id"],
+                user_id=str(interaction.user.id),
+                user_name=interaction.user.display_name,
+                team=self.team,
+                content=content_json,
+                link=link,
+            )
+        except StorageUnavailable:
+            await interaction.followup.send('제출 결과를 확인하지 못했습니다. 잠시 후 다시 제출해 주세요. 이미 저장된 경우에는 중복 제출 안내가 표시됩니다.', ephemeral=True)
+            return
 
         if not ok:
             await interaction.followup.send(
