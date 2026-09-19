@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, Plus, Save, Trash2 } from 'lucide-react'
 import { Badge, ModalShell } from './components'
 import { workspaceRequest } from './api'
+import CourseScheduleImport from './CourseScheduleImport'
 import type { Course, CourseSession, Workspace } from './data'
 import type { Change } from './Management'
 
@@ -69,13 +70,14 @@ export default function CourseManagement({ course, data, close, refresh, change,
           <button className="text-button" disabled={!!dirty || busy} onClick={assignments}>과제 관리로 이동</button>
         </div> : <form className="modal-form course-schedule-form" onSubmit={e => { e.preventDefault(); void save({ startDate: draft.startDate, endDate: draft.endDate, weeks: `${weeks}주 과정`, schedule: rows }) }}>
           <fieldset disabled={busy || conflict}>
+            <CourseScheduleImport course={draft} apply={changes => { setDraft(d => ({ ...d, ...changes })); setNotice('엑셀 일정을 편집에 반영했습니다. 날짜와 시간을 확인한 뒤 일정 저장을 눌러 주세요.') }} />
             <p className="muted">주차별 수업을 등록하세요. 같은 주차에 여러 수업을 추가할 수 있습니다. 시간은 한국시간 기준입니다.</p>
             <div className="course-period-fields"><label>과정 시작일<input type="date" required value={draft.startDate || ''} onChange={e => setDraft(d => ({ ...d, startDate: e.target.value }))} /></label><label>과정 종료일<input type="date" required min={draft.startDate} value={draft.endDate || ''} onChange={e => setDraft(d => ({ ...d, endDate: e.target.value }))} /></label><label>운영 주차<input type="number" min={1} max={52} required value={weekInput} onChange={e => setDraft(d => ({ ...d, weeks: `${e.target.value}주 과정` }))} /></label></div>
             <div className="course-schedule-heading"><h3>수업 일정 <span>{rows.length}개</span></h3>{!rows.length && <button type="button" className="button secondary compact" disabled={!draft.startDate || !draft.endDate || weeks < 1 || weeks > 52} onClick={generate}>주차 일정 자동 채우기</button>}</div>
             {!rows.length && <div className="course-schedule-empty"><CalendarDays size={24} /><p>등록된 일정이 없습니다.</p><small>주차별로 채우거나 수업을 하나씩 추가하세요.</small></div>}
             <div className="course-schedule-list">{rows.map((s, i) => <details className="course-session-editor" key={s.id} open={i === 0 || s.id === newSessionId}>
-              <summary className="course-session-heading"><span><strong>{s.week}주차 · {s.title || '수업명 입력'}</strong><small>{s.date || '날짜 미정'}{s.startTime ? ` · ${s.startTime}–${s.endTime}` : ''}</small></span><button className="text-button" type="button" aria-label={`수업 ${i + 1} 삭제`} onClick={e => { e.preventDefault(); setDraft(d => ({ ...d, schedule: rows.filter(row => row.id !== s.id) })) }}><Trash2 size={15} />삭제</button></summary>
-              <div className="course-session-title"><label>주차<input type="number" min={1} max={weeks} required value={s.week} onChange={e => patch(s.id, { week: Number(e.target.value) })} /></label><label>수업명<input required maxLength={120} value={s.title} onChange={e => patch(s.id, { title: e.target.value })} /></label></div>
+              <summary className="course-session-heading"><span><strong>{s.week === 0 ? 'OT' : `${s.week}주차`} · {s.title || '수업명 입력'}</strong><small>{s.date || '날짜 미정'}{s.startTime ? ` · ${s.startTime}–${s.endTime}` : ''}</small></span><button className="text-button" type="button" aria-label={`수업 ${i + 1} 삭제`} onClick={e => { e.preventDefault(); setDraft(d => ({ ...d, schedule: rows.filter(row => row.id !== s.id) })) }}><Trash2 size={15} />삭제</button></summary>
+              <div className="course-session-title"><label>주차 (OT는 0)<input type="number" min={0} max={weeks} required value={s.week} onChange={e => patch(s.id, { week: Number(e.target.value) })} /></label><label>수업명<input required maxLength={120} value={s.title} onChange={e => patch(s.id, { title: e.target.value })} /></label></div>
               <div className="course-period-fields"><label>수업 날짜<input type="date" required min={draft.startDate} max={draft.endDate} value={s.date} onChange={e => patch(s.id, { date: e.target.value })} /></label><label>시작 시간<input type="time" required={!!s.endTime} value={s.startTime} onChange={e => patch(s.id, { startTime: e.target.value })} /></label><label>종료 시간<input type="time" required={!!s.startTime} min={s.startTime || undefined} value={s.endTime} onChange={e => patch(s.id, { endTime: e.target.value })} /></label></div>
               <label>메모 (선택)<textarea rows={2} maxLength={1000} placeholder="수업 내용, 준비물, 장소 등을 입력하세요" value={s.notes} onChange={e => patch(s.id, { notes: e.target.value })} /></label>
             </details>)}</div>

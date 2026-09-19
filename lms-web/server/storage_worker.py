@@ -103,6 +103,13 @@ async def run(request, filename, schema=None):
                     course_id = courses[0]
                 if not course_id or course_id not in courses:
                     raise ValueError('assignment_course_required')
+            if operation == 'delete_assignment':
+                assignment_id = bound.arguments['assignment_id']
+                # The worker owns these web-only relationships. All cleanup and the
+                # legacy delete share the same transaction and retry receipt.
+                for table in ('lms_assignment_courses', 'lms_assignment_publications'):
+                    await connection.execute(f'DELETE FROM {table} WHERE assignment_id=?', (assignment_id,))
+                await connection.execute("UPDATE lms_outbox SET state='cancelled',claim=NULL,error='assignment_removed' WHERE source_id=? AND kind IN ('submission','reminder','publication') AND state IN ('pending','failed','held','reconcile','uncertain')", (str(assignment_id),))
             result = encode(await fn(*bound.args, **bound.kwargs))
             if operation == 'create_assignment':
                 await connection.execute('INSERT INTO lms_assignment_courses(assignment_id,course_id) VALUES(?,?)', (result, course_id))
