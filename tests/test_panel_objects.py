@@ -58,7 +58,7 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
     async def test_one_failed_panel_does_not_stop_other_declared_objects(self):
         bot = MagicMock()
         cog = module.AutoPanels(bot)
-        cog.publish = AsyncMock(side_effect=[discord.Forbidden(SimpleNamespace(status=403, reason='Forbidden'), 'missing'), None, None, None, None])
+        cog.publish = AsyncMock(side_effect=[discord.Forbidden(SimpleNamespace(status=403, reason='Forbidden'), 'missing'), *([None] * (len(module.PANEL_OBJECTS) - 1))])
         await cog.sync_once()
         self.assertEqual(cog.publish.await_count, len(module.PANEL_OBJECTS))
 

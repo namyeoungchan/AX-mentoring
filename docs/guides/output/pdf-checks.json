@@ -4,23 +4,23 @@
     "pages": 3,
     "embeddedFonts": 107,
     "links": 4,
-    "textCharacters": 2397,
+    "textCharacters": 2385,
     "a4": true
   },
   {
     "file": "mentor-guide.pdf",
     "pages": 3,
-    "embeddedFonts": 113,
+    "embeddedFonts": 115,
     "links": 4,
-    "textCharacters": 2436,
+    "textCharacters": 2394,
     "a4": true
   },
   {
     "file": "student-guide.pdf",
     "pages": 3,
-    "embeddedFonts": 108,
+    "embeddedFonts": 107,
     "links": 4,
-    "textCharacters": 2367,
+    "textCharacters": 2351,
     "a4": true
   }
 ]

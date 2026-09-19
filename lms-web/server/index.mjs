@@ -172,6 +172,12 @@ app.post('/api/integrations/discord/:operation', async (req, res) => {
     }
     return res.status(404).json({ error: '지원하지 않는 인증 작업입니다.' });
 });
+app.post('/api/integrations/discord/attendance/presence/:operation', async (req, res) => {
+    if (!auth.botAuthorized(req.get('authorization'))) return res.status(401).json({ error: '출석 봇 인증에 실패했습니다.' });
+    if (!['view', 'mark'].includes(req.params.operation)) throw new ApiError(404, '지원하지 않는 출석 작업입니다.');
+    await auth.limit('attendance-presence-bot', `${req.body?.guildId || ''}:${req.body?.discordId || ''}`, 30, 60000);
+    res.json(await runtime.attendancePresence.discord(req.body, req.params.operation === 'mark'));
+});
 app.post('/api/integrations/discord/attendance/checkin', async (req, res) => {
     if (!auth.botAuthorized(req.get('authorization')))
         return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
@@ -367,6 +373,11 @@ app.get('/api/workspaces/:workspaceId/me/learning', async (req, res) => {
 app.get('/api/workspaces/:workspaceId/teaching', async (req, res) => {
     await workspaces.requireRole(req.workspaceId, req.account, ['instructor']);
     res.json({ ...await workspaces.teaching(req.workspaceId, req.account), onboardingComplete: (await staff.read(req.workspaceId, req.account)).completed });
+});
+app.get('/api/workspaces/:workspaceId/me/attendance', async (req, res) => res.json(await runtime.attendancePresence.view(req.workspaceId, req.account)));
+app.post('/api/workspaces/:workspaceId/me/attendance', async (req, res) => {
+    await auth.limit('attendance-presence-web', `${req.workspaceId}:${req.account.id}`, 30, 60000);
+    res.json(await runtime.attendancePresence.mark(req.workspaceId, req.body, req.account));
 });
 app.get('/api/workspaces/:workspaceId/attendance', async (req, res) => res.json(await attendance.view(req.workspaceId, req.query, req.account)));
 app.post('/api/workspaces/:workspaceId/attendance', async (req, res) => res.json(await attendance.save(req.workspaceId, req.body, req.account)));

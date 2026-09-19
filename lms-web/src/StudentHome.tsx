@@ -1,3 +1,4 @@
+import StudentAttendance from './StudentAttendance'
 import CourseVideos from './CourseVideos'
 import { AdmissionStatus } from './Admissions'
 import RoleWorkspace, { type RolePage } from './RoleWorkspace'
@@ -8,7 +9,7 @@ import { Badge, CardHeading } from './components'
 
 const pages: RolePage[] = [
   { id: 'learning', name: '나의 학습', description: '내 과정과 팀을 확인하고 필요한 학습 메뉴로 이동하세요.', icon: GraduationCap },
-  { id: 'attendance', name: '나의 출결', description: 'Discord 코드 출석 안내 · 마감된 회차의 출결 기록', icon: CheckCheck },
+  { id: 'attendance', name: '나의 출결', description: '입실·퇴실 기록 · 나의 출석 내역', icon: CheckCheck },
   { id: 'scores', name: '나의 성적', description: '본인의 평가항목별 점수와 배점을 확인하세요.', icon: ClipboardList },
   { id: 'assignments', name: '과제', description: '등록된 과정의 과제와 마감일을 확인하세요.', icon: BookOpen },
   { id: 'videos', name: '강의 영상', description: '내 과정의 강의 영상을 시청하세요.', icon: BookOpen },
@@ -37,10 +38,7 @@ export default function StudentHome({ user, learning, error, refresh, logout, wo
       <div className="role-shortcuts">{pages.slice(1, 4).map(item => <button key={item.id} className="panel role-shortcut" onClick={() => go(item.id)}><item.icon size={23} /><strong>{item.name}</strong><span>{item.id === 'attendance' ? `확정 기록 ${learning?.attendance.length || 0}건` : item.id === 'scores' ? `평가항목 ${learning?.scores.length || 0}개` : `진행 중 ${learning?.assignments.filter(a => a.active).length || 0}개`}</span><ArrowRight size={17} /></button>)}</div>
     </>}
     {page === 'videos' && <CourseVideos key={activeId} workspaceId={activeId} />}
-    {page === 'attendance' && <>
-      <section className="panel role-guidance"><CardHeading title="Discord 코드 출석" subtitle="멘토가 안내한 유효시간 안에 수업 서버에서 등록하세요." /><ol><li>해당 워크스페이스의 Discord 인증을 완료합니다.</li><li>멘토에게 받은 6자리 코드로 <code>/출석 코드:123456</code>을 입력합니다. 123456은 예시입니다.</li><li>본인에게 보이는 날짜·차시·출결 상태를 확인합니다. 만료 코드는 멘토에게 요청하세요.</li></ol><p>중복 등록으로 기존 출결은 바뀌지 않습니다. 지각·결석 정정은 담당 멘토에게 요청하세요.</p></section>
-      <section className="panel"><CardHeading title="출결 기록" subtitle="관리자가 회차를 마감하면 확정된 본인 기록이 표시됩니다." /><div className="table-scroll"><table><thead><tr><th>날짜</th><th>차시</th><th>상태</th></tr></thead><tbody>{learning?.attendance.map(row => <tr key={row.id}><td>{row.date}</td><td>{row.period}</td><td><Badge>{row.status}</Badge></td></tr>)}</tbody></table></div>{!learning?.attendance.length && <p className="calendar-empty">확정된 출결 기록이 없습니다. 오늘의 출결은 멘토에게 회차 마감 여부를 확인하세요.</p>}</section>
-    </>}
+    {page === 'attendance' && <StudentAttendance key={activeId} workspaceId={activeId} verified={!!activeWorkspace?.discordVerified} attendance={learning?.attendance || []} />}
     {page === 'scores' && <section className="panel"><CardHeading title="성적 기록" subtitle="기록 정정은 과정·평가항목과 함께 담당 멘토에게 요청하세요." /><div className="table-scroll"><table><thead><tr><th>평가항목</th><th>점수</th><th>배점</th></tr></thead><tbody>{learning?.scores.map(row => <tr key={row.id}><td>{row.item}</td><td>{row.score}</td><td>{row.maximum}</td></tr>)}</tbody></table></div>{!learning?.scores.length && <p className="calendar-empty">등록된 성적 기록이 없습니다.</p>}</section>}
     {page === 'assignments' && <section className="panel"><CardHeading title="과제 목록" subtitle="제출은 수업 Discord 서버의 과제 제출 패널에서 진행하세요." /><div className="table-scroll"><table><thead><tr><th>과제명</th><th>마감일</th><th>상태</th></tr></thead><tbody>{learning?.assignments.map(row => <tr key={row.id}><td>{row.title}</td><td>{row.dueDate}</td><td><Badge>{row.active ? '진행 중' : '마감'}</Badge></td></tr>)}</tbody></table></div>{!learning?.assignments.length && <p className="calendar-empty">등록된 과제가 없습니다.</p>}</section>}
   </RoleWorkspace>

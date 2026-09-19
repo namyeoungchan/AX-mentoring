@@ -32,6 +32,20 @@ class LMSAttendance(commands.Cog):
             except ValueError:
                 log.warning('Attendance disabled: invalid endpoint configuration')
 
+    async def cog_load(self):
+        from cogs.attendance_panel import AttendancePanelView
+        self.bot.add_view(AttendancePanelView(self.bot))
+
+    async def presence(self, operation, member_id, guild_id, extra=None):
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
+                async with session.post(self.url.rsplit('/', 1)[0] + '/presence/' + operation,
+                                        json={'discordId': str(member_id), 'guildId': str(guild_id), **(extra or {})},
+                                        headers={'Authorization': f'Bearer {self.token}'}, allow_redirects=False) as response:
+                    return response.status, await response.json()
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            return 503, None
+
     async def request(self, code, member_id, guild_id):
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
