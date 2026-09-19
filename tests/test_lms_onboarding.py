@@ -261,7 +261,7 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(new, {"instructor", "complete", "team:t2", "team:t3"})
         self.assertNotIn("admin", new)
 
-    async def test_join_panel_is_sent_in_channel_without_dm_and_does_not_repeat(self):
+    async def test_blocked_dm_never_posts_a_personal_panel_in_public_or_retries(self):
         roles = {1: Role(1)}
         await self.store.put(123, "role", "pending", {"id": 1})
         await self.store.put(123, "channel", "start", {"id": 11})
@@ -272,9 +272,41 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         cfg = {"participants": [], "teams": [], "workspaceName": "교육", "welcomeText": "시작 안내"}
         await self.cog.sync_member(member, cfg)
         await self.cog.sync_member(member, cfg)
-        member.send.assert_not_awaited()
-        fallback.send.assert_awaited_once()
-        self.assertIsInstance(fallback.send.call_args.kwargs["view"], module.StartView)
+        member.send.assert_awaited_once()
+        fallback.send.assert_not_awaited()
+        self.assertTrue((await self.store.get(123, 'member', 7))['welcomed'])
+
+    async def test_welcome_dm_contains_only_a_server_link_and_is_sent_once(self):
+        role = Role(1)
+        await self.store.put(123, 'role', 'pending', {'id': 1})
+        await self.store.put(123, 'channel', 'start', {'id': 11})
+        channel = SimpleNamespace(send=AsyncMock())
+        member = SimpleNamespace(id=7, bot=False, roles=[role], send=AsyncMock())
+        member.guild = SimpleNamespace(id=123, fetch_channels=AsyncMock(return_value=[]), get_role=lambda _: role, get_channel=lambda _: channel, me=SimpleNamespace(top_role=Role(100)))
+        cfg = {'participants': [], 'teams': [], 'workspaceName': '교육', 'welcomeText': '시작 안내'}
+        await self.cog.sync_member(member, cfg)
+        await self.cog.sync_member(member, cfg)
+        member.send.assert_awaited_once()
+        channel.send.assert_not_awaited()
+        self.assertNotIn('view', member.send.call_args.kwargs)
+        self.assertIn('https://discord.com/channels/123/11', member.send.call_args.kwargs['embed'].description)
+
+    async def test_shared_entry_opens_an_ephemeral_member_bound_panel_before_the_modal(self):
+        self.cog.bot.get_cog.return_value = SimpleNamespace(url='https://example.com')
+        response = SimpleNamespace(send_message=AsyncMock(), send_modal=AsyncMock())
+        interaction = SimpleNamespace(guild_id=123, user=SimpleNamespace(id=7), response=response)
+        shared = module.StartView(self.cog, 123)
+        await shared.verify(interaction)
+        response.send_modal.assert_not_awaited()
+        self.assertTrue(response.send_message.call_args.kwargs['ephemeral'])
+        private = response.send_message.call_args.kwargs['view']
+        self.assertEqual(private.member_id, 7)
+        self.assertNotEqual(private.children[0].custom_id, shared.children[0].custom_id)
+        self.assertFalse(await private.interaction_check(SimpleNamespace(guild_id=123, user=SimpleNamespace(id=8), response=response)))
+        self.assertFalse(await private.interaction_check(SimpleNamespace(guild_id=456, user=SimpleNamespace(id=7), response=response)))
+        self.assertTrue(await private.interaction_check(interaction))
+        await private.verify(interaction)
+        response.send_modal.assert_awaited_once()
 
     async def test_server_join_starts_onboarding_without_a_command(self):
         self.cog.url = 'https://test.example/api/integrations/discord/onboarding'

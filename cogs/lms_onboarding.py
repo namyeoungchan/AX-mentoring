@@ -37,13 +37,14 @@ def desired_roles(participant, intro_done):
 
 
 class StartView(discord.ui.View):
-    def __init__(self, cog, guild_id):
-        super().__init__(timeout=None)
-        self.cog, self.guild_id = cog, int(guild_id)
-        verify = discord.ui.Button(label="1 · LMS 인증", style=discord.ButtonStyle.success, custom_id=f"lms:verify:{guild_id}")
+    def __init__(self, cog, guild_id, member_id=None):
+        super().__init__(timeout=300 if member_id is not None else None)
+        self.cog, self.guild_id, self.member_id = cog, int(guild_id), member_id
+        suffix = f":{member_id}" if member_id is not None else ""
+        verify = discord.ui.Button(label="1 · LMS 인증", style=discord.ButtonStyle.success, custom_id=f"lms:verify:{guild_id}{suffix}")
         verify.callback = self.verify
         self.add_item(verify)
-        button = discord.ui.Button(label="2 · 자기소개 작성", style=discord.ButtonStyle.primary, custom_id=f"lms:onboarding:{guild_id}")
+        button = discord.ui.Button(label="2 · 자기소개 작성", style=discord.ButtonStyle.primary, custom_id=f"lms:onboarding:{guild_id}{suffix}")
         button.callback = self.start
         self.add_item(button)
         if cog.url:
@@ -54,12 +55,21 @@ class StartView(discord.ui.View):
         if interaction.guild_id != self.guild_id:
             await interaction.response.send_message("서버의 시작하기 채널에서 진행하세요.", ephemeral=True)
             return False
+        if self.member_id is not None and interaction.user.id != self.member_id:
+            await interaction.response.send_message("본인의 인증 안내만 사용할 수 있습니다.", ephemeral=True)
+            return False
         return True
 
     async def verify(self, interaction):
         auth = self.cog.bot.get_cog("LMSAuth")
         if not auth or not auth.url:
             await interaction.response.send_message("LMS 인증 연결을 준비 중입니다. 운영자에게 문의하세요.", ephemeral=True)
+            return
+        if self.member_id is None:
+            await interaction.response.send_message(
+                "**나의 LMS 인증 안내**\n이 안내와 인증 결과는 본인에게만 보입니다.\n웹에서 발급받은 코드를 아래 **1 · LMS 인증** 버튼에 입력하세요.\n수강생은 인증 후 **2 · 자기소개 작성**까지 진행하세요. 멘토·운영자는 자기소개가 필요 없습니다.",
+                view=StartView(self.cog, self.guild_id, interaction.user.id), ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none())
             return
         await interaction.response.send_modal(VerificationModal(auth))
 
@@ -292,7 +302,7 @@ class LMSOnboarding(commands.Cog):
         roles = await self.ensure_roles(guild)
         start = await self.channel(guild, "start", cfg["onboardingChannel"], "text", adopt=True)
         intro = await self.channel(guild, "intro", cfg["introChannel"], "text", adopt=True)
-        await ensure_guide(start, cfg["welcomeText"] + "\n\n**1 · LMS 인증**\nLMS 가입 신청 현황에서 코드를 발급받고 아래 인증 버튼에 입력하세요.\n**2 · 자기소개**\n수강생은 인증 후 자기소개를 작성하세요. 멘토·운영자는 생략합니다.\n**3 · 학습 시작**\n승인 시 배정된 팀과 학습 채널이 열립니다.", self.view(guild.id))
+        await ensure_guide(start, cfg["welcomeText"] + "\n\n**1 · LMS 인증**\n아래 인증 버튼을 누르면 본인에게만 보이는 안내가 열립니다. 웹에서 발급받은 코드는 개인 안내 안의 인증 버튼에 입력하세요.\n**2 · 자기소개**\n수강생은 인증 후 자기소개를 작성하세요. 멘토·운영자는 생략합니다.\n**3 · 학습 시작**\n승인 시 배정된 팀과 학습 채널이 열립니다.", self.view(guild.id))
         await ensure_guide(intro, GUIDES["intro"])
         for team in cfg["teams"]:
             team_role = await self.role(guild, f"team:{team['id']}", f"LMS 팀 · {team['name']}")
@@ -380,7 +390,7 @@ class LMSOnboarding(commands.Cog):
             text = ("인증 완료 · 다음으로 **2 · 자기소개 작성**을 눌러 주세요." if participant and participant["role"] == "student" and participant.get("teamId") else
                     "인증 완료 · 멘토·운영자는 자기소개 없이 LMS 업무 안내를 진행하세요." if participant and participant["role"] != "student" else
                     "인증 완료 · 팀 배정과 과정 등록을 운영자에게 확인해 주세요. 학습 채널은 온보딩 완료 후 열립니다.")
-            await interaction.followup.send(text, view=self.view(interaction.guild_id), ephemeral=True)
+            await interaction.followup.send(text, view=StartView(self, interaction.guild_id, interaction.user.id), ephemeral=True)
         except (OnboardingError, discord.HTTPException, asyncio.TimeoutError):
             await interaction.followup.send("계정 인증은 완료됐습니다. 역할 반영을 재시도 중이니 잠시 후 시작하기 패널을 확인하세요.", ephemeral=True)
 
@@ -442,10 +452,17 @@ class LMSOnboarding(commands.Cog):
             team = next((t for t in cfg["teams"] if participant and t["id"] == participant.get("teamId")), None)
             student = participant and participant["role"] == "student"
             text = (f"{cfg['workspaceName']} 서버 안내\n{cfg['welcomeText']}\n배정 팀: {team['name'] if team else '미배정'}" if student else f"{cfg['workspaceName']} 서버 안내\nLMS에서 초대 수락 또는 가입 승인을 확인하고 Discord 인증을 완료하세요. 멘토는 자기소개가 필요 없습니다.") + f"\n시작하기: https://discord.com/channels/{member.guild.id}/{start_id}"
-            channel = member.guild.get_channel(start_id)
-            await channel.send(member.mention, embed=panel_embed(title="온보딩을 시작하세요", description=text, section="WELCOME"),
-                               view=self.view(member.guild.id), allowed_mentions=discord.AllowedMentions(users=[member], roles=False, everyone=False))
+            # Automatic welcomes have no interaction to attach an ephemeral reply to.
+            # Use a DM with a server link; never fall back to a public personal panel.
+            try:
+                await member.send(embed=panel_embed(title="온보딩을 시작하세요", description=text, section="WELCOME"),
+                                  allowed_mentions=discord.AllowedMentions.none())
+            except discord.Forbidden:
+                # The shared entry button still opens a private panel for this member.
+                pass
             record["welcomed"] = True
+            # Save delivery before any subsequent progress report can fail and retry.
+            await self.store.put(member.guild.id, "member", member.id, record)
         if participant and participant["role"] == "student" and record["introDone"] and not record.get("reported"):
             await self.request("progress", {"guildId": str(member.guild.id), "discordId": str(member.id)})
             record["reported"] = True
