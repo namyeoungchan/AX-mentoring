@@ -32,6 +32,7 @@ test('deliver a new administrator account, change the initial password, and acce
   await expect(message).toHaveCount(0)
   await page.request.post('/api/logout', { data: {} })
   await page.goto(link)
+  await expect(page.getByRole('button', { name: '회원가입', exact: true })).toHaveCount(0)
   await page.getByLabel('아이디', { exact: true }).fill('delivery.owner')
   await page.getByLabel('비밀번호', { exact: true }).fill(initialPassword)
   await page.locator('form').getByRole('button', { name: '로그인', exact: true }).click()

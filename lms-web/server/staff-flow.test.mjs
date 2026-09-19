@@ -1,3 +1,4 @@
+import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -237,4 +238,8 @@ test('default workspace member edits and removal use a single transaction on the
     assert.equal((await staff.members('default', admin)).members.find(m => m.id === user.id).name, '수정');
     await staff.removeMember('default', user.id, admin);
     assert.equal(await workspaces.role('default', user), null);
+});
+
+test('workspace administrators issue scoped mentor credentials without signup or privilege escalation', async t => {
+    await mentorAccountsScenario(await fixture(t), admin);
 });

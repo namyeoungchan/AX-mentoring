@@ -16,7 +16,7 @@ export default function WorkspaceMembers({ workspaceId, platformAdmin }: { works
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [link, setLink] = useState(''), [copied, setCopied] = useState(false), [notice, setNotice] = useState('')
   const [inviteRole, setInviteRole] = useState('instructor'), [scope, setScope] = useState<Scope>({ mentorType: 'main', teamIds: [] })
   const [accountMode, setAccountMode] = useState('new'), [delivery, setDelivery] = useState('')
-  const issueAccount = platformAdmin && inviteRole === 'admin' && accountMode === 'new'
+  const issueAccount = (inviteRole === 'instructor' || platformAdmin && inviteRole === 'admin') && accountMode === 'new'
   const [editing, setEditing] = useState<Edit | null>(null), [removing, setRemoving] = useState<Removal | null>(null)
   const [clock, setClock] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 30000); return () => clearInterval(timer) }, [])
@@ -38,7 +38,7 @@ export default function WorkspaceMembers({ workspaceId, platformAdmin }: { works
     const form = new FormData(event.currentTarget)
     begin(); setLink(''); setDelivery(''); setCopied(false)
     try {
-      const result = await workspaceRequest(workspaceId, issueAccount ? 'invitations/account' : 'invitations', { method: 'POST', body: JSON.stringify(issueAccount ? { username: form.get('username'), name: form.get('name') } : { username: form.get('username'), role: inviteRole, ...(inviteRole === 'instructor' ? scope : {}) }) })
+      const result = await workspaceRequest(workspaceId, issueAccount ? inviteRole === 'instructor' ? 'mentor-accounts' : 'invitations/account' : 'invitations', { method: 'POST', body: JSON.stringify(issueAccount ? { username: form.get('username'), name: form.get('name'), ...(inviteRole === 'instructor' ? scope : {}) } : { username: form.get('username'), role: inviteRole, ...(inviteRole === 'instructor' ? scope : {}) }) })
       const url = new URL(location.href); url.search = ''; url.hash = `invite=${result.token}`
       setDelivery([
         `[${result.workspaceName}] ${roleNames[result.role as WorkspaceRole]} 초대`,
@@ -47,6 +47,7 @@ export default function WorkspaceMembers({ workspaceId, platformAdmin }: { works
         ...(result.initialPassword ? [`초기 비밀번호: ${result.initialPassword}`] : []),
         `초대 만료: ${new Date(result.expiresAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (한국 시간)`,
         '', result.initialPassword ? '링크 접속 → 전달받은 계정으로 로그인 → 초기 비밀번호 변경 → 초대 수락 순서로 진행해 주세요.' : '링크에 접속해 위 아이디로 가입하거나 로그인한 뒤 초대를 수락해 주세요.',
+        ...(inviteRole === 'instructor' ? ['참여 후 LMS에서 기본 정보를 저장하고 Discord 인증을 완료하세요. 멘토는 자기소개가 필요 없습니다.'] : []),
         '초대 링크는 7일 동안 한 번 사용할 수 있습니다.',
       ].join('\n'))
       setLink(url.href); await refresh()
@@ -77,10 +78,10 @@ export default function WorkspaceMembers({ workspaceId, platformAdmin }: { works
     {demoMode && <p className="inline-note">데모에서는 구성원을 변경하거나 초대를 발급할 수 없습니다.</p>}
     {error && !editing && !removing && <p className="inline-note error-note" role="alert">{error}</p>}
     {notice && <p className="inline-note" role="status">{notice}</p>}
-    <section className="panel membership-invite"><CardHeading title="구성원 초대" subtitle={platformAdmin ? '워크스페이스 관리자와 멘토를 초대하고, 참여 권한과 담당 조를 관리합니다.' : '멘토 초대와 정보 수정, 담당 조 변경을 이 화면에서 관리합니다.'} />
+    <section className="panel membership-invite"><CardHeading title="구성원 초대" subtitle={platformAdmin ? '워크스페이스 관리자와 멘토를 초대하고, 참여 권한과 담당 조를 관리합니다.' : '멘토 계정과 초기 비밀번호를 발급하고, 활동명과 담당 조를 관리합니다.'} />
       <form className="modal-form membership-form" onSubmit={invite}><fieldset disabled={busy || demoMode}>
         <div className="form-row"><label>초대할 아이디<input name="username" required pattern="[a-z0-9][a-z0-9_.-]{3,31}" placeholder="예: mentor.kim" maxLength={32} aria-describedby="invite-username-hint" /><small id="invite-username-hint" className="membership-field-hint">영문 소문자·숫자와 _ . - 조합, 4~32자</small></label><RoleField value={inviteRole} platformAdmin={platformAdmin} change={setInviteRole} /></div>
-        {platformAdmin && inviteRole === 'admin' && <><label>계정 발급 방식<select value={accountMode} onChange={e => setAccountMode(e.target.value)}><option value="new">새 계정과 초기 비밀번호 발급</option><option value="existing">초대 링크만 발급 (직접 가입·기존 계정)</option></select></label>{issueAccount && <label>관리자 이름<input name="name" required maxLength={50} autoComplete="off" placeholder="예: 김관리" /><small className="membership-field-hint">새 아이디로 계정을 만듭니다. 초기 비밀번호는 자동 발급되며 첫 로그인 시 변경합니다.</small></label>}</>}
+        {(inviteRole === 'instructor' || platformAdmin && inviteRole === 'admin') && <><label>계정 발급 방식<select value={accountMode} onChange={e => setAccountMode(e.target.value)}><option value="new">새 계정과 초기 비밀번호 발급</option><option value="existing">초대 링크만 발급 (기존 계정)</option></select></label>{issueAccount && <label>{inviteRole === 'instructor' ? '멘토 이름' : '관리자 이름'}<input name="name" required maxLength={50} autoComplete="off" placeholder={inviteRole === 'instructor' ? '예: 김멘토' : '예: 김관리'} /><small className="membership-field-hint">새 아이디로 계정을 만듭니다. 초기 비밀번호는 자동 발급되며 첫 로그인 시 변경합니다.</small></label>}</>}
         {inviteRole === 'instructor' && <ScopeFields scope={scope} teams={state.teams} change={setScope} />}<div className="membership-actions"><p>초대 링크는 발급 후 7일 동안 한 번 사용할 수 있습니다.</p><button className="button primary" type="submit">{busy ? <LoaderCircle size={16} className="membership-spinner" /> : <Plus size={16} />}{busy ? '발급 중…' : issueAccount ? '계정과 초대 링크 만들기' : '초대 링크 만들기'}</button></div>
       </fieldset></form>
       {link && <div className="invitation-link"><label>초대 링크<input readOnly value={link} onFocus={e => e.target.select()} /></label><label className="invitation-delivery">전달할 초대 안내문<textarea readOnly value={delivery} rows={10} onFocus={e => e.target.select()} /></label><button className="button secondary" onClick={async () => { try { await navigator.clipboard.writeText(delivery); setCopied(true) } catch { setError('전달할 초대 안내문을 선택해서 복사하세요.') } }}><Copy size={15} />{copied ? '복사됨' : '초대 안내문 복사'}</button><button className="button secondary" onClick={() => { setLink(''); setDelivery(''); setCopied(false) }}>안내문 닫기</button>{copied && <span role="status">초대 안내문을 복사했습니다.</span>}<p>초대할 사람에게 안내문을 전달하세요. 발급된 초기 비밀번호는 이 화면을 닫거나 새로고침하면 다시 확인할 수 없습니다.</p></div>}
