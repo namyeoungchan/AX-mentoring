@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { readSession } from './attendance-session.mjs';
 import { z } from 'zod';
 import { ApiError } from './store.mjs';
 const key = z.string().trim().min(1).max(200);
@@ -36,7 +37,8 @@ export function createAttendance(workspaces, { outbox } = {}) {
         // Filter before LIMIT so unrelated history cannot hide this roster's corrections.
         const history = (await (db.prepare("SELECT actor,action,before_json,after_json,created_at FROM lms_audit WHERE action LIKE 'attendance.%' AND target IN (SELECT value FROM json_each(?)) ORDER BY id DESC LIMIT 200")).all(JSON.stringify(targets))).map(r => ({ actor: r.actor, action: r.action, before: JSON.parse(r.before_json || 'null'), after: JSON.parse(r.after_json || 'null'), time: r.created_at + ' UTC' }));
         const canManage = admin || (await workspaces.mentorScope(id, user.id)).mentorType === 'main';
-        return { ...selected, ...round, canManage, rows, counts, history, revision: hash({ selected, round, rows }) };
+        const session = await readSession(db, selected);
+        return { ...selected, ...round, session, canManage, rows, counts, history, revision: hash({ selected, round, rows, session }) };
     }
     async function save(id, raw, user) {
         const request = input.parse(raw), db = await context(id, user, true);
@@ -69,6 +71,7 @@ export function createAttendance(workspaces, { outbox } = {}) {
                 state = '진행 중';
             }
             else if (request.action === 'close') {
+                if (current.session && !current.session.endedAt) throw new ApiError(409, '종료 코드를 생성해 강의를 종료한 뒤 출결을 확정하세요.');
                 if (state !== '진행 중')
                     throw new ApiError(409, '진행 중 회차만 마감할 수 있습니다.');
                 if (!current.rows.length || current.counts['미처리'])

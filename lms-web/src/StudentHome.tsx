@@ -9,7 +9,7 @@ import { Badge, CardHeading } from './components'
 
 const pages: RolePage[] = [
   { id: 'learning', name: '나의 학습', description: '내 과정과 팀을 확인하고 필요한 학습 메뉴로 이동하세요.', icon: GraduationCap },
-  { id: 'attendance', name: '나의 출결', description: '입실·퇴실 기록 · 나의 출석 내역', icon: CheckCheck },
+  { id: 'attendance', name: '나의 출결', description: '시작·종료 코드 · 나의 출석 내역', icon: CheckCheck },
   { id: 'scores', name: '나의 성적', description: '본인의 평가항목별 점수와 배점을 확인하세요.', icon: ClipboardList },
   { id: 'assignments', name: '과제', description: '등록된 과정의 과제와 마감일을 확인하세요.', icon: BookOpen },
   { id: 'videos', name: '강의 영상', description: '내 과정의 강의 영상을 시청하세요.', icon: BookOpen },

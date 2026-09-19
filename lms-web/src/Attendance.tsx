@@ -9,12 +9,12 @@ import { exportAttendance, importAttendance } from '../shared/attendance-csv.mjs
 const states = ['미처리', '출석', '지각', '결석', '공결']
 type Row = { checkInAt?: number | null; checkOutAt?: number | null; checkInSource?: string; checkOutSource?: string; studentId: string; name: string; team: string; enrollment: string; status: string; reason: string }
 type History = { actor: string; time: string; before: Row | null; after: Row }
-type Roster = { courseId: string; date: string; period: number; state: string; revision: string; canManage: boolean; rows: Row[]; counts: Record<string, number>; history: History[] }
+type Roster = { session: { endedAt: number | null } | null; courseId: string; date: string; period: number; state: string; revision: string; canManage: boolean; rows: Row[]; counts: Record<string, number>; history: History[] }
 type Draft = Record<string, { status: string; reason: string }>
 
 export default function Attendance({ data, refresh }: { data: Workspace; refresh?: () => Promise<void> }) {
   const [courseId, setCourseId] = useState(data.courses[0]?.id || '')
-  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'))
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }))
   const [period, setPeriod] = useState(1)
   const [roster, setRoster] = useState<Roster | null>(null)
   const [draft, setDraft] = useState<Draft>({})
@@ -107,7 +107,7 @@ export default function Attendance({ data, refresh }: { data: Workspace; refresh
     } catch (e) { if (version === generation.current) setError((e as Error).message) }
   }
   return <section className="panel attendance-panel">
-    <CardHeading title="명단 출결" subtitle="회차를 시작하면 학생이 Discord 패널 또는 웹에서 입실·퇴실을 기록합니다. 누락·정정은 명단에서 확인하세요." />
+    <CardHeading title="명단 출결" subtitle="강의 시간대를 정하고 시작·종료 코드를 안내하세요. 학생의 코드 입력이 입실·퇴실 출석으로 기록됩니다." />
     <fieldset disabled={busy} className="attendance-controls">
       <label>출결 과정<select value={courseId} onChange={e => { if (discard()) setCourseId(e.target.value) }}>{!data.courses.length && <option value="">등록된 과정 없음</option>}{data.courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label>
       <label>출결 날짜<input type="date" value={date} onChange={e => { if (discard()) setDate(e.target.value) }} /></label>
@@ -117,14 +117,13 @@ export default function Attendance({ data, refresh }: { data: Workspace; refresh
     {error && <p role="alert" className="inline-note error-note">{error}</p>}
     {message && <p role="status" className="inline-note">{message}</p>}
     {roster && <>
-      <div className="attendance-summary"><Badge>{roster.state}</Badge><span>전체 <strong>{rows.length}명</strong></span>{states.map(value => <button key={value} className={`attendance-count ${status === value ? 'selected' : ''}`} aria-pressed={status === value} onClick={() => { setStatus(status === value ? '' : value); setSelected([]) }}>{value} <strong>{rows.filter(row => row.status === value).length}명</strong></button>)}</div>
+      <div className="attendance-summary"><Badge>{roster.state === '마감' ? '출결 확정' : roster.session?.endedAt ? '강의 종료 · 출결 확인' : roster.state}</Badge><span>전체 <strong>{rows.length}명</strong></span>{states.map(value => <button key={value} className={`attendance-count ${status === value ? 'selected' : ''}`} aria-pressed={status === value} onClick={() => { setStatus(status === value ? '' : value); setSelected([]) }}>{value} <strong>{rows.filter(row => row.status === value).length}명</strong></button>)}</div>
       <div className="attendance-round-actions">
-        <p>{roster.state === '진행 전' ? '회차를 시작한 뒤 명단에서 출결을 체크하세요.' : roster.state === '마감' ? '확정된 회차입니다. 정정할 때는 사유를 입력하세요.' : '학생은 시작하기 패널 또는 웹 나의 출결에서 입실·퇴실합니다. 퇴실 누락과 정정할 학생을 확인하세요.'}</p>
-        {roster.canManage && roster.state === '진행 전' && <button className="button primary" disabled={busy} onClick={() => void save('start')}>회차 시작</button>}
-        {roster.canManage && roster.state === '진행 중' && <button className="button secondary" disabled={busy || dirty || !!roster.counts['미처리'] || !rows.length} onClick={() => void save('close')}>회차 마감</button>}
+        <p>{roster.state === '진행 전' ? '아래에서 강의 시간대를 입력하고 시작 코드를 생성하세요.' : roster.state === '마감' ? '확정된 회차입니다. 정정할 때는 사유를 입력하세요.' : '시작 코드로 입실, 종료 코드로 퇴실을 받습니다. 강의 종료 후 누락·예외를 확인하고 출결을 확정하세요.'}</p>
+        {roster.canManage && roster.state === '진행 중' && <button className="button secondary" disabled={busy || dirty || !!roster.counts['미처리'] || !rows.length || !!(roster.session && !roster.session.endedAt)} onClick={() => void save('close')}>출결 확정</button>}
         {!roster.canManage && roster.state === '진행 전' && <span>관리자 또는 메인 강사가 회차를 시작하면 입력할 수 있습니다.</span>}
       </div>
-      <details className="attendance-history"><summary>보조 기능 · 기존 코드 출석</summary><p className="inline-note">코드 방식은 멘토가 현장 출석을 확인하는 보조 수단입니다. 입실·퇴실 시각은 별도로 기록되지 않습니다.</p><AttendanceCode key={`${workspaceId}/${courseId}/${date}/${period}`} workspaceId={workspaceId} courseId={courseId} date={date} period={period} roundState={roster.state} disabled={busy || dirty} /></details>
+      <AttendanceCode key={`${workspaceId}/${courseId}/${date}/${period}`} workspaceId={workspaceId} courseId={courseId} date={date} period={period} roundState={roster.state} disabled={busy || dirty} suggestedStart={data.courses.find(c => c.id === courseId)?.schedule?.filter(s => s.date === date)[period - 1]?.startTime} suggestedEnd={data.courses.find(c => c.id === courseId)?.schedule?.filter(s => s.date === date)[period - 1]?.endTime} onUpdated={async () => { setRoster(await workspaceRequest(workspaceId, `attendance?${new URLSearchParams({ courseId, date, period: String(period) })}`)) }} />
       <fieldset disabled={busy} className="attendance-controls attendance-filters">
         <label>수강생 검색<input type="search" value={search} placeholder="이름으로 검색" onChange={e => { setSearch(e.target.value); setSelected([]) }} /></label>
         <label>출결 조 필터<select value={team} onChange={e => { setTeam(e.target.value); setSelected([]) }}><option value="">전체 조</option>{[...new Set(rows.map(row => row.team || '미배정'))].sort((a, b) => a.localeCompare(b, 'ko', { numeric: true })).map(value => <option key={value}>{value}</option>)}</select></label>

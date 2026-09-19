@@ -181,7 +181,7 @@ app.post('/api/integrations/discord/attendance/presence/:operation', async (req,
 app.post('/api/integrations/discord/attendance/checkin', async (req, res) => {
     if (!auth.botAuthorized(req.get('authorization')))
         return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
-    await auth.limit('attendance-checkin', `${req.body?.guildId || ''}:${req.body?.discordId || ''}`, 5, 60000);
+    await auth.limit('attendance-presence-bot', `${req.body?.guildId || ''}:${req.body?.discordId || ''}`, 30, 60000);
     res.json(await attendanceCodes.checkIn(req.body));
 });
 app.post('/api/auth/login', maintenance.track(async (req, res) => {
