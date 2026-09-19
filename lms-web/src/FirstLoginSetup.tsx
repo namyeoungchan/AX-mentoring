@@ -18,7 +18,7 @@ export default function FirstLoginSetup({ name, username, changed }: { name: str
   return <section className="panel initial-password-panel first-login-panel">
     <span className="eyebrow">처음 시작하기</span><h1>내 정보와 비밀번호 설정</h1>
     <p>관리자가 발급한 계정입니다. 본인 이름을 입력하고 초기 비밀번호를 변경하면 다음 화면에서 Discord 초대 링크와 인증 패널 이용 방법을 안내합니다.</p>
-    <ol className="first-login-steps"><li aria-current="step"><b>1</b>내 정보·비밀번호</li><li><b>2</b>Discord 참여·인증</li><li><b>3</b>학습 시작</li></ol>
+    <ol className="first-login-steps"><li aria-current="step"><b>1</b>내 정보·비밀번호</li><li><b>2</b>Discord 참여·인증</li><li><b>3</b>자기소개·학습 시작</li></ol>
     <form className="modal-form" onSubmit={submit}><fieldset disabled={busy}>
       <label>아이디<input readOnly value={username} autoComplete="username" /></label>
       <label>이름<input name="name" required maxLength={50} autoComplete="name" defaultValue={name === username ? '' : name} placeholder="수업에서 사용할 본인 이름" /></label>

@@ -40,6 +40,7 @@ export default function DiscordJoinGuide({ workspaceName, verificationPath, invi
   }
   return <section className="discord-join-guide" aria-label="Discord 계정 인증">
     <header className="discord-guide-heading"><ShieldCheck size={24} /><div><h3>Discord 연결하고 학습 시작하기</h3><p>{workspaceName} · 이 웹 화면을 열어 둔 채 순서대로 진행하세요.</p></div></header>
+    <div className="discord-guide-required"><strong>자기소개 제출까지 완료해 주세요</strong><p>수강생은 LMS 인증 후 자기소개까지 제출해야 Discord 역할과 별명이 적용되고, 배정된 조의 학습 채널이 열립니다.</p></div>
     {archived && <p className="error-note">보관된 워크스페이스입니다. 운영자에게 문의하세요.</p>}
     <ol className="discord-guide-steps">
       <li><span className="discord-step-number">1</span><div><h4>초대 링크로 수업 서버에 참여하세요</h4><p>본인이 사용할 Discord 계정으로 로그인한 뒤 초대를 수락하세요.</p>
@@ -52,10 +53,12 @@ export default function DiscordJoinGuide({ workspaceName, verificationPath, invi
       </div></li>
       <li><span className="discord-step-number">3</span><div><h4>Discord 인증 패널에 코드를 입력하세요</h4><p>Discord로 이동해 <strong>시작하기</strong> 채널을 열고, 안내 패널의 <strong>1 · LMS 인증</strong> 버튼을 누르세요.</p>
         <div className="discord-panel-example" aria-label="Discord 패널 이용 안내"><span className="discord-panel-caption">Discord 화면에서 진행</span><strong># 시작하기</strong><span className="discord-example-button">1 · LMS 인증</span><span>입력창에 복사한 인증 코드 붙여넣기 → 제출</span></div>
-        <p>표시된 계정이 본인인지 확인하고 <strong>내 계정 가입 인증</strong>을 누르세요. 이어서 안내되는 자기소개를 작성하면 배정된 조와 학습 채널이 열립니다.</p>
+        <p>표시된 계정이 본인인지 확인하고 <strong>내 계정 가입 인증</strong>을 누르세요. 인증을 마치면 다음 단계의 자기소개를 작성하세요.</p>
+      </div></li>
+      <li><span className="discord-step-number">4</span><div><h4>자기소개를 작성하고 제출하세요 · 필수</h4><p>같은 <strong>시작하기</strong> 채널에서 <strong>2 · 자기소개 작성</strong>을 누르고, 이름과 자기소개를 입력한 뒤 <strong>제출</strong>하세요.</p><p>제출 후 Discord 역할·별명과 배정된 조의 학습 채널을 확인하세요. 이미 제출했다면 잠시 기다려 주세요. 계속 반영되지 않으면 운영자에게 문의하세요.</p>
       </div></li>
     </ol>
-    <footer className="discord-guide-footer"><div><strong>Discord에서 인증을 마쳤나요?</strong><p>완료 상태를 확인하고 학습 화면으로 이동하세요.</p></div><button className="button primary" disabled={disabled} onClick={() => void check()}>인증 후 학습 화면 열기</button></footer>
+    <footer className="discord-guide-footer"><div><strong>인증과 자기소개 제출을 모두 마쳤나요?</strong><p>Discord에서 역할·별명 적용을 확인한 뒤 학습 화면으로 이동하세요.</p></div><button className="button primary" disabled={disabled} onClick={() => void check()}>인증 후 학습 화면 열기</button></footer>
     {error && <p className="error-note" role="alert">{error}</p>}{retry > 0 && <p role="status">{retry}초 후 다시 시도할 수 있습니다.</p>}{notice && <p className="inline-note" role="status">{notice}</p>}
   </section>
 }

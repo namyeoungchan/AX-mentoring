@@ -991,6 +991,12 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .discord-guide-heading { display:flex; gap:12px; align-items:flex-start; color:var(--forest, #244c3c); }
 .discord-guide-heading > svg { flex-shrink:0; margin-top:3px; }
 .discord-guide-heading h3 { margin:0 0 6px; font-size:18px; }
+.discord-guide-required { margin-top:18px; padding:16px; border:1px solid #d8e5db; border-radius:10px; background:#f0f6f1; color:#244c3c; }
+.discord-guide-required strong { font-size:14px; }
+.discord-join-guide .discord-guide-required p { margin:6px 0 0; color:#395546; }
+.discord-after-auth-help { padding:18px 24px; }
+.discord-after-auth-help summary { cursor:pointer; color:#244c3c; font-size:14px; font-weight:600; }
+.discord-after-auth-help p { margin:12px 0 0; color:#53665a; font-size:13px; line-height:1.8; }
 .discord-join-guide p { color:#66746c; font-size:13px; line-height:1.75; margin:8px 0 14px; overflow-wrap:anywhere; }
 .discord-guide-steps { list-style:none; padding:0; margin:24px 0; display:grid; gap:24px; }
 .discord-guide-steps > li { display:grid; grid-template-columns:30px minmax(0,1fr); gap:14px; }
