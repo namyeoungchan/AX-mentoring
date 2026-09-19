@@ -124,7 +124,7 @@ def build_participation_embed(
             inline=False,
         )
 
-    embed.set_footer(text=f"AX LearningOps · {now_str}")
+    embed.set_footer(text=f"AX 학습관리시스템 · {now_str}")
     return embed
 
 

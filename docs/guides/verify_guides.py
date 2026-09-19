@@ -33,7 +33,7 @@ for name, role in guides:
     checks.append({'file': name + '.pdf', 'pages': len(doc), 'embeddedFonts': len(font_ids), 'links': len(links), 'textCharacters': len(text), 'a4': True})
     combined.insert_pdf(doc)
 combined.set_toc(toc)
-combined.set_metadata({'title': 'AX LearningOps 역할별 운영 가이드', 'author': 'AX LearningOps'})
+combined.set_metadata({'title': 'AX 학습관리시스템 역할별 운영 가이드', 'author': 'AX 학습관리시스템'})
 combined.save(root / 'all-role-guides.pdf', garbage=4, deflate=True)
 # Vite and the production Docker image serve these reviewed PDFs verbatim.
 public = root.parents[2] / 'lms-web' / 'public' / 'guides'

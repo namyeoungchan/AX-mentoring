@@ -47,7 +47,8 @@ export async function createWorkspaces({ store, dbPath, provision, syncToken = '
     try {
         await (db.prepare('INSERT OR IGNORE INTO lms_workspaces(id,name,description,source_id,created_at) VALUES(?,?,?,?,?)')).run('default', (await store.snapshot()).name, '기존 학습 운영 데이터', 'local-default', Date.now());
         await (db.prepare('INSERT OR IGNORE INTO lms_workspaces(id,name,description,source_id,created_at) VALUES(?,?,?,?,?)')).run('asan-ax', '아산 AX', '아산 AX 학습 운영', sourceId, Date.now());
-        await (db.prepare("UPDATE lms_workspaces SET name=? WHERE id='default' AND name=?")).run(branding.name, branding.legacyName);
+        for (const legacyName of branding.legacyNames)
+            await (db.prepare("UPDATE lms_workspaces SET name=? WHERE id='default' AND name=?")).run(branding.name, legacyName);
         if (/^\d{17,20}$/.test(authGuildId) && !await (db.prepare("SELECT 1 FROM lms_workspace_migrations WHERE name='admin-data-reset-v1'")).get())
             await attachLegacyGuild(authGuildId, 'asan-ax');
         // Existing snapshots keep their source and records. Bind the legacy Asan source once.

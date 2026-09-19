@@ -82,5 +82,5 @@ async def build_panel_embed(mentors: list[dict]) -> discord.Embed:
         embeds.panel_field(embed, mentor["name"], f"{expertise}\n{status}".strip(), inline=True)
     embeds.panel_field(embed, "예약 안내", "아래에서 멘토를 선택하세요. 신청 결과는 본인에게만 표시됩니다.\n멘토의 승인은 개인 메시지로 안내하며, `/mybooking`으로 예약을 확인할 수 있습니다.")
     if len(mentors) > 25:
-        embed.set_footer(text="AX LearningOps · 첫 25명 표시 · /book에서 전체 멘토 검색")
+        embed.set_footer(text="AX 학습관리시스템 · 첫 25명 표시 · /book에서 전체 멘토 검색")
     return embed

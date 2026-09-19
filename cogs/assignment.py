@@ -1034,7 +1034,7 @@ def build_submit_embed():
     panel_field(embed, "01  과제 선택", "아래 **과제 제출하기** 버튼에서 진행 중인 과제를 선택하세요.")
     panel_field(embed, "02  내용 작성", "과제의 제출 항목을 채우고, 필요한 링크를 함께 남겨 주세요.")
     panel_field(embed, "03  제출 확인", "제출 완료 안내를 확인하세요. 결과는 LMS 제출 내역에도 반영됩니다.")
-    embed.set_footer(text="AX LearningOps · 팀 과제는 LMS에 배정된 소속 조로 제출됩니다")
+    embed.set_footer(text="AX 학습관리시스템 · 팀 과제는 LMS에 배정된 소속 조로 제출됩니다")
     return embed
 
 
@@ -1183,7 +1183,7 @@ class Assignment(commands.Cog):
                     ),
                     color=discord.Color.orange(),
                 )
-                embed.set_footer(text="AX LearningOps · 과제 마감 알림")
+                embed.set_footer(text="AX 학습관리시스템 · 과제 마감 알림")
 
                 try:
                     await ch.send(embed=embed)

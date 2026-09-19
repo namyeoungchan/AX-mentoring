@@ -11,7 +11,7 @@ type DemoWorkspaces = { workspaces: WorkspaceMetadata[]; data: Record<string, Wo
 function migrateDemoBranding(saved: DemoWorkspaces): DemoWorkspaces {
   let changed = false
   const rename = (value: string) => {
-    const next = value.replaceAll(branding.legacyName, branding.name)
+    const next = branding.legacyNames.reduce((name, legacy) => name.replaceAll(legacy, branding.name), value)
     if (next !== value) changed = true
     return next
   }

@@ -16,9 +16,9 @@ async def ensure_guide(channel, text, view=None):
     if not text:
         return
     legacy_marker = f"learningops:guide:{channel.id}"
-    marker = "AX LearningOps · 채널 이용 안내"
+    marker = "AX 학습관리시스템 · 채널 이용 안내"
     def owned(message):
-        return message.author.id == channel.guild.me.id and any(embed.footer.text in {marker, legacy_marker} for embed in message.embeds)
+        return message.author.id == channel.guild.me.id and any(embed.footer.text in {marker, legacy_marker, "AX LearningOps · 채널 이용 안내"} for embed in message.embeds)
     target = None
     async for message in channel.pins(limit=100):
         if owned(message):
