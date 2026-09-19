@@ -26,6 +26,7 @@ export function createPythonStorageExecutor({ python, script, timeoutMs = 25000,
       clearTimeout(current.timer); worker.current = null
       if (response.ok) current.resolve(response.result)
       else {
+        if (response.error === 'assignment_course_required') { current.reject(new ApiError(422, '과제를 생성할 학습 과정을 선택하세요. 과정이 없다면 먼저 등록하세요.')); return }
         const stale = response.error === 'stale_revision', busy = response.error === 'storage_busy'
         current.reject(new ApiError(stale ? 409 : busy ? 503 : 422, stale ? '다른 작업으로 데이터가 변경되었습니다. 새로고침하세요.' : busy ? '데이터 저장소가 사용 중입니다. 잠시 후 다시 시도하세요.' : '입력 값이나 데이터 연결 관계를 확인하세요.'))
       }

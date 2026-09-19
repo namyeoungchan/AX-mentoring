@@ -19,6 +19,7 @@ SYNC_GLOBALLY: bool = os.getenv("SYNC_GLOBALLY", "false").lower() == "true"
 # Legacy import defaults only. Live IDs come from current(), never shared constants.
 TEAM_CHANNELS: dict[str, int] = {}
 TEAM_MEMBERS: dict[str, str] | None = None  # Verified web roster; None means legacy mode.
+ASSIGNMENT_COURSES: list[dict] = []
 
 # ── Q&A Forum ────────────────────────────────────────────────────────────────
 QA_FORUM_CHANNEL_ID: int = int(os.getenv("QA_FORUM_CHANNEL_ID", "0") or "0")
@@ -63,7 +64,7 @@ def install_workspace(guild_id, status):
     channels = settings.get('channels') or {}
     values = {name: int(channels.get(name) or 0) for name in CHANNEL_SETTINGS}
     values.update(GUILD_ID=int(guild_id), TEAM_CHANNELS={row['name']: int(row.get('channelId') or 0) for row in settings.get('teams', [])},
-                  TEAM_MEMBERS=status.get('teamMembers'), QA_NOTIFY_ROLE_IDS=[int(v) for v in settings.get('qaNotifyRoleIds', [])],
+                  TEAM_MEMBERS=status.get('teamMembers'), ASSIGNMENT_COURSES=status.get('assignmentCourses', []), QA_NOTIFY_ROLE_IDS=[int(v) for v in settings.get('qaNotifyRoleIds', [])],
                   QA_UNANSWERED_HOURS=settings.get('qaUnansweredHours', 24))
     workspace_settings[int(guild_id)] = SimpleNamespace(**values)
 

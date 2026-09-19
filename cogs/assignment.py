@@ -147,11 +147,12 @@ class CreateAssignmentModal(WorkspaceModal):
         max_length=200,
     )
 
-    def __init__(self, bot: commands.Bot, assignment_type: str) -> None:
+    def __init__(self, bot: commands.Bot, assignment_type: str, course: dict | None = None) -> None:
         type_label = "팀" if assignment_type == "team" else "개인"
         super().__init__(title=f"{type_label} 과제 생성")
         self.bot = bot
         self.assignment_type = assignment_type
+        self.course = course
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         try:
@@ -177,23 +178,31 @@ class CreateAssignmentModal(WorkspaceModal):
         )
         fields_json = json.dumps(field_names, ensure_ascii=False)
 
-        assignment_id = await database.create_assignment(
-            week=week,
-            title=self.title_input.value.strip(),
-            description=self.description_input.value.strip(),
-            due_date=self.due_date_input.value.strip(),
-            type_=self.assignment_type,
-            fields=fields_json,
-        )
+        await interaction.response.defer(ephemeral=True)
+        from storage_client import StorageUnavailable
+        try:
+            assignment_id = await database.create_assignment(
+                week=week,
+                title=self.title_input.value.strip(),
+                description=self.description_input.value.strip(),
+                due_date=self.due_date_input.value.strip(),
+                type_=self.assignment_type,
+                fields=fields_json,
+                course_id=self.course['id'] if self.course else None,
+            )
+        except StorageUnavailable:
+            await interaction.followup.send('과제 생성 결과를 확인하지 못했습니다. 웹 과제 목록과 학습 과정을 확인한 뒤 다시 시도하세요.', ephemeral=True)
+            return
 
         type_label = "팀별" if self.assignment_type == "team" else "개인별"
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=discord.Embed(
                 title="✅ 과제 생성 완료",
                 description=(
                     f"**{week}주차 — {self.title_input.value.strip()}**\n"
                     f"마감일: {self.due_date_input.value.strip()} | {type_label}\n"
                     f"제출 항목: {', '.join(field_names)}\n"
+                    + (f"대상 과정: {self.course['title']} · 제출 대상 자동 연결\n" if self.course else '') +
                     f"ID: `{assignment_id}`"
                 ),
                 color=discord.Color.green(),
@@ -201,6 +210,52 @@ class CreateAssignmentModal(WorkspaceModal):
             ephemeral=True,
         )
         await refresh_dashboard(self.bot)
+
+
+class AssignmentCourseView(WorkspaceView):
+    def __init__(self, bot, assignment_type, courses, page=0):
+        super().__init__(timeout=120)
+        self.bot, self.assignment_type, self.courses, self.page = bot, assignment_type, courses, page
+        select = discord.ui.Select(placeholder='과제를 생성할 학습 과정', options=[discord.SelectOption(label=c['title'][:100], value=c['id']) for c in courses[page * 25:(page + 1) * 25]])
+        select.callback = self.choose
+        self.add_item(select)
+        if page:
+            previous = discord.ui.Button(label='이전 과정', custom_id='assignment:course:previous')
+            previous.callback = self.previous
+            self.add_item(previous)
+        if (page + 1) * 25 < len(courses):
+            next_button = discord.ui.Button(label='다음 과정', custom_id='assignment:course:next')
+            next_button.callback = self.next
+            self.add_item(next_button)
+
+    async def interaction_check(self, interaction):
+        if not await super().interaction_check(interaction):
+            return False
+        if not _is_admin(interaction):
+            await interaction.response.send_message('관리자만 사용할 수 있습니다.', ephemeral=True)
+            return False
+        return True
+
+    async def choose(self, interaction):
+        course = next((c for c in self.courses if c['id'] == interaction.data['values'][0]), None)
+        if course:
+            await interaction.response.send_modal(CreateAssignmentModal(self.bot, self.assignment_type, course))
+
+    async def previous(self, interaction):
+        await interaction.response.edit_message(view=AssignmentCourseView(self.bot, self.assignment_type, self.courses, self.page - 1))
+
+    async def next(self, interaction):
+        await interaction.response.edit_message(view=AssignmentCourseView(self.bot, self.assignment_type, self.courses, self.page + 1))
+
+
+async def start_assignment_creation(bot, interaction, assignment_type):
+    courses = config.current().ASSIGNMENT_COURSES
+    if config.managed_storage and not courses:
+        await interaction.response.send_message('웹에서 학습 과정을 먼저 등록하세요. 방금 등록했다면 잠시 후 다시 눌러 주세요.', ephemeral=True)
+    elif len(courses) > 1:
+        await interaction.response.send_message('학습 과정을 선택하세요. 생성과 동시에 해당 과정의 제출 대상이 연결됩니다.', view=AssignmentCourseView(bot, assignment_type, courses), ephemeral=True)
+    else:
+        await interaction.response.send_modal(CreateAssignmentModal(bot, assignment_type, courses[0] if courses else None))
 
 
 # ── Excel export ─────────────────────────────────────────────────────────────
@@ -586,7 +641,7 @@ class AdminDashboardView(WorkspaceView):
         if not _is_admin(interaction):
             await interaction.response.send_message("관리자만 사용할 수 있습니다.", ephemeral=True)
             return
-        await interaction.response.send_modal(CreateAssignmentModal(self.bot, "team"))
+        await start_assignment_creation(self.bot, interaction, "team")
 
     @discord.ui.button(
         label="개인 과제 만들기",
@@ -601,7 +656,7 @@ class AdminDashboardView(WorkspaceView):
         if not _is_admin(interaction):
             await interaction.response.send_message("관리자만 사용할 수 있습니다.", ephemeral=True)
             return
-        await interaction.response.send_modal(CreateAssignmentModal(self.bot, "individual"))
+        await start_assignment_creation(self.bot, interaction, "individual")
 
     @discord.ui.button(
         label="📋 제출 내역 보기",

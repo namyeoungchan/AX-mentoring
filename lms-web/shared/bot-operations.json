@@ -10,7 +10,7 @@
   {"id":"approve_booking","label":"예약 승인","fields":[["slot_id","예약 시간 번호","number"]]},
   {"id":"reject_booking","label":"예약 반려","fields":[["slot_id","예약 시간 번호","number"],["reason","반려 사유","textarea"]]},
   {"id":"admin_cancel_booking","label":"예약 취소","fields":[["slot_id","예약 시간 번호","number"]]},
-  {"id":"create_assignment","label":"과제 등록","fields":[["week","주차","number"],["title","과제명","text"],["description","설명","textarea"],["due_date","마감 날짜","date"],["type_","제출 방식","assignment-type"],["fields","제출 항목(줄마다 하나, 최대 4개)","lines"]]},
+  {"id":"create_assignment","label":"과제 등록","fields":[["course_id","학습 과정","course"],["week","주차","number"],["title","과제명","text"],["description","설명","textarea"],["due_date","마감 날짜","date"],["type_","제출 방식","assignment-type"],["fields","제출 항목(줄마다 하나, 최대 4개)","lines"]]},
   {"id":"update_assignment","label":"과제 수정","fields":[["assignment_id","과제 번호","number"],["week","주차","number"],["title","과제명","text"],["description","설명","textarea"],["due_date","마감 날짜","date"],["type_","제출 방식","assignment-type"],["fields","제출 항목(줄마다 하나, 최대 4개)","lines"]]},
   {"id":"deactivate_assignment","label":"과제 마감","fields":[["assignment_id","과제 번호","number"]]},
   {"id":"delete_assignment","label":"과제 삭제","help":"선택한 과제와 연결된 제출물도 삭제됩니다.","fields":[["assignment_id","과제 번호","number"]]},
