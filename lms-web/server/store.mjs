@@ -83,7 +83,7 @@ export async function createStore(dbPath, { workspaceId = 'default', defaultName
             await put('settings', { ...settings, name: branding.name });
     }
     async function snapshot() {
-        const result = Object.fromEntries(await Promise.all(['courses', 'learners', 'teams', 'attendance', 'scores', 'notices', 'servers', 'files'].map(async (kind) => [kind, await rows(kind)])));
+        const result = Object.fromEntries(await Promise.all(['courses', 'learners', 'removedLearners', 'teams', 'attendance', 'scores', 'notices', 'servers', 'files'].map(async (kind) => [kind, await rows(kind)])));
         result.courses = result.courses.map(c => ({ ...c, learners: result.learners.filter(l => l.courseId === c.id).length }));
         if (result.courses.length === 1 && await db.prepare('SELECT 1 FROM assignments a LEFT JOIN lms_assignment_courses c ON c.assignment_id=a.id WHERE c.assignment_id IS NULL LIMIT 1').get()) {
             // A single course is unambiguous, including previously imported bot assignments.
@@ -116,6 +116,8 @@ export async function createStore(dbPath, { workspaceId = 'default', defaultName
                     throw new ApiError(409, '회차가 관리되는 출결은 명단 출결 화면에서 변경하세요.');
                 if (['learners', 'teams', 'attendance', 'scores', 'notices'].includes(kind))
                     await requireRecord('courses', value.courseId);
+                if (kind === 'learners' && await get('removedLearners', value.id))
+                    throw new ApiError(409, '삭제된 수강생입니다. 새로 등록하려면 새 수강생으로 추가하세요.');
                 if (kind === 'learners' && value.team && !(await rows('teams')).some(t => t.name === value.team && t.courseId === value.courseId))
                     throw new ApiError(422, '해당 과정에 등록된 팀을 선택하세요.');
                 if (kind === 'teams' && value.mentorId && !await db.prepare('SELECT id FROM mentors WHERE id=?').get(value.mentorId))
@@ -134,7 +136,8 @@ export async function createStore(dbPath, { workspaceId = 'default', defaultName
                         }
                 }
                 if (kind === 'attendance' || kind === 'scores') {
-                    const student = await requireRecord('learners', value.studentId);
+                    const student = await get('learners', value.studentId) || (before?.studentId === value.studentId ? await get('removedLearners', value.studentId) : null);
+                    if (!student) throw new ApiError(422, '등록된 수강생을 선택하세요.');
                     if (student.courseId !== value.courseId)
                         throw new ApiError(422, '수강생의 소속 과정이 일치하지 않습니다.');
                 }
