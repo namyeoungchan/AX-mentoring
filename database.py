@@ -782,6 +782,7 @@ async def create_assignment(
     due_date: str,
     type_: str = "team",
     fields: str = '["제출 내용"]',
+    course_id: str | None = None,
 ) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(

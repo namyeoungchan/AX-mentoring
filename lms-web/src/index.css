@@ -997,6 +997,43 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .discord-after-auth-help { padding:18px 24px; }
 .discord-after-auth-help summary { cursor:pointer; color:#244c3c; font-size:14px; font-weight:600; }
 .discord-after-auth-help p { margin:12px 0 0; color:#53665a; font-size:13px; line-height:1.8; }
+
+.assignment-action-group { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.assignment-filters { gap:14px; flex-wrap:wrap; }
+.assignment-filters select { max-width:250px; }
+.assignment-table { width:100%; }
+.assignment-table > tbody > .assignment-item > td { vertical-align:middle; }
+.assignment-table > tbody > .assignment-item.is-open { background:#f1f6f0; }
+.assignment-table .assignment-expand { width:100%; min-height:44px; }
+.assignment-table .assignment-title { min-width:160px; }
+.assignment-table > tbody > .assignment-detail-row > td { padding:0; white-space:normal; }
+.assignment-detail-row[hidden] { display:none !important; }
+.assignment-details .table-scroll { max-width:100%; }
+.assignment-alerts { padding:20px 24px; border-top:1px solid #e5eae4; font-size:13px; line-height:1.7; }
+.assignment-alerts p { overflow-wrap:anywhere; }
+.assignment-target-heading { display:flex; justify-content:space-between; flex-wrap:wrap; align-items:flex-start; gap:12px; }
+.assignment-target-heading h3 { margin:0; font-size:15px; color:#315c48; }
+.assignment-target-heading p { margin:4px 0 16px; color:#637267; }
+.assignment-target-roster { background:#fff; border:1px solid #e5eae4; padding:14px 16px; border-radius:10px; }
+.assignment-target-roster p { margin:0 0 8px; }.assignment-target-roster small { color:#637267; }
+.assignment-legacy-binding { display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px; padding-bottom:16px; }
+.assignment-legacy-binding p { width:100%; }.assignment-legacy-binding label { display:grid; gap:6px; }
+.assignment-legacy-binding select { min-height:40px; max-width:100%; }
+.assignment-delivery-history > summary { cursor:pointer; padding:12px 0; color:#315c48; font-weight:600; }
+.assignment-delivery-history td small { white-space:pre-wrap; max-width:300px; }
+.assignment-download-note { margin:0; padding:16px 24px; color:#637267; font-size:11px; border-top:1px solid #e5eae4; }
+@media(max-width:640px) {
+  .assignment-filters .assignment-action-group { width:100%; }.assignment-filters select { flex:1; min-width:0; }
+  .assignment-management > .card-heading > .assignment-action-group { width:100%; }
+  .assignment-table-wrap { overflow:visible; }.assignment-table { min-width:0; display:block; }.assignment-table > thead { display:none; }.assignment-table > tbody { display:block; }
+  .assignment-table > tbody > .assignment-item { display:grid; grid-template-columns:1fr 1fr; padding:14px 16px; gap:12px; }
+  .assignment-table > tbody > .assignment-item > td { display:block; border:0; padding:0; white-space:normal; }
+  .assignment-table > tbody > .assignment-item > td:first-child { grid-column:1 / -1; }
+  .assignment-table > tbody > .assignment-item > td:not(:first-child)::before { content:attr(data-label); display:block; color:#637267; font-size:11px; margin-bottom:6px; }
+  .assignment-table > tbody > .assignment-detail-row { display:block; }.assignment-table > tbody > .assignment-detail-row > td { display:block; width:100%; }
+  .assignment-details-heading, .assignment-alerts { padding:16px; }.assignment-target-heading { flex-direction:column; }
+  .assignment-table .assignment-title { min-width:0; }.assignment-action-group .button { min-height:40px; }
+}
 .discord-join-guide p { color:#66746c; font-size:13px; line-height:1.75; margin:8px 0 14px; overflow-wrap:anywhere; }
 .discord-guide-steps { list-style:none; padding:0; margin:24px 0; display:grid; gap:24px; }
 .discord-guide-steps > li { display:grid; grid-template-columns:30px minmax(0,1fr); gap:14px; }

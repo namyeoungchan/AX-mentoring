@@ -17,10 +17,15 @@ import { createServer } from 'node:net'
 import { once } from 'node:events'
 import { rosterScenario } from './roster-scenarios.mjs'
 import { courseVideosScenario } from './course-videos-scenario.mjs'
+import { assignmentCourseScenario } from './assignment-course-scenario.mjs'
 
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL assignment course binding is atomic and never guesses between courses', async t => {
+  const f = await fixture(t)
+  await assignmentCourseScenario(f.runtime.workspaces, f.runtime.botStorage)
+})
 pgTest('PostgreSQL handles 80 queued classroom logins without sharing account attempt limits', async t => {
   const f = await fixture(t), db = f.runtime.store.db, auth = f.runtime.auth;
   const names = [];
@@ -60,6 +65,7 @@ pgTest('PostgreSQL preserves bot receipts, duplicate booking semantics, worker r
   const slot=await call('add_slot',[mentor.result,'2026-10-01T10:00:00','2026-10-01T10:50:00','예약'])
   assert.equal((await call('create_booking',[slot.result,'323456789012345678','학생'])).result,true)
   assert.equal((await call('create_booking',[slot.result,'423456789012345678','중복'])).result,false)
+  await (await r.workspaces.open(workspace.id)).db.prepare('INSERT INTO lms_records(kind,id,data) VALUES(?,?,?)').run('courses','assignment-course',JSON.stringify({id:'assignment-course',title:'과제 과정'}))
   const assignment=await call('create_assignment',[1,'과제','설명','2026-10-01','individual'])
   assert.equal((await call('create_submission',[assignment.result,'323456789012345678','학생','','제출',''])).result,true)
   const db=(await r.workspaces.open(workspace.id)).db

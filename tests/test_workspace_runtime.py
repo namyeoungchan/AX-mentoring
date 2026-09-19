@@ -153,6 +153,46 @@ class WorkspaceRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 else:
                     self.assertIn({'removed': '승인', 'refresh': '시작하지 못했습니다', 'save': '결과를 확인하지 못했습니다'}[failure], reply.args[0])
 
+    async def test_assignment_creation_automatically_passes_the_only_course_before_reporting_success(self):
+        from cogs import assignment
+        self.activate()
+        value = state(GUILD_A)
+        value['assignmentCourses'] = [{'id': 'course-a', 'title': 'Course A'}]
+        config.install_workspace(GUILD_A, value)
+        interaction = SimpleNamespace(response=SimpleNamespace(send_modal=AsyncMock(), defer=AsyncMock()), followup=SimpleNamespace(send=AsyncMock()))
+        with config.guild_scope(GUILD_A):
+            await assignment.start_assignment_creation(SimpleNamespace(), interaction, 'individual')
+            modal = interaction.response.send_modal.call_args.args[0]
+            self.assertEqual(modal.course['id'], 'course-a')
+            modal.week_input._value = '1'
+            modal.title_input._value = 'New assignment'
+            modal.due_date_input._value = '2099-10-01'
+            with patch.object(database, 'create_assignment', new=AsyncMock(return_value=12)) as create, patch.object(assignment, 'refresh_dashboard', new=AsyncMock()):
+                await modal.on_submit(interaction)
+                self.assertEqual(create.call_args.kwargs['course_id'], 'course-a')
+                self.assertEqual(create.call_args.kwargs['type_'], 'individual')
+                interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+                self.assertIn('대상 자동 연결', interaction.followup.send.call_args.kwargs['embed'].description)
+
+    async def test_assignment_creation_selects_multiple_courses_and_never_defaults_to_another_course(self):
+        from cogs import assignment
+        self.activate()
+        value = state(GUILD_A)
+        value['assignmentCourses'] = [{'id': f'c{i}', 'title': f'Course {i}'} for i in range(26)]
+        config.install_workspace(GUILD_A, value)
+        interaction = SimpleNamespace(response=SimpleNamespace(send_modal=AsyncMock(), send_message=AsyncMock(), edit_message=AsyncMock()), data={'values':['c25']})
+        with config.guild_scope(GUILD_A):
+            await assignment.start_assignment_creation(SimpleNamespace(), interaction, 'team')
+            interaction.response.send_modal.assert_not_awaited()
+            view = interaction.response.send_message.call_args.kwargs['view']
+            self.assertEqual(len(view.children[0].options),25)
+            await view.next(interaction)
+            last = interaction.response.edit_message.call_args.kwargs['view']
+            self.assertEqual([o.value for o in last.children[0].options],['c25'])
+            await last.choose(interaction)
+            self.assertEqual(interaction.response.send_modal.call_args.args[0].course['id'],'c25')
+            self.assertEqual(last.workspace_guild_id,GUILD_A)
+
     async def test_http_403_suspends_storage_and_recovers_on_next_discovery(self):
         self.activate()
         self.router.request = AsyncMock(side_effect=storage.StorageUnavailable('HTTP 403'))

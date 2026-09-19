@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import AssignmentAlerts from './AssignmentAlerts'
+import { useAssignmentAlerts } from './useAssignmentAlerts'
 import { ArrowDownToLine, ChevronRight, ExternalLink, FileText } from 'lucide-react'
 import { Badge, CardHeading, Empty } from './components'
 import type { Assignment, RecordData, Workspace } from './data'
@@ -49,10 +50,14 @@ function downloadSubmissions(data: Workspace, assignment?: Assignment) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export default function AssignmentManagement({ data, query, change }: { data: Workspace; query: string; change: Change }) {
+export default function AssignmentManagement({ data, query, change, refresh }: { data: Workspace; query: string; change: Change; refresh: () => Promise<void> }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
-  const assignments = data.assignments.filter(a => `${a.title} ${a.course}`.toLowerCase().includes(query.toLowerCase()))
+  const [status, setStatus] = useState('전체'), [courseId, setCourseId] = useState(''), [type, setType] = useState('')
+  const alerts = useAssignmentAlerts(data.workspaceId || '', data.revision, data.mode === 'api')
+  const targets = new Map(alerts.data?.assignments.map(a => [a.id, a]) || [])
+  const assignments = data.assignments.filter(a => `${a.title} ${a.course}`.toLowerCase().includes(query.toLowerCase()) && (status === '전체' || a.status === status) && (!courseId || (targets.get(a.id)?.courseId || a.courseId) === courseId) && (!type || (a.type || 'team') === type))
+  async function reload() { if (busy) return; setBusy(true); try { await refresh(); alerts.refresh() } finally { setBusy(false) } }
   const byAssignment = new Map<string, RecordData[]>()
   for (const submission of data.submissions) {
     const id = String(submission.assignmentId)
@@ -70,32 +75,28 @@ export default function AssignmentManagement({ data, query, change }: { data: Wo
       await change(d => ({ ...d, assignments: d.assignments.map(row => row.id === assignment.id ? { ...row, status: assignment.status === '마감' ? '진행 중' : '마감' } : row) }), assignment.status === '마감' ? '과제를 다시 열었습니다.' : '과제를 마감했습니다.')
     } finally { setBusy(false) }
   }
-  return <>{data.mode === 'api' && <AssignmentAlerts key={data.workspaceId} workspaceId={data.workspaceId || ''} revision={data.revision} />}<section className="panel assignment-management">
-    <CardHeading title="과제 및 제출 현황" subtitle="과제 왼쪽의 화살표를 눌러 제출 내역을 확인하세요.">
-      <button className="button secondary" disabled={!data.submissions.length} onClick={() => downloadSubmissions(data)}><ArrowDownToLine size={16} />전체 내역 다운로드</button>
-    </CardHeading>
-    <div className="assignment-overview"><span>과제 <strong>{data.assignments.length}</strong>개</span><span>전체 제출 <strong>{data.submissions.length}</strong>건</span><small>CSV · 전체 다운로드에는 검색 결과와 관계없이 모든 제출 내역이 포함됩니다.</small></div>
-    <div className="assignment-list">{assignments.map(a => {
-      const open = expanded.has(a.id), submissions = byAssignment.get(a.id) || []
-      const detailsId = `assignment-submissions-${a.id}`
-      return <article className={`assignment-item${open ? ' is-open' : ''}`} key={a.id}>
-        <div className="assignment-summary">
-          <button className="assignment-expand" aria-label={`${a.title} 제출 현황`} aria-expanded={open} aria-controls={detailsId} onClick={() => toggle(a.id)}>
-            <ChevronRight className="assignment-caret" size={20} />
-            <span className="assignment-title"><strong>{a.title}</strong><small>{a.course} · {a.due} 마감</small></span>
-            <span className="assignment-count"><strong>{a.submitted}건 제출</strong><small>{a.total > 0 ? `대상 ${a.total}` : '대상 미집계'}</small></span>
-          </button>
-          <div className="assignment-controls"><Badge tone={a.status === '마감' ? 'neutral' : 'green'}>{a.status}</Badge><button className="button secondary compact" disabled={busy} aria-label={`${a.title} ${a.status === '마감' ? '다시 열기' : '마감하기'}`} onClick={() => void changeStatus(a)}>{a.status === '마감' ? '다시 열기' : '마감하기'}</button></div>
-        </div>
-        <div id={detailsId} hidden={!open} className="assignment-details" role="region" aria-label={`${a.title} 제출 내역`}>
+  return <>
+    <div className="filter-row assignment-filters"><div className="tabs" aria-label="과제 상태 필터">{['전체', '진행 중', '마감'].map(value => <button key={value} className={status === value ? 'selected' : ''} aria-pressed={status === value} onClick={() => setStatus(value)}>{value}<span>{value === '전체' ? data.assignments.length : data.assignments.filter(a => a.status === value).length}</span></button>)}</div><div className="assignment-action-group"><select className="select-control" aria-label="과제 과정 필터" value={courseId} onChange={e => setCourseId(e.target.value)}><option value="">전체 과정</option>{data.courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select><select className="select-control" aria-label="과제 유형 필터" value={type} onChange={e => setType(e.target.value)}><option value="">전체 유형</option><option value="team">팀 과제</option><option value="individual">개인 과제</option></select></div></div>
+    <section className="panel assignment-management">
+      <CardHeading title="과제 목록" subtitle="과제를 열어 제출 내역과 대상·알림을 함께 확인하세요."><div className="assignment-action-group"><button className="button secondary" disabled={busy || alerts.busy} onClick={() => void reload()}>과제 새로고침</button><button className="button secondary" disabled={!data.submissions.length} onClick={() => downloadSubmissions(data)}><ArrowDownToLine size={16} />전체 내역 다운로드</button></div></CardHeading>
+      <div className="assignment-overview"><span>표시 <strong>{assignments.length}</strong>개</span><span>전체 제출 <strong>{data.submissions.length}</strong>건</span><small>생성한 과제는 선택한 과정의 제출 대상에 자동 연결됩니다.</small></div>
+      {alerts.error && <p className="inline-note error-note" role="alert">{alerts.error}</p>}{alerts.message && <p className="inline-note" role="status">{alerts.message}</p>}
+      <div className="table-scroll assignment-table-wrap"><table className="assignment-table"><thead><tr><th>과제 · 과정</th><th>유형</th><th>마감일</th><th>제출 현황</th><th>상태</th><th>관리</th></tr></thead><tbody>{assignments.map(a => {
+        const open = expanded.has(a.id), submissions = byAssignment.get(a.id) || [], target = targets.get(a.id)
+        const detailsId = `assignment-submissions-${a.id}`, total = target?.total ?? a.total, submitted = target?.submitted ?? a.submitted
+        const course = data.courses.find(c => c.id === (target?.courseId || a.courseId))?.title || a.course
+        return <Fragment key={a.id}><tr className={`assignment-item${open ? ' is-open' : ''}`}>
+          <td data-label="과제"><button className="assignment-expand" aria-label={`${a.title} 제출 현황`} aria-expanded={open} aria-controls={detailsId} onClick={() => toggle(a.id)}><ChevronRight className="assignment-caret" size={18} /><span className="assignment-title"><strong>{a.title}</strong><small>{course}</small></span></button></td>
+          <td data-label="유형"><Badge tone="neutral">{a.type === 'individual' ? '개인' : '팀'}</Badge></td><td data-label="마감일">{a.due}</td>
+          <td data-label="제출 현황">{target?.courseId || a.courseId ? <><strong>{submitted} / {total}</strong><small>{a.type === 'individual' ? '명' : '팀'} 제출 완료</small></> : <><strong>{submissions.length}건 접수</strong><small>대상 과정 확인 필요</small></>}</td>
+          <td data-label="상태"><Badge tone={a.status === '마감' ? 'neutral' : 'green'}>{a.status}</Badge></td><td data-label="관리"><button className="button secondary compact" disabled={busy || alerts.busy} aria-label={`${a.title} ${a.status === '마감' ? '다시 열기' : '마감하기'}`} onClick={() => void changeStatus(a)}>{a.status === '마감' ? '다시 열기' : '마감하기'}</button></td>
+        </tr><tr className="assignment-detail-row" hidden={!open}><td colSpan={6}><div id={detailsId} className="assignment-details" role="region" aria-label={`${a.title} 제출 내역`}>
           <div className="assignment-details-heading"><span><FileText size={16} />제출 내역 <strong>{submissions.length}건</strong></span><button className="button secondary compact" disabled={!submissions.length} onClick={() => downloadSubmissions(data, a)}><ArrowDownToLine size={14} />이 과제 다운로드</button></div>
-          {submissions.length ? <div className="table-scroll"><table><thead><tr><th>제출자 / 팀</th><th>제출 내용</th><th>제출 링크</th><th>제출 시각 (한국시간)</th></tr></thead><tbody>{submissions.map(s => <tr key={s.id}>
-            <td><strong>{s.name}</strong><small>{s.team || '개인'}</small></td><td className="submission-content">{submissionText(s.content) || '—'}</td>
-            <td>{/^https?:\/\//i.test(String(s.link)) ? <a className="text-button" href={String(s.link)} target="_blank" rel="noreferrer">제출물 열기 <ExternalLink size={13} /></a> : '—'}</td><td>{submittedAt(s.submittedAt)}</td>
-          </tr>)}</tbody></table></div> : <p className="assignment-no-submissions">아직 제출된 내역이 없습니다.</p>}
-        </div>
-      </article>
-    })}</div>
-    {!assignments.length && <Empty />}
-  </section></>
+          {submissions.length ? <div className="table-scroll"><table><thead><tr><th>제출자 / 팀</th><th>제출 내용</th><th>제출 링크</th><th>제출 시각 (한국시간)</th></tr></thead><tbody>{submissions.map(s => <tr key={s.id}><td><strong>{s.name}</strong><small>{s.team || '개인'}</small></td><td className="submission-content">{submissionText(s.content) || '—'}</td><td>{/^https?:\/\//i.test(String(s.link)) ? <a className="text-button" href={String(s.link)} target="_blank" rel="noreferrer">제출물 열기 <ExternalLink size={13} /></a> : '—'}</td><td>{submittedAt(s.submittedAt)}</td></tr>)}</tbody></table></div> : <p className="assignment-no-submissions">아직 제출된 내역이 없습니다.</p>}
+          {data.mode === 'api' && open && <AssignmentAlerts state={alerts} assignmentId={a.id} />}
+        </div></td></tr></Fragment>
+      })}</tbody></table></div>
+      {!assignments.length && <Empty />}<p className="assignment-download-note">전체 내역 다운로드는 검색·필터와 관계없이 모든 제출물을 CSV로 저장합니다.</p>
+    </section>
+  </>
 }
