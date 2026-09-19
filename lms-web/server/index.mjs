@@ -413,6 +413,8 @@ app.post('/api/workspaces/:workspaceId/student-accounts', maintenance.track(asyn
     res.status(201).json(result);
 }));
 app.get('/api/workspaces/:workspaceId/notices', async (req, res) => res.json(await outbox.notices(req.workspaceId, req.account)));
+app.get('/api/workspaces/:workspaceId/courses/:courseId/manage', async (req, res) => res.json(await runtime.courseManagement.read(req.workspaceId, req.params.courseId, req.account)));
+app.patch('/api/workspaces/:workspaceId/courses/:courseId/manage', async (req, res) => res.json(await runtime.courseManagement.update(req.workspaceId, req.params.courseId, req.body, req.account)));
 app.get('/api/workspaces/:workspaceId/assignment-alerts', async (req, res) => res.json(await assignmentAlerts.read(req.workspaceId, req.account)));
 app.post('/api/workspaces/:workspaceId/assignment-alerts/:id/publish', async (req, res) => res.json(await assignmentAlerts.publish(req.workspaceId, req.params.id, req.body, req.account)));
 app.post('/api/workspaces/:workspaceId/assignment-alerts/:id/course', async (req, res) => res.json(await assignmentAlerts.bind(req.workspaceId, req.params.id, req.body, req.account)));

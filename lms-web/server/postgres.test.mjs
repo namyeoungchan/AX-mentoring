@@ -1,3 +1,4 @@
+import { courseManagementScenario } from './course-management-scenario.mjs'
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -22,6 +23,10 @@ import { assignmentCourseScenario } from './assignment-course-scenario.mjs'
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL course edits ignore unrelated writes and validate weekly schedules', async t => {
+  const f = await fixture(t)
+  await courseManagementScenario(f.runtime)
+})
 pgTest('PostgreSQL assignment course binding is atomic and never guesses between courses', async t => {
   const f = await fixture(t)
   await assignmentCourseScenario(f.runtime.workspaces, f.runtime.botStorage)
