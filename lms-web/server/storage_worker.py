@@ -94,7 +94,18 @@ async def run(request, filename, schema=None):
                 if str(revision) != request["revision"]:
                     raise ValueError("stale_revision")
             aiosqlite.connect = lambda *_args, **_kwargs: ConnectionScope(connection)
+            course_id = None
+            if operation == 'create_assignment':
+                async with connection.execute("SELECT id FROM lms_records WHERE kind='courses'") as rows:
+                    courses = [row[0] for row in await rows.fetchall()]
+                course_id = bound.arguments.get('course_id')
+                if not course_id and len(courses) == 1:
+                    course_id = courses[0]
+                if not course_id or course_id not in courses:
+                    raise ValueError('assignment_course_required')
             result = encode(await fn(*bound.args, **bound.kwargs))
+            if operation == 'create_assignment':
+                await connection.execute('INSERT INTO lms_assignment_courses(assignment_id,course_id) VALUES(?,?)', (result, course_id))
             aiosqlite.connect = original_connect
             # Query methods have no write receipt; retries of changes reuse the same result.
             if not read_only:
@@ -129,6 +140,8 @@ def validate(operation, arguments, guild_id):
             raise ValueError("Invalid active flag")
         if key == "type_" and value not in {"team", "individual"}:
             raise ValueError("Invalid assignment type")
+        if key == 'course_id' and value is not None and (not isinstance(value, str) or not value.strip() or len(value) > 200):
+            raise ValueError('Invalid course')
         if key == "week" and (type(value) is not int or not 1 <= value <= 1000):
             raise ValueError("Invalid week")
         if key == "interval_minutes" and (type(value) is not int or not 5 <= value <= 1440):
@@ -168,7 +181,7 @@ async def respond(request, filename, schema=None):
         return {"ok": True, "result": await run(request, filename, schema)}
     except Exception as error:
         # Never echo private submissions, SQL parameters, or filesystem paths.
-        code = "stale_revision" if str(error) == "stale_revision" else "invalid_operation"
+        code = str(error) if str(error) in {'stale_revision', 'assignment_course_required'} else 'invalid_operation'
         if isinstance(error, sqlite3.OperationalError) and getattr(error, "sqlite_errorcode", 0) & 255 in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}:
             code = "storage_busy"
         if getattr(error, 'sqlstate', None) in {'55P03', '57014', '40001', '40P01'} or (getattr(error, 'sqlstate', None) or '').startswith('08'):

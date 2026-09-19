@@ -49,7 +49,7 @@ test('team moves invalidate attendance drafts and Discord failures preserve all 
   }
   expect(kinds.sort()).toEqual(['notice', 'submission'])
   await page.goto(`/?workspace=${w.id}#assignments`)
-  await expect(page.getByText('통합 팀 과제 · 팀 제출 완료 1/2', { exact: true })).toBeVisible()
+  await expect(page.locator('.assignment-item').filter({hasText:'통합 팀 과제'})).toContainText('1 / 2')
   await page.reload()
   const assignment = (await get('assignment-alerts')).assignments[0]
   expect(assignment.targets.find((t: { name: string }) => t.name === setup.teams[1].name).completed).toBe(true)

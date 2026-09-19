@@ -11,6 +11,7 @@ import { createProvision } from './provision.mjs';
 import { createWorkspaces } from './workspaces.mjs';
 import { createBotStorage, BOT_TABLES } from './bot-storage.mjs';
 import { createOnboarding } from './onboarding.mjs';
+import { assignmentCourseScenario } from './assignment-course-scenario.mjs';
 const guildId = '123456789012345678';
 async function fixture(t) {
     const dir = mkdtempSync(join(tmpdir(), 'bot-storage-')), dbPath = join(dir, 'web.db'), store = await createStore(dbPath);
@@ -27,6 +28,11 @@ async function fixture(t) {
     const call = async (operation, args = [], extra = {}) => await storage.call({ guildId, operation, args, requestId: randomUUID(), ...extra });
     return { storage, workspace, workspaces, onboarding, data, payload, call };
 }
+test('assignment creation binds a course atomically and legacy repair only uses an unambiguous course', async t => {
+    const f = await fixture(t);
+    await assignmentCourseScenario(f.workspaces, f.storage);
+});
+
 test('full migration preserves more than 1000 rows, original IDs, backup and workspace isolation', async (t) => {
     const { storage, workspace, workspaces, data, payload } = await fixture(t);
     data.tables.qa_alerts = Array.from({ length: 1005 }, (_, i) => ({ thread_id: String(123456789012345600n + BigInt(i)), alerted_at: '2026-09-01' }));

@@ -51,9 +51,13 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
             throw new ApiError(409, '워크스페이스와 Discord 서버를 1:1로 연결하세요.');
         return row.workspace_id;
     }
+    async function assignmentCourses(db) {
+        return (await db.prepare("SELECT id,data FROM lms_records WHERE kind='courses' ORDER BY id").all()).map(row => ({ id: row.id, title: JSON.parse(row.data).title }));
+    }
     async function state(id) {
         const db = await open(id);
         return { revision: String((await (db.prepare('SELECT revision FROM lms_storage_state WHERE id=1')).get()).revision),
+            courses: await assignmentCourses(db),
             guildIds: (await workspaces.metadata(id)).guildIds,
             tables: await Promise.all(Object.entries(BOT_TABLES).map(async ([key, label]) => ({ key, label, count: (await (db.prepare(`SELECT COUNT(*) AS n FROM ${key}`)).get()).n }))),
             imports: await (db.prepare('SELECT checksum,guild_id AS guildId,state,error,created_at AS createdAt FROM lms_storage_imports ORDER BY created_at DESC')).all(),
@@ -110,7 +114,7 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
             const participants = (await onboarding?.poll({ guildIds: [guildId] }))?.configs[0]?.participants || [];
             teamMembers = Object.fromEntries(participants.filter(p => p.role === 'student').map(p => [p.discordId, teams.find(t => t.id === p.teamId)?.name || '']));
         }
-        return { workspaceId: id, migrated: Boolean(imported), checksum: imported?.checksum || '', settings: value, teamMembers };
+        return { workspaceId: id, migrated: Boolean(imported), checksum: imported?.checksum || '', settings: value, teamMembers, assignmentCourses: await assignmentCourses(db) };
     }
     async function snapshot(guildId) {
         const db = await open(await owner(guildId));
