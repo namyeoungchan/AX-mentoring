@@ -429,35 +429,62 @@ class EditAssignmentModal(WorkspaceModal):
 
 # ── Admin: Delete confirmation ────────────────────────────────────────────────
 
+async def show_delete_confirmation(interaction, bot, assignment_id):
+    try:
+        preview = await database.get_assignment_delete_preview(assignment_id)
+    except Exception as error:
+        log.warning("Assignment deletion preview failed (%s)", type(error).__name__)
+        await interaction.edit_original_response(content="과제 정보를 불러오지 못했습니다. 잠시 후 삭제를 다시 열어 주세요.", embed=None, view=None)
+        return
+    if not preview:
+        await interaction.edit_original_response(content="이미 삭제되었거나 찾을 수 없는 과제입니다.", embed=None, view=None)
+        return
+    assignment = preview["assignment"]
+    await interaction.edit_original_response(content=None, embed=discord.Embed(
+        title="⚠️ 과제 삭제 확인",
+        description=f"**{assignment['week']}주차 — {assignment['title']}** 과제를 삭제합니다.\n\n제출 내역 **{preview['submissionCount']}건**도 함께 영구 삭제됩니다.\n계속하시겠습니까?",
+        color=discord.Color.red(),
+    ), view=DeleteConfirmView(bot, preview))
+
+
 class DeleteConfirmView(WorkspaceView):
-    def __init__(self, bot: commands.Bot, assignment: dict) -> None:
-        super().__init__(timeout=60)
+    def __init__(self, bot: commands.Bot, preview: dict) -> None:
+        super().__init__(timeout=120)
         self.bot = bot
-        self.assignment = assignment
+        self.preview = preview
+        self.busy = False
 
     @discord.ui.button(label="🗑️ 삭제 확인", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        sub_count = len(await database.get_submissions(self.assignment["id"]))
-        await database.delete_assignment(self.assignment["id"])
-        await interaction.response.edit_message(
-            embed=discord.Embed(
-                title="🗑️ 삭제 완료",
-                description=(
-                    f"**{self.assignment['week']}주차 — {self.assignment['title']}** 과제가 삭제되었습니다.\n"
-                    f"제출 내역 **{sub_count}건**도 함께 삭제되었습니다."
-                ),
-                color=discord.Color.red(),
-            ),
-            view=None,
-        )
-        await refresh_dashboard(self.bot)
+        if not _is_admin(interaction):
+            await interaction.response.send_message("관리자만 사용할 수 있습니다.", ephemeral=True)
+            return
+        await interaction.response.defer()
+        if self.busy:
+            return
+        self.busy = True
+        assignment = self.preview["assignment"]
+        try:
+            deleted = await database.delete_assignment(assignment["id"], expected_revision=self.preview["revision"])
+        except Exception as error:
+            log.warning("Assignment deletion failed (%s)", type(error).__name__)
+            await interaction.edit_original_response(content="삭제하지 못했습니다. 과제나 제출 내역이 변경됐거나 연결이 지연될 수 있습니다. 대시보드에서 삭제를 다시 열어 최신 내역을 확인하세요.", embed=None, view=None)
+            return
+        await interaction.edit_original_response(content=None, embed=discord.Embed(
+            title="🗑️ 삭제 완료" if deleted else "이미 삭제된 과제",
+            description=f"**{assignment['title']}** 과제와 제출 내역 **{self.preview['submissionCount']}건**을 삭제했습니다." if deleted else "다른 작업에서 이미 삭제된 과제입니다.",
+            color=discord.Color.red(),
+        ), view=None)
+        self.stop()
+        try:
+            await refresh_dashboard(self.bot)
+        except Exception as error:
+            log.warning("Dashboard refresh after deletion failed (%s)", type(error).__name__)
 
     @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        await interaction.response.edit_message(
-            embed=discord.Embed(description="삭제가 취소되었습니다.", color=discord.Color.blurple()),
-            view=None,
-        )
+        await interaction.response.edit_message(embed=discord.Embed(description="삭제가 취소되었습니다.", color=discord.Color.blurple()), view=None)
+        self.stop()
 
 
 # ── Admin: Generic assignment action select ───────────────────────────────────
@@ -484,28 +511,19 @@ class AssignmentActionSelectView(WorkspaceView):
         self.add_item(select)
 
     async def _on_select(self, interaction: discord.Interaction) -> None:
-        assignment_id = int(interaction.data["values"][0])  # type: ignore[index]
+        if not _is_admin(interaction):
+            await interaction.response.send_message("관리자만 사용할 수 있습니다.", ephemeral=True)
+            return
+        assignment_id = int(interaction.data["values"][0])
+        if self.action == "delete":
+            await interaction.response.defer()
+            await show_delete_confirmation(interaction, self.bot, assignment_id)
+            return
         assignment = await database.get_assignment(assignment_id)
         if not assignment:
             await interaction.response.send_message("과제를 찾을 수 없습니다.", ephemeral=True)
             return
-
-        if self.action == "edit":
-            await interaction.response.send_modal(EditAssignmentModal(self.bot, assignment))
-        else:
-            sub_count = len(await database.get_submissions(assignment_id))
-            await interaction.response.edit_message(
-                embed=discord.Embed(
-                    title="⚠️ 과제 삭제 확인",
-                    description=(
-                        f"**{assignment['week']}주차 — {assignment['title']}** 과제를 삭제합니다.\n\n"
-                        f"제출 내역 **{sub_count}건**도 함께 영구 삭제됩니다.\n"
-                        "계속하시겠습니까?"
-                    ),
-                    color=discord.Color.red(),
-                ),
-                view=DeleteConfirmView(self.bot, assignment),
-            )
+        await interaction.response.send_modal(EditAssignmentModal(self.bot, assignment))
 
 
 # ── Admin: Submission detail view (ephemeral, paginated) ─────────────────────
@@ -756,39 +774,22 @@ class AdminDashboardView(WorkspaceView):
             await interaction.response.send_message("관리자만 사용할 수 있습니다.", ephemeral=True)
             return
 
-        assignments = await database.get_assignments(active_only=False)
-        if not assignments:
-            await interaction.response.send_message(
-                embed=discord.Embed(description="등록된 과제가 없습니다.", color=discord.Color.orange()),
-                ephemeral=True,
-            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            assignments = await database.get_assignments(active_only=False)
+        except Exception as error:
+            log.warning("Assignment deletion list failed (%s)", type(error).__name__)
+            await interaction.edit_original_response(content="과제 목록을 불러오지 못했습니다. 잠시 후 다시 시도하세요.")
             return
-
+        if not assignments:
+            await interaction.edit_original_response(content="등록된 과제가 없습니다.")
+            return
         if len(assignments) == 1:
-            assignment = assignments[0]
-            sub_count = len(await database.get_submissions(assignment["id"]))
-            await interaction.response.send_message(
-                embed=discord.Embed(
-                    title="⚠️ 과제 삭제 확인",
-                    description=(
-                        f"**{assignment['week']}주차 — {assignment['title']}** 과제를 삭제합니다.\n\n"
-                        f"제출 내역 **{sub_count}건**도 함께 영구 삭제됩니다.\n"
-                        "계속하시겠습니까?"
-                    ),
-                    color=discord.Color.red(),
-                ),
-                view=DeleteConfirmView(self.bot, assignment),
-                ephemeral=True,
-            )
+            await show_delete_confirmation(interaction, self.bot, assignments[0]["id"])
         else:
-            await interaction.response.send_message(
-                embed=discord.Embed(
-                    title="🗑️ 과제 삭제",
-                    description="삭제할 과제를 선택하세요.",
-                    color=discord.Color.red(),
-                ),
+            await interaction.edit_original_response(
+                embed=discord.Embed(title="🗑️ 과제 삭제", description="삭제할 과제를 선택하세요.", color=discord.Color.red()),
                 view=AssignmentActionSelectView(self.bot, assignments, "delete"),
-                ephemeral=True,
             )
 
     @discord.ui.button(
