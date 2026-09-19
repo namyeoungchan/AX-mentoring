@@ -18,7 +18,7 @@ def fit_embeds(embeds, marker):
 async def ensure_panel(channel, kind, embeds, view, store, legacy_message_id=None):
     key = f"{kind}:{channel.id}"
     legacy_marker = f"learningops:panel:{channel.guild.id}:{kind}"
-    labels = {"dashboard": "과제 운영", "submit": "과제 제출", "mentoring": "멘토링 예약", "participation": "참여도", "peer_eval": "비밀평가"}
+    labels = {"attendance": "입실 · 퇴실 출석", "dashboard": "과제 운영", "submit": "과제 제출", "mentoring": "멘토링 예약", "participation": "참여도", "peer_eval": "비밀평가"}
     marker = f"AX LearningOps · {labels.get(kind, kind)} · 자동 갱신"
     record = await store.get(channel.guild.id, "panel", key)
     target = None

@@ -12,6 +12,7 @@ class PanelObject:
 
 
 PANEL_OBJECTS = MappingProxyType({
+    "attendance": PanelObject("ONBOARDING_CHANNEL_ID", "start", ("시작하기", "시작-하기")),
     "dashboard": PanelObject("ASSIGNMENT_DASHBOARD_CHANNEL_ID", "assignment-dashboard", ("과제-대시보드", "과제대시보드")),
     "submit": PanelObject("ASSIGNMENT_SUBMIT_CHANNEL_ID", "assignments", ("과제제출", "과제-제출")),
     "mentoring": PanelObject("MENTORING_CHANNEL_ID", "mentoring", ("멘토링예약", "멘토링-예약")),

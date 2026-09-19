@@ -35,6 +35,7 @@ test('mentor code UI accepts verified Discord check-ins, updates roster, preserv
   await page.getByLabel('출결 날짜').fill('2026-09-18')
   await page.getByRole('button', { name: '회차 시작', exact: true }).click()
   await expect(page.getByRole('status')).toHaveText('회차를 시작했습니다.')
+  await page.getByText('보조 기능 · 기존 코드 출석', { exact: true }).click()
   await page.getByRole('button', { name: '출석 코드 발급', exact: true }).click()
   const codeOutput = page.getByLabel('발급된 출석 코드')
   await expect(codeOutput).toHaveText(/^\d{6}$/)

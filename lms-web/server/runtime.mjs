@@ -1,3 +1,4 @@
+import { createAttendancePresence } from './attendance-presence.mjs';
 import { createCourseManagement } from './course-management.mjs';
 import { createStore } from './store.mjs';
 import { postgresConnection } from './postgres/database.mjs';
@@ -38,8 +39,9 @@ export async function createRuntime(dbPath, env = process.env) {
         const assignmentAlerts = createAssignmentAlerts(store.db, workspaces);
         const outbox = createOutbox(store.db, workspaces, { prepare: assignmentAlerts.prepare });
         const attendance = createAttendance(workspaces, { outbox });
+        const attendancePresence = createAttendancePresence(store.db, workspaces);
         const attendanceCodes = createAttendanceCodes(store.db, workspaces, attendance, { enabled: auth.enabled });
-        return { store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, outbox, attendance, attendanceCodes,
+        return { store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, outbox, attendance, attendanceCodes, attendancePresence,
             close() { botStorage.close(); workspaces.close(); store.db.close(); } };
     }
     catch (error) {

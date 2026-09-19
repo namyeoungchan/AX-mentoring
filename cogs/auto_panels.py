@@ -75,6 +75,12 @@ class AutoPanels(commands.Cog):
                 await self.sync_once(force=True)
 
     async def build(self, guild, kind, days=None):
+        if kind == "attendance":
+            from cogs.attendance_panel import AttendancePanelView, build_attendance_embed
+            cog = self.bot.get_cog('LMSAttendance')
+            if not cog or not cog.url:
+                return None
+            return [build_attendance_embed()], AttendancePanelView(self.bot)
         if kind == "dashboard":
             from cogs.assignment import build_dashboard_embeds, AdminDashboardView
             return await build_dashboard_embeds(), AdminDashboardView(self.bot)

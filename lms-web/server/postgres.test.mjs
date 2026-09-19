@@ -1,3 +1,4 @@
+import { attendancePresenceScenario } from './attendance-presence-scenario.mjs'
 import { courseManagementScenario } from './course-management-scenario.mjs'
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -23,6 +24,10 @@ import { assignmentCourseScenario } from './assignment-course-scenario.mjs'
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL entry and exit are atomic across web and Discord retries', async t => {
+  const f = await fixture(t)
+  await attendancePresenceScenario(f.runtime)
+})
 pgTest('PostgreSQL course edits ignore unrelated writes and validate weekly schedules', async t => {
   const f = await fixture(t)
   await courseManagementScenario(f.runtime)
