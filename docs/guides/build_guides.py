@@ -36,7 +36,7 @@ def faq(items):
 def checklist(items):return '<div class="checklist">'+''.join(f'<p><span>✓</span>{x}</p>' for x in items)+'</div>'
 def page(role,no,kicker,title,intro,content):
  labels={'admin':'워크스페이스 관리자','mentor':'멘토','student':'학생'}
- return f'''<section class="page {role}" aria-label="{labels[role]} 가이드 {no}쪽"><header><a href="{URL}" class="brand">{icon('grid')}<span>AX <b>LearningOps</b></span></a><span class="role-label">{labels[role]} 가이드</span></header><div class="page-title"><span class="eyebrow">{kicker}</span><h1>{title}</h1><p>{intro}</p></div><main class="content">{content}</main><footer><span>AX LearningOps · 2026.09.19 개정 · 시작·종료 코드 출석 가이드</span><span>{labels[role]} <b>{no:02d}</b> / 03</span></footer></section>'''
+ return f'''<section class="page {role}" aria-label="{labels[role]} 가이드 {no}쪽"><header><a href="{URL}" class="brand">{icon('grid')}<span>AX <b>학습관리시스템</b></span></a><span class="role-label">{labels[role]} 가이드</span></header><div class="page-title"><span class="eyebrow">{kicker}</span><h1>{title}</h1><p>{intro}</p></div><main class="content">{content}</main><footer><span>AX 학습관리시스템 · 2026.09.19 개정 · 시작·종료 코드 출석 가이드</span><span>{labels[role]} <b>{no:02d}</b> / 03</span></footer></section>'''
 def access():
  return f'<div class="access"><img src="lms-qr.svg" alt="LMS 접속 QR 코드"/><div><span class="eyebrow">시작하는 곳</span><h3>웹은 학습 기록, Discord는 소통</h3><p>QR을 스캔하거나 아래 주소를 누르세요.</p><a href="{URL}">ax-learningops-web.onrender.com ↗</a></div></div>'
 
@@ -142,6 +142,6 @@ page('student',3,'03 / 입퇴실과 나의 학습','시작·종료 코드로,<br
 ]
 styles=(HERE/'guide.css').read_text(encoding='utf-8')
 for name,role,pages in [('admin-guide','워크스페이스 관리자',admin),('mentor-guide','멘토',mentor),('student-guide','학생',student)]:
- doc='<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AX LearningOps — '+role+' 가이드</title><style>'+styles+'</style></head><body>'+''.join(pages)+'</body></html>'
+ doc='<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AX 학습관리시스템 — '+role+' 가이드</title><style>'+styles+'</style></head><body>'+''.join(pages)+'</body></html>'
  (OUT/(name+'.html')).write_text(doc, encoding='utf-8')
 print('Built 3 role guides, 9 pages.')

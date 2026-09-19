@@ -9,11 +9,11 @@ export type Learner = { id: string; name: string; email: string; team: string; c
 export type Mentor = { id: string; name: string; discordId: string; bio: string }
 export type Workspace = { onboardingComplete?: boolean; workspaceId?: string; courses: Course[]; sessions: Session[]; assignments: Assignment[]; servers: Server[]; logs: Log[]; learners: Learner[]; mentors: Mentor[]; teams: RecordData[]; attendance: RecordData[]; scores: RecordData[]; notices: RecordData[]; files: RecordData[]; submissions: RecordData[]; name: string; reminders: boolean; onboarding: boolean; qa: boolean; revision?: string; mode?: 'api' | 'demo'; authEnabled?: boolean }
 export const initialData: Workspace = {
-  name: 'AX LearningOps', reminders: true, onboarding: true, qa: true,
+  name: 'AX 학습관리시스템', reminders: true, onboarding: true, qa: true,
   learners: [], mentors: [], teams: [], attendance: [], scores: [], notices: [], files: [], submissions: [],
   courses: [
-    { id: 'c1', title: 'AX LearningOps 1기', category: 'AI & PRODUCTIVITY', description: '생성형 AI 실무 · 8주 과정', progress: 68, learners: 32, weeks: '8주 과정', mentor: '김민준', theme: 'orange', status: '진행 중' },
-    { id: 'c2', title: 'AX LearningOps 2기', category: 'DATA & BUSINESS', description: '데이터 분석 · 6주 과정', progress: 42, learners: 28, weeks: '6주 과정', mentor: '이지은', theme: 'green', status: '진행 중' },
+    { id: 'c1', title: 'AX 학습관리시스템 1기', category: 'AI & PRODUCTIVITY', description: '생성형 AI 실무 · 8주 과정', progress: 68, learners: 32, weeks: '8주 과정', mentor: '김민준', theme: 'orange', status: '진행 중' },
+    { id: 'c2', title: 'AX 학습관리시스템 2기', category: 'DATA & BUSINESS', description: '데이터 분석 · 6주 과정', progress: 42, learners: 28, weeks: '6주 과정', mentor: '이지은', theme: 'green', status: '진행 중' },
     { id: 'c3', title: 'AX 프로젝트 실습', category: 'BUILD & COLLABORATE', description: '팀 프로젝트 · 10주 과정', progress: 24, learners: 24, weeks: '10주 과정', mentor: '박서연', theme: 'blue', status: '진행 중' },
   ],
   sessions: [
@@ -23,8 +23,8 @@ export const initialData: Workspace = {
     { id: 's4', title: '자동화 워크플로 리뷰', mentor: '김민준', team: '팀 4 · 김지호 외 3명', date: '2026-09-16', time: '11:00', status: '승인 대기' },
   ],
   assignments: [
-    { id: 'a1', title: '나만의 AI 워크플로 만들기', course: 'AX LearningOps 1기', due: '2026-09-18', submitted: 24, total: 32, status: '진행 중' },
-    { id: 'a2', title: '비즈니스 데이터 분석 리포트', course: 'AX LearningOps 2기', due: '2026-09-20', submitted: 16, total: 28, status: '진행 중' },
+    { id: 'a1', title: '나만의 AI 워크플로 만들기', course: 'AX 학습관리시스템 1기', due: '2026-09-18', submitted: 24, total: 32, status: '진행 중' },
+    { id: 'a2', title: '비즈니스 데이터 분석 리포트', course: 'AX 학습관리시스템 2기', due: '2026-09-20', submitted: 16, total: 28, status: '진행 중' },
     { id: 'a3', title: '팀 프로젝트 문제 정의', course: 'AX 프로젝트 실습', due: '2026-09-22', submitted: 8, total: 24, status: '진행 중' },
   ],
   servers: [
