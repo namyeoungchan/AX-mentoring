@@ -164,7 +164,7 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
     async def test_mentor_never_opens_or_posts_a_student_introduction(self):
         self.cog.configs['123'] = {"enabled": True, "participants": [{"discordId": "7", "role": "instructor"}]}
         response = SimpleNamespace(send_message=AsyncMock(), send_modal=AsyncMock())
-        await module.StartView(self.cog, 123).start(SimpleNamespace(user=SimpleNamespace(id=7), response=response))
+        await module.StartView(self.cog, 123, 7).start(SimpleNamespace(user=SimpleNamespace(id=7), response=response))
         response.send_modal.assert_not_awaited()
         self.assertIn("자기소개가 필요 없습니다", response.send_message.call_args.args[0])
         member = SimpleNamespace(id=7)
@@ -292,14 +292,14 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('https://discord.com/channels/123/11', member.send.call_args.kwargs['embed'].description)
 
     async def test_shared_entry_opens_an_ephemeral_member_bound_panel_before_the_modal(self):
-        self.cog.bot.get_cog.return_value = SimpleNamespace(url='https://example.com')
-        response = SimpleNamespace(send_message=AsyncMock(), send_modal=AsyncMock())
-        interaction = SimpleNamespace(guild_id=123, user=SimpleNamespace(id=7), response=response)
+        self.cog.bot.get_cog.return_value = SimpleNamespace(url='https://example.com', verification_state=AsyncMock(return_value=(200, {'verified': False})))
+        response = SimpleNamespace(send_message=AsyncMock(), send_modal=AsyncMock(), defer=AsyncMock())
+        interaction = SimpleNamespace(guild_id=123, user=SimpleNamespace(id=7), response=response, followup=SimpleNamespace(send=AsyncMock()))
         shared = module.StartView(self.cog, 123)
         await shared.verify(interaction)
         response.send_modal.assert_not_awaited()
-        self.assertTrue(response.send_message.call_args.kwargs['ephemeral'])
-        private = response.send_message.call_args.kwargs['view']
+        self.assertTrue(interaction.followup.send.call_args.kwargs['ephemeral'])
+        private = interaction.followup.send.call_args.kwargs['view']
         self.assertEqual(private.member_id, 7)
         self.assertNotEqual(private.children[0].custom_id, shared.children[0].custom_id)
         self.assertFalse(await private.interaction_check(SimpleNamespace(guild_id=123, user=SimpleNamespace(id=8), response=response)))
@@ -319,6 +319,36 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.cog.refresh.assert_awaited_once_with([123])
         self.cog.sync_member.assert_awaited_once_with(member, self.cog.configs['123'])
 
+    async def test_verified_member_reopens_intro_after_panel_expiry_without_code_or_role_repair(self):
+        auth = SimpleNamespace(url='https://example.com', verification_state=AsyncMock(return_value=(200, {'verified': True})))
+        self.cog.bot.get_cog.return_value = auth
+        self.cog.refresh = AsyncMock()
+        self.cog.ensure_resources = AsyncMock(side_effect=module.OnboardingError('permissions'))
+        self.cog.sync_member = AsyncMock()
+        self.cog.configs['123'] = {'enabled': True, 'participants': [{'discordId': '7', 'role': 'student', 'teamId': 't1'}]}
+        interaction = SimpleNamespace(guild_id=123, user=SimpleNamespace(id=7), response=SimpleNamespace(defer=AsyncMock(), send_modal=AsyncMock()), followup=SimpleNamespace(send=AsyncMock()))
+        await module.StartView(self.cog, 123).start(interaction)
+        auth.verification_state.assert_awaited_once_with(7, 123)
+        self.cog.ensure_resources.assert_not_awaited()
+        self.cog.sync_member.assert_not_awaited()
+        private = interaction.followup.send.call_args.kwargs['view']
+        self.assertTrue(private.children[0].disabled)
+        self.assertFalse(private.children[1].disabled)
+        self.assertTrue(interaction.followup.send.call_args.kwargs['ephemeral'])
+        await private.start(interaction)
+        self.assertIsInstance(interaction.response.send_modal.call_args.args[0], module.Introduction)
+        await self.store.put(123, 'member', 7, {'introDone': True})
+        await self.cog.after_verification(interaction)
+        self.assertTrue(interaction.followup.send.call_args.kwargs['view'].children[1].disabled)
+        self.assertIn('저장되어 있습니다', interaction.followup.send.call_args.args[0])
+
+    async def test_status_outage_does_not_tell_member_to_reverify(self):
+        self.cog.bot.get_cog.return_value = SimpleNamespace(verification_state=AsyncMock(return_value=(503, None)))
+        interaction = SimpleNamespace(guild_id=123, user=SimpleNamespace(id=7), response=SimpleNamespace(defer=AsyncMock()), followup=SimpleNamespace(send=AsyncMock()))
+        await self.cog.open_panel(interaction)
+        self.assertIn('코드를 재발급하지 말고', interaction.followup.send.call_args.args[0])
+        self.assertNotIn('view', interaction.followup.send.call_args.kwargs)
+
     async def test_intro_retry_keeps_one_post_and_retries_role_completion(self):
         channel = SimpleNamespace(send=AsyncMock())
         member = SimpleNamespace(id=7)
@@ -329,8 +359,9 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.cog.ensure_resources = AsyncMock()
         self.cog.sync_member = AsyncMock(side_effect=[module.OnboardingError('permissions'), None])
         await self.store.put(123, 'channel', 'intro', {'id': 11})
-        with self.assertRaises(module.OnboardingError):
-            await self.cog.submit_intro(123, 7, '학생', '자기소개입니다.')
+        pending = await self.cog.submit_intro(123, 7, '학생', '자기소개입니다.')
+        self.assertIn('자기소개를 저장했습니다', pending)
+        self.assertIn('재작성은 필요 없습니다', pending)
         result = await self.cog.submit_intro(123, 7, '학생', '자기소개입니다.')
         self.assertIn('1팀', result)
         channel.send.assert_awaited_once()

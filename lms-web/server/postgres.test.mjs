@@ -1,4 +1,5 @@
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
+import { verificationResumeScenario } from './verification-resume-scenario.mjs';
 import { attendancePresenceScenario } from './attendance-presence-scenario.mjs'
 import { courseManagementScenario } from './course-management-scenario.mjs'
 import { test, after } from 'node:test'
@@ -25,6 +26,10 @@ import { assignmentCourseScenario } from './assignment-course-scenario.mjs'
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL resumes completed Discord proof after code cleanup without crossing identity boundaries', async t => {
+  const f = await fixture(t)
+  await verificationResumeScenario(f.runtime)
+})
 pgTest('PostgreSQL mentor account issuance preserves scope and rolls back invalid invitations', async t => {
   const f = await fixture(t)
   await mentorAccountsScenario(f.runtime, f.login.user)

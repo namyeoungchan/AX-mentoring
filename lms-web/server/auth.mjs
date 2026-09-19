@@ -348,6 +348,21 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
         return { ...row, discord_id: input.discordId };
     }
     async function preview(body) { const row = await verificationRequest(body); return { username: row.username }; }
+    async function verificationState(body) {
+        const { discordId, guildId } = z.object({ discordId: snowflake, guildId: snowflake }).strict().parse(body);
+        if (botToken.length < 32 || !await guildAllowed(guildId))
+            throw new ApiError(403, '인증이 허용된 Discord 서버가 아닙니다.');
+        // Completed proof outlives the one-time code, including registration cleanup.
+        // This is identity status only; membership and channel access remain separate.
+        const row = await tableExists(db, 'lms_workspace_guilds')
+            ? await db.prepare(`SELECT 1 FROM lms_workspace_verifications v
+                JOIN lms_users u ON u.id=v.user_id AND u.discord_id=v.discord_id
+                JOIN lms_workspace_guilds g ON g.workspace_id=v.workspace_id AND g.guild_id=v.guild_id
+                JOIN lms_workspaces w ON w.id=g.workspace_id AND w.archived_at IS NULL
+                WHERE v.guild_id=? AND v.discord_id=?`).get(guildId, discordId)
+            : await db.prepare('SELECT 1 FROM lms_users WHERE guild_id=? AND discord_id=? AND verified_at IS NOT NULL').get(guildId, discordId);
+        return { verified: Boolean(row) };
+    }
     async function verify(body) {
         await db.exec('BEGIN IMMEDIATE');
         try {
@@ -547,5 +562,5 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
         await (db.prepare('DELETE FROM lms_auth_limits WHERE expires_at<=?')).run(now());
         await (db.prepare('DELETE FROM lms_registrations WHERE created_at<=?')).run(now() - 24 * 3600000);
     }
-    return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, accounts, resetAccount, deleteAccount, register, signup, createInvitationAccount, createStudentAccount, completeFirstLogin, issueVerification, status, renew, botAuthorized, preview, verify, login, adminLogin, session, logout, limit, cleanup, platformAdmin, confirmAdmin };
+    return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, accounts, resetAccount, deleteAccount, register, signup, createInvitationAccount, createStudentAccount, completeFirstLogin, issueVerification, status, renew, botAuthorized, preview, verificationState, verify, login, adminLogin, session, logout, limit, cleanup, platformAdmin, confirmAdmin };
 }

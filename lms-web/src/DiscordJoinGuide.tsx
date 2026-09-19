@@ -33,7 +33,7 @@ export default function DiscordJoinGuide({ workspaceName, verificationPath, invi
     await run(async () => {
       if (code) {
         const status = await apiRequest('auth/registration/status', { method: 'POST', body: JSON.stringify({ ticket: code.ticket }) })
-        if (status.state !== 'verified') { setNotice(status.state === 'expired' ? '코드가 만료됐습니다. 새 코드를 받아 Discord 패널에 입력하세요.' : '아직 인증이 확인되지 않았습니다. Discord에서 코드 입력 후 본인 계정 확인까지 완료하세요.'); return }
+        if (status.state !== 'verified') { setNotice(status.state === 'expired' ? '인증을 아직 완료하지 않았다면 새 코드를 받아 주세요. 이미 완료했다면 Discord 시작하기의 공용 버튼으로 자기소개를 이어가세요.' : '아직 인증이 확인되지 않았습니다. Discord에서 코드 입력 후 본인 계정 확인까지 완료하세요.'); return }
       }
       await refreshWorkspace()
     })
@@ -48,14 +48,14 @@ export default function DiscordJoinGuide({ workspaceName, verificationPath, invi
       </div></li>
       <li><span className="discord-step-number">2</span><div><h4>이 웹페이지에서 인증 코드를 복사하세요</h4><p>코드는 본인 계정 연결용입니다. 다른 사람에게 공유하지 마세요.</p>
         {code && <div className="discord-code-box"><output ref={codeOutput} tabIndex={-1} aria-label="인증 코드">{code.code}</output><button className="button secondary" disabled={!remaining || busy} onClick={() => void copy()}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? '복사됨' : '인증 코드 복사'}</button></div>}
-        {code && <p className="discord-code-expiry">{remaining ? `유효시간 ${Math.floor(remaining / 60)}분 ${remaining % 60}초 · 이 코드를 그대로 입력하세요.` : '유효시간이 지났습니다. 새 코드를 받아 주세요.'}</p>}
+        {code && <p className="discord-code-expiry">{remaining ? `유효시간 ${Math.floor(remaining / 60)}분 ${remaining % 60}초 · 이 코드를 그대로 입력하세요.` : '코드의 유효시간이 지났습니다. 인증을 이미 완료했다면 다시 발급할 필요가 없습니다.'}</p>}
         {(!code || !remaining) && <button className="button primary" disabled={disabled} onClick={() => void issue()}>{busy ? '코드 준비 중…' : code ? '만료된 코드 다시 받기' : 'Discord 인증 코드 받기'}</button>}
       </div></li>
       <li><span className="discord-step-number">3</span><div><h4>Discord 인증 패널에 코드를 입력하세요</h4><p>Discord로 이동해 <strong>시작하기</strong> 채널의 <strong>1 · LMS 인증</strong>을 누르세요. <strong>본인에게만 보이는 인증 안내</strong>가 열리면 그 안의 <strong>1 · LMS 인증</strong> 버튼에 코드를 입력하세요.</p>
         <div className="discord-panel-example" aria-label="Discord 패널 이용 안내"><span className="discord-panel-caption">Discord 화면에서 진행</span><strong># 시작하기</strong><span className="discord-example-button">1 · LMS 인증</span><span>본인 전용 안내 → 1 · LMS 인증 → 코드 붙여넣기 → 제출</span></div>
         <p>표시된 계정이 본인인지 확인하고 <strong>내 계정 가입 인증</strong>을 누르세요. 인증을 마치면 다음 단계의 자기소개를 작성하세요.</p>
       </div></li>
-      <li><span className="discord-step-number">4</span><div><h4>자기소개를 작성하고 제출하세요 · 필수</h4><p>같은 <strong>시작하기</strong> 채널에서 <strong>2 · 자기소개 작성</strong>을 누르고, 이름과 자기소개를 입력한 뒤 <strong>제출</strong>하세요.</p><p>제출 후 Discord 역할·별명과 배정된 조의 학습 채널을 확인하세요. 이미 제출했다면 잠시 기다려 주세요. 계속 반영되지 않으면 운영자에게 문의하세요.</p>
+      <li><span className="discord-step-number">4</span><div><h4>자기소개를 작성하고 제출하세요 · 필수</h4><p>같은 <strong>시작하기</strong> 채널에서 공용 버튼을 눌러 개인 안내를 열고, <strong>2 · 자기소개 작성</strong>에서 이름과 자기소개를 입력한 뒤 <strong>제출</strong>하세요.</p><p>완료된 LMS 인증은 코드가 만료돼도 유지됩니다. 개인 안내 버튼이 만료됐다면 공용 버튼을 다시 누르세요. 코드를 재발급할 필요가 없습니다.</p><p>제출 후 Discord 역할·별명과 배정된 조의 학습 채널을 확인하세요. 이미 제출했다면 잠시 기다려 주세요. 계속 반영되지 않으면 운영자에게 문의하세요.</p>
       </div></li>
     </ol>
     <footer className="discord-guide-footer"><div><strong>인증과 자기소개 제출을 모두 마쳤나요?</strong><p>Discord에서 역할·별명 적용을 확인한 뒤 학습 화면으로 이동하세요.</p></div><button className="button primary" disabled={disabled} onClick={() => void check()}>인증 후 학습 화면 열기</button></footer>

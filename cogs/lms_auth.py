@@ -20,6 +20,7 @@ MESSAGES = {
     409: "이미 가입된 아이디 또는 Discord 계정입니다. 기존 계정으로 로그인해 주세요.",
     410: "사용했거나 만료된 코드입니다. 웹에서 인증 코드를 다시 발급받아 주세요.",
     429: "인증 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+    503: "인증 상태를 확인하지 못했습니다. 코드를 재발급하지 말고 잠시 후 시작하기 채널의 공용 버튼을 다시 눌러 주세요.",
 }
 
 
@@ -39,6 +40,12 @@ class VerificationView(discord.ui.View):
         self.stop()
         await interaction.response.edit_message(content="가입 인증 처리 중…", view=None)
         status, _ = await self.cog.api_request(self.code, self.member_id, self.guild_id, "verify")
+        if status == 410:
+            state_status, state = await self.cog.verification_state(self.member_id, self.guild_id)
+            if state_status == 200 and isinstance(state, dict) and state.get("verified") is True:
+                status = 200
+            elif state_status != 200 or not isinstance(state, dict) or state.get("verified") is not False:
+                status = 503
         await interaction.edit_original_response(content=MESSAGES.get(status, "가입 인증을 처리하지 못했습니다. 웹에서 인증 상태를 확인한 후 다시 시도해 주세요."), view=None)
         if status == 200 and self.cog.bot:
             onboarding = self.cog.bot.get_cog("LMSOnboarding")
@@ -84,8 +91,11 @@ class LMSAuth(commands.Cog):
     async def api_request(self, code, member_id, guild_id, operation):
         try:
             url = self.url.rsplit("/", 1)[0] + "/" + operation
+            body = {"discordId": str(member_id), "guildId": str(guild_id)}
+            if operation != "verification-state":
+                body["code"] = code
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
-                async with session.post(url, json={"code": code, "discordId": str(member_id), "guildId": str(guild_id)},
+                async with session.post(url, json=body,
                                         headers={"Authorization": f"Bearer {self.token}"}, allow_redirects=False) as response:
                     if response.status == 200:
                         return response.status, await response.json()
@@ -93,6 +103,11 @@ class LMSAuth(commands.Cog):
                     return response.status, None
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             return 503, None
+
+    async def verification_state(self, member_id, guild_id):
+        if not self.url:
+            return 503, None
+        return await self.api_request(None, member_id, guild_id, "verification-state")
 
     @app_commands.command(name="lms인증", description="웹에서 발급받은 코드로 이 워크스페이스의 LMS 계정을 인증합니다.")
     @app_commands.describe(코드="LMS 회원가입 화면에 표시된 본인의 일회용 코드")
@@ -113,6 +128,17 @@ class LMSAuth(commands.Cog):
             await interaction.response.send_message("웹 회원가입 화면의 인증 코드를 그대로 입력해 주세요.", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
+        state_status, state = await self.verification_state(interaction.user.id, interaction.guild_id)
+        if state_status != 200 or not isinstance(state, dict) or not isinstance(state.get("verified"), bool):
+            await interaction.followup.send("인증 상태를 확인하지 못했습니다. 코드를 재발급하지 말고 잠시 후 다시 시도하세요.", ephemeral=True)
+            return
+        if state["verified"]:
+            onboarding = self.bot.get_cog("LMSOnboarding") if self.bot else None
+            if onboarding:
+                await onboarding.after_verification(interaction)
+            else:
+                await interaction.followup.send("이미 LMS 인증이 완료되어 있습니다. 재인증은 필요 없습니다. 시작하기 채널에서 자기소개를 이어가세요.", ephemeral=True)
+            return
         status, data = await self.api_request(code, interaction.user.id, interaction.guild_id, "preview")
         if status != 200 or not isinstance(data, dict) or not re.fullmatch(r"[a-z0-9][a-z0-9_.-]{3,31}", data.get("username", "")):
             message = MESSAGES.get(status) if status != 200 else None
