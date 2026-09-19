@@ -1,4 +1,6 @@
 import aiosqlite
+import hashlib
+import json
 from config import DB_PATH
 
 
@@ -841,9 +843,36 @@ async def update_assignment(
         return cur.rowcount > 0
 
 
-async def delete_assignment(assignment_id: int) -> bool:
-    """Hard delete — cascades to submissions."""
+async def _assignment_delete_preview(db, assignment_id: int):
+    db.row_factory = aiosqlite.Row
+    async with db.execute("SELECT * FROM assignments WHERE id=?", (assignment_id,)) as cur:
+        row = await cur.fetchone()
+    if not row:
+        return None
+    assignment = dict(row)
+    async with db.execute("SELECT * FROM submissions WHERE assignment_id=? ORDER BY id", (assignment_id,)) as cur:
+        submissions = [dict(r) for r in await cur.fetchall()]
+    revision = hashlib.sha256(json.dumps([assignment, submissions], sort_keys=True, default=str).encode()).hexdigest()
+    return {"assignment": assignment, "submissionCount": len(submissions), "revision": revision}
+
+
+async def get_assignment_delete_preview(assignment_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("BEGIN")
+        return await _assignment_delete_preview(db, assignment_id)
+
+
+async def delete_assignment(assignment_id: int, expected_revision: str | None = None) -> bool:
+    """Delete atomically; managed LMS dependencies are cleaned by storage_worker."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("BEGIN IMMEDIATE")
+        preview = await _assignment_delete_preview(db, assignment_id)
+        if not preview:
+            return False
+        if expected_revision is not None and preview["revision"] != expected_revision:
+            raise ValueError("stale_revision")
+        await db.execute("DELETE FROM assignment_reminders WHERE assignment_id=?", (assignment_id,))
+        await db.execute("DELETE FROM submissions WHERE assignment_id=?", (assignment_id,))
         cur = await db.execute("DELETE FROM assignments WHERE id = ?", (assignment_id,))
         await db.commit()
         return cur.rowcount > 0

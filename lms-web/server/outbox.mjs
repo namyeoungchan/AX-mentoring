@@ -77,6 +77,8 @@ export function createOutbox(main, workspaces, { now = Date.now, prepare = () =>
         const row = await (db.prepare('SELECT * FROM lms_outbox WHERE id=?')).get(jobId);
         if (!row || !['failed', 'uncertain'].includes(row.state))
             throw new ApiError(409, '실패하거나 결과 확인이 필요한 발송만 재시도하세요.');
+        if (['submission', 'reminder', 'publication'].includes(row.kind) && !await db.prepare('SELECT 1 FROM assignments WHERE CAST(id AS TEXT)=?').get(row.source_id))
+            throw new ApiError(409, '삭제된 과제의 알림은 다시 발송할 수 없습니다.');
         // Uncertain sends retain their original channel and only search for the prior message.
         const target = row.state === 'failed' && !['reminder', 'publication'].includes(row.kind) ? await channel(id, row.kind) : { guildId: row.guild_id, channelId: row.channel_id };
         await (db.prepare("UPDATE lms_outbox SET state=?,guild_id=?,channel_id=?,claim=NULL,error='' WHERE id=?")).run(row.state === 'failed' ? 'pending' : 'reconcile', target.guildId, target.channelId, jobId);
@@ -124,6 +126,7 @@ export function createOutbox(main, workspaces, { now = Date.now, prepare = () =>
             await db.exec('BEGIN IMMEDIATE');
             try {
                 await expire(db);
+                await db.prepare("UPDATE lms_outbox SET state='cancelled',claim=NULL,error='assignment_removed' WHERE kind IN ('submission','reminder','publication') AND state IN ('pending','failed','held','reconcile','uncertain') AND NOT EXISTS (SELECT 1 FROM assignments WHERE CAST(assignments.id AS TEXT)=lms_outbox.source_id)").run();
                 const row = await (db.prepare("SELECT * FROM lms_outbox WHERE guild_id=? AND channel_id<>'' AND state IN ('pending','reconcile','uncertain') AND (state<>'uncertain' OR error='timeout') ORDER BY created_at,rowid LIMIT 1")).get(guildId);
                 if (!row) {
                     await db.exec('COMMIT');

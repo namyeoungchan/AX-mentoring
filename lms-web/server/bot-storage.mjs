@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -262,12 +262,32 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
             throw new ApiError(422, '최신 화면에서 작업을 요청하세요.');
         if (!operations.has(input.operation))
             throw new ApiError(422, '지원하지 않는 작업입니다.');
+        return { result: await execute(id, input, actor) };
+    }
+    async function execute(id, input, actor) {
+        if (!readOnly.has(input.operation) && (await workspaces.metadata(id)).archivedAt !== null)
+            throw new ApiError(409, '보관된 워크스페이스입니다.');
         const db = await open(id);
         const location = db.dialect === 'postgres' ? { schema: db.schema } : { filename: (await db.prepare('PRAGMA database_list').all()).find(r => r.name === 'main').file };
         // Reads use enforced read-only transactions; writes retain one writer per workspace.
-        return { result: await queue.run(id, readOnly.has(input.operation), { ...location, request: { ...input, actor } }) };
+        return await queue.run(id, readOnly.has(input.operation), { ...location, request: { ...input, actor } });
     }
-    return { state, table, archive, status, registry, snapshot, bootstrap, settings, bindPanels, runtime, call,
+    async function assignmentDeletion(id, assignmentId, body, user) {
+        await workspaces.requireRole(id, user, ['admin']);
+        const assignment = z.coerce.number().int().positive().safe().parse(assignmentId);
+        const deletion = body === null ? null : z.object({ revision: z.string().length(64), requestId: z.uuid() }).strict().parse(body);
+        const result = await execute(id, {
+            guildId: id, operation: deletion ? 'delete_assignment' : 'get_assignment_delete_preview',
+            args: [assignment], kwargs: deletion ? { expected_revision: deletion.revision } : {}, requestId: deletion?.requestId || randomUUID(),
+        }, user.username || user.id);
+        if (!deletion && !result) throw new ApiError(404, '이미 삭제되었거나 찾을 수 없는 과제입니다.');
+        if (deletion) return { deleted: result };
+        // Legacy dictionaries use a tagged wire format; the web receives only
+        // the confirmation fields, never private submission bodies.
+        const preview = Object.fromEntries(result.value), record = Object.fromEntries(preview.assignment.value);
+        return { assignment: { title: record.title, week: record.week }, submissionCount: preview.submissionCount, revision: preview.revision };
+    }
+    return { state, table, archive, status, registry, snapshot, bootstrap, settings, bindPanels, runtime, call, assignmentDeletion,
         diagnostics: () => ({ ...queue.stats(), ...executor.stats() }),
         close() { queue.close(); executor.close(); },
     };
