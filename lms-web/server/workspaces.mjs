@@ -346,7 +346,8 @@ export async function createWorkspaces({ store, dbPath, provision, syncToken = '
     }
     async function previewInvitation(token) {
         const row = await pendingInvitation(token);
-        return { workspaceName: (await metadata(row.workspace_id)).name, role: row.role, username: row.username, expiresAt: row.expires_at, ...await mentorScope(row.workspace_id, row.id) };
+        const accountExists = Boolean(await db.prepare('SELECT 1 FROM lms_users WHERE username=?').get(row.username));
+        return { workspaceName: (await metadata(row.workspace_id)).name, role: row.role, username: row.username, accountExists, expiresAt: row.expires_at, ...await mentorScope(row.workspace_id, row.id) };
     }
     async function invitationGuild(token, username) {
         const row = await pendingInvitation(token);

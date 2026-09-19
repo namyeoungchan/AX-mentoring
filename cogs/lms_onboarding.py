@@ -30,7 +30,7 @@ def desired_roles(participant, intro_done):
     if not participant:
         return {"pending"}
     if participant["role"] in {"admin", "instructor"}:
-        return {participant["role"]} | {f"team:{team_id}" for team_id in participant.get("teamIds", [])}
+        return {participant["role"], "complete"} | {f"team:{team_id}" for team_id in participant.get("teamIds", [])}
     if not intro_done or not participant.get("teamId"):
         return {"pending"}
     return {"student", "complete"} | ({f"team:{participant['teamId']}"} if participant.get("teamId") else set())
@@ -393,6 +393,13 @@ class LMSOnboarding(commands.Cog):
         previous = await self.store.get(member.guild.id, "member", member.id)
         record = dict(previous) if previous else {"introDone": False, "welcomed": False}
         participant = next((person for person in cfg["participants"] if person["discordId"] == str(member.id)), None)
+        staff = participant and participant["role"] in {"admin", "instructor"}
+        # Staff finish onboarding through LMS verification, without a student intro.
+        # Persist before Discord role/nickname retries so a stale/missing participant
+        # snapshot cannot issue another student welcome, including after restart.
+        if staff and not record.get("welcomed"):
+            record["welcomed"] = True
+            await self.store.put(member.guild.id, "member", member.id, record)
         desired = desired_roles(participant, record["introDone"])
         if participant and participant["role"] == "student" and not any(t["id"] == participant.get("teamId") for t in cfg["teams"]):
             desired = {"pending"}
@@ -439,7 +446,7 @@ class LMSOnboarding(commands.Cog):
             await channel.send(member.mention, embed=panel_embed(title="온보딩을 시작하세요", description=text, section="WELCOME"),
                                view=self.view(member.guild.id), allowed_mentions=discord.AllowedMentions(users=[member], roles=False, everyone=False))
             record["welcomed"] = True
-        if record["introDone"] and not record.get("reported"):
+        if participant and participant["role"] == "student" and record["introDone"] and not record.get("reported"):
             await self.request("progress", {"guildId": str(member.guild.id), "discordId": str(member.id)})
             record["reported"] = True
         if record != previous:

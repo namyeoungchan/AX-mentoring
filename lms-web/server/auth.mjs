@@ -166,9 +166,11 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             throw error;
         }
     }
-    async function createInvitationAccount(body, actor, createInvitation) {
-        if (actor.role !== 'admin' || actor.mustChangePassword)
-            throw new ApiError(403, '관리자 계정 발급은 전체 관리자만 할 수 있습니다.');
+    async function createInvitationAccount(body, actor, createInvitation, authorize = async () => {
+        if (actor.role !== 'admin') throw new ApiError(403, '관리자 계정 발급은 전체 관리자만 할 수 있습니다.');
+    }) {
+        if (actor.mustChangePassword || actor.mustCompleteProfile) throw new ApiError(403, '먼저 초기 계정 설정을 완료하세요.');
+        await authorize();
         const input = z.object({ username, name: z.string().trim().min(1).max(50) }).strict().parse(body);
         const id = randomUUID(), identity = `pending:${id}`;
         await available(input.username, identity);
@@ -176,6 +178,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
         const passwordHash = await hashPassword(initialPassword);
         await db.exec('BEGIN IMMEDIATE');
         try {
+            await authorize();
             await available(input.username, identity);
             await (db.prepare('INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,verified_at,must_change_password) VALUES(?,?,?,?,?,?,?,NULL,1)')).run(id, input.username, input.name, passwordHash, identity, '', now());
             const invitation = await createInvitation(input.username);

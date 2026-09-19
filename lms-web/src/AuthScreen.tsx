@@ -4,7 +4,7 @@ import { apiRequest, demoMode, serviceUnavailable, setSessionToken } from './api
 
 type Mode = 'login' | 'signup' | 'admin' | 'setup'
 type Challenge = { ticket: string; code: string; expiresAt: number; state: 'pending' | 'verified' | 'expired' }
-export default function AuthScreen({ login, error, enterDemo, registered, staffInvitation = false, invitationToken = '' }: { registered: () => Promise<void>; staffInvitation?: boolean; invitationToken?: string; login: (username: string, password: string, admin?: boolean) => Promise<void>; error: string; enterDemo: () => void }) {
+export default function AuthScreen({ login, error, enterDemo, registered, staffInvitation = false, invitationToken = '', allowSignup = true }: { allowSignup?: boolean; registered: () => Promise<void>; staffInvitation?: boolean; invitationToken?: string; login: (username: string, password: string, admin?: boolean) => Promise<void>; error: string; enterDemo: () => void }) {
   const [mode, setMode] = useState<Mode>(staffInvitation && location.hash === '#signup' ? 'signup' : 'login')
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
@@ -91,7 +91,7 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
           {failure && <p className="auth-error" role="alert">{failure}</p>}
           <button className="auth-back" onClick={() => changeMode('login')}>로그인으로 돌아가기</button>
         </> : <>
-          {mode !== 'admin' && <div className="auth-tabs" aria-label="계정 메뉴"><button className={mode === 'login' ? 'selected' : ''} aria-pressed={mode === 'login'} onClick={() => changeMode('login')}>로그인</button>{(staffInvitation || configured) && <button className={mode === 'signup' ? 'selected' : ''} aria-pressed={mode === 'signup'} onClick={() => changeMode('signup')}>회원가입</button>}</div>}
+          {mode !== 'admin' && <div className="auth-tabs" aria-label="계정 메뉴"><button className={mode === 'login' ? 'selected' : ''} aria-pressed={mode === 'login'} onClick={() => changeMode('login')}>로그인</button>{allowSignup && (staffInvitation || configured) && <button className={mode === 'signup' ? 'selected' : ''} aria-pressed={mode === 'signup'} onClick={() => changeMode('signup')}>회원가입</button>}</div>}
           <h2>{mode === 'signup' ? 'LMS 회원가입' : mode === 'setup' ? '최초 관리자 등록' : mode === 'admin' ? '관리자 로그인' : 'LMS 로그인'}</h2><p className="auth-description">{mode === 'signup' ? (staffInvitation ? '초대받은 아이디로 계정을 만든 뒤 초대를 수락하세요.' : '가입할 워크스페이스를 선택하고 승인을 요청하세요.') : mode === 'setup' ? '설정 키로 최초 운영 계정을 등록하세요.' : mode === 'admin' ? '개발 환경의 기존 관리자 로그인입니다.' : '관리자에게 받은 계정 또는 기존 계정으로 로그인하세요.'}</p>
           {demoMode && <p className="auth-demo-note">현재 데모 사이트입니다. 실제 로그인과 가입 인증은 서비스 연결 후 사용할 수 있습니다.</p>}
           {!demoMode && mode === 'signup' && !configured && <p className="auth-demo-note">{checking ? '가입 가능 여부 확인 중…' : 'Discord 가입 인증을 준비 중입니다. 운영자에게 문의해 주세요.'}</p>}
