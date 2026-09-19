@@ -45,6 +45,7 @@ test('workspace administrator invites an instructor; student signs up, instructo
   await page.getByRole('navigation').getByRole('button', { name: '구성원 · 초대' }).click()
   await page.getByLabel('초대할 아이디').fill(members[1].username)
   await page.getByLabel('참여 권한').selectOption('instructor')
+  await page.getByLabel('계정 발급 방식').selectOption('existing')
   await page.getByRole('button', { name: '초대 링크 만들기' }).click()
   const teacherLink = await page.getByLabel('초대 링크', { exact: true }).inputValue()
   expect((await page.request.post(`/api/workspaces/${workspace.id}/invitations`, { data: { username: 'escalated.owner', role: 'admin' } })).status()).toBe(403)

@@ -4,6 +4,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
 import { ApiError } from './store.mjs';
+import { issueMentorAccount } from './mentor-accounts.mjs';
 import { studentLearning } from './student.mjs';
 import { configuredOrigins } from './origins.mjs';
 import { createRuntime } from './runtime.mjs';
@@ -454,9 +455,13 @@ app.get('/api/workspaces/:workspaceId/discord/onboarding', async (req, res) => r
 app.post('/api/workspaces/:workspaceId/discord/onboarding', async (req, res) => res.json(await onboarding.save(req.workspaceId, req.body)));
 app.post('/api/workspaces/:workspaceId/invitations', async (req, res) => res.status(201).json(await workspaces.invite(req.workspaceId, req.body, req.account)));
 app.post('/api/workspaces/:workspaceId/invitations/account', requireAdmin, maintenance.track(async (req, res) => {
+  await auth.limit('invitation-account', req.account.id, 20, 3600000);
+  const result = await auth.createInvitationAccount(req.body, req.account, async (username) => await workspaces.invite(req.workspaceId, { username, role: 'admin' }, req.account));
+  res.status(201).json(result);
+}));
+app.post('/api/workspaces/:workspaceId/mentor-accounts', maintenance.track(async (req, res) => {
     await auth.limit('invitation-account', req.account.id, 20, 3600000);
-    const result = await auth.createInvitationAccount(req.body, req.account, async (username) => await workspaces.invite(req.workspaceId, { username, role: 'admin' }, req.account));
-    res.status(201).json(result);
+    res.status(201).json(await issueMentorAccount(auth, workspaces, req.workspaceId, req.body, req.account));
 }));
 app.patch('/api/workspaces/:workspaceId/invitations/:invitationId', async (req, res) => { await workspaces.editInvitation(req.workspaceId, req.params.invitationId, req.body, req.account); res.json(await staff.members(req.workspaceId, req.account)); });
 app.post('/api/workspaces/:workspaceId/invitations/:invitationId/revoke', async (req, res) => res.json(await workspaces.revokeInvitation(req.workspaceId, req.params.invitationId, req.account)));

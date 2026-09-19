@@ -106,7 +106,7 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(module.desired_roles(None, True), {"pending"})
         self.assertEqual(module.desired_roles(student, False), {"pending"})
         self.assertEqual(module.desired_roles(student, True), {"student", "complete", "team:team-2"})
-        self.assertEqual(module.desired_roles({"role": "instructor"}, False), {"instructor"})
+        self.assertEqual(module.desired_roles({"role": "instructor"}, False), {"instructor", "complete"})
 
     async def test_team_transfer_removes_old_managed_role_and_keeps_unrelated_roles(self):
         roles = {i: Role(i) for i in range(1, 8)}
@@ -136,9 +136,10 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         member.add_roles.assert_not_awaited()
 
     async def test_mentor_gets_nickname_without_intro_or_student_welcome(self):
-        instructor = Role(3)
+        instructor, complete = Role(3), Role(4)
+        await self.store.put(123, "role", "complete", {"id": 4})
         await self.store.put(123, "role", "instructor", {"id": 3})
-        member = SimpleNamespace(id=7, bot=False, nick=None, top_role=instructor, roles=[instructor], edit=AsyncMock(), send=AsyncMock())
+        member = SimpleNamespace(id=7, bot=False, nick=None, top_role=instructor, roles=[instructor, complete], edit=AsyncMock(), send=AsyncMock())
         member.guild = SimpleNamespace(id=123, owner_id=99, get_role=lambda _: instructor,
                                        me=SimpleNamespace(top_role=Role(100), guild_permissions=SimpleNamespace(manage_nicknames=True)))
         cfg = {"participants": [{"discordId": "7", "role": "instructor", "name": "홍길동", "teamIds": []}], "teams": []}
@@ -146,6 +147,7 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(member.edit.call_args.kwargs["nick"], "멘토_홍길동")
         member.send.assert_not_awaited()
         self.assertFalse((await self.store.get(123, "member", 7))["introDone"])
+        self.assertTrue((await self.store.get(123, "member", 7))["welcomed"])
         member.nick = "멘토_홍길동"
         member.edit.reset_mock()
         await self.cog.sync_member(member, cfg)
@@ -175,6 +177,29 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("자기소개가 필요 없습니다", result)
         guild.get_channel.assert_not_called()
         self.assertIsNone(await self.store.get(123, "member", 7))
+
+    async def test_verified_staff_suppresses_welcome_across_failed_nickname_restart_and_missing_snapshot(self):
+        roles = {key: Role(index) for index, key in enumerate(['pending', 'instructor', 'complete'], 1)}
+        for key, role in roles.items():
+            await self.store.put(123, 'role', key, {'id': role.id})
+        channel = SimpleNamespace(send=AsyncMock())
+        member = SimpleNamespace(id=7, bot=False, nick=None, roles=[roles['instructor']], top_role=roles['instructor'], add_roles=AsyncMock(), remove_roles=AsyncMock(), edit=AsyncMock())
+        member.guild = SimpleNamespace(id=123, owner_id=99, get_role=lambda rid: next(r for r in roles.values() if r.id == rid), get_channel=lambda _: channel,
+                                       me=SimpleNamespace(top_role=Role(100), guild_permissions=SimpleNamespace(manage_nicknames=False)))
+        cfg = {'participants': [{'discordId': '7', 'role': 'instructor', 'name': '멘토'}], 'teams': []}
+        with self.assertRaisesRegex(module.OnboardingError, 'permissions'):
+            await self.cog.sync_member(member, cfg)
+        member.add_roles.assert_awaited_once_with(roles['complete'], reason='LMS onboarding and web team assignment')
+        saved = await self.store.get(123, 'member', 7)
+        self.assertTrue(saved['welcomed'])
+        self.assertFalse(saved['introDone'])
+        # A fresh process reading a temporarily missing membership must not send the student prompt.
+        self.cog.store = OnboardingStore(self.store.path)
+        await self.cog.sync_member(member, {'participants': [], 'teams': []})
+        channel.send.assert_not_awaited()
+        member.guild.me.guild_permissions.manage_nicknames = True
+        self.assertEqual(await self.cog.sync_member(member, cfg), 'ready')
+        channel.send.assert_not_awaited()
 
     async def test_dashboard_is_private_on_creation_and_repairs_existing_grants_without_duplicates(self):
         everyone, bot, admin, instructor, student = [Role(i) for i in [0, 100, 1, 2, 3]]
@@ -232,8 +257,8 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
     async def test_mentor_reassignment_replaces_team_access_without_granting_admin(self):
         old = module.desired_roles({"role": "instructor", "teamIds": ["t1"]}, False)
         new = module.desired_roles({"role": "instructor", "teamIds": ["t2", "t3"]}, False)
-        self.assertEqual(old, {"instructor", "team:t1"})
-        self.assertEqual(new, {"instructor", "team:t2", "team:t3"})
+        self.assertEqual(old, {"instructor", "complete", "team:t1"})
+        self.assertEqual(new, {"instructor", "complete", "team:t2", "team:t3"})
         self.assertNotIn("admin", new)
 
     async def test_join_panel_is_sent_in_channel_without_dm_and_does_not_repeat(self):
