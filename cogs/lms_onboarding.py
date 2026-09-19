@@ -26,6 +26,14 @@ class OnboardingError(Exception):
     pass
 
 
+def failure_code(error):
+    if isinstance(error, discord.HTTPException):
+        return f"discord_http_{error.status}_code_{error.code}"
+    if isinstance(error, OnboardingError):
+        return str(error)
+    return "api_timeout"
+
+
 def desired_roles(participant, intro_done):
     if not participant:
         return {"pending"}
@@ -37,11 +45,13 @@ def desired_roles(participant, intro_done):
 
 
 class StartView(discord.ui.View):
-    def __init__(self, cog, guild_id, member_id=None):
-        super().__init__(timeout=300 if member_id is not None else None)
+    def __init__(self, cog, guild_id, member_id=None, verified=False):
+        super().__init__(timeout=900 if member_id is not None else None)
         self.cog, self.guild_id, self.member_id = cog, int(guild_id), member_id
         suffix = f":{member_id}" if member_id is not None else ""
         verify = discord.ui.Button(label="1 · LMS 인증", style=discord.ButtonStyle.success, custom_id=f"lms:verify:{guild_id}{suffix}")
+        if verified:
+            verify.label, verify.disabled = "1 · LMS 인증 완료", True
         verify.callback = self.verify
         self.add_item(verify)
         button = discord.ui.Button(label="2 · 자기소개 작성", style=discord.ButtonStyle.primary, custom_id=f"lms:onboarding:{guild_id}{suffix}")
@@ -49,7 +59,7 @@ class StartView(discord.ui.View):
         self.add_item(button)
         if cog.url:
             endpoint = urlsplit(cog.url)
-            self.add_item(discord.ui.Button(label="LMS에서 인증 코드 받기", url=f"{endpoint.scheme}://{endpoint.netloc}"))
+            self.add_item(discord.ui.Button(label="LMS 열기" if verified else "LMS에서 인증 코드 받기", url=f"{endpoint.scheme}://{endpoint.netloc}"))
 
     async def interaction_check(self, interaction):
         if interaction.guild_id != self.guild_id:
@@ -66,21 +76,21 @@ class StartView(discord.ui.View):
             await interaction.response.send_message("LMS 인증 연결을 준비 중입니다. 운영자에게 문의하세요.", ephemeral=True)
             return
         if self.member_id is None:
-            await interaction.response.send_message(
-                "**나의 LMS 인증 안내**\n이 안내와 인증 결과는 본인에게만 보입니다.\n웹에서 발급받은 코드를 아래 **1 · LMS 인증** 버튼에 입력하세요.\n수강생은 인증 후 **2 · 자기소개 작성**까지 진행하세요. 멘토·운영자는 자기소개가 필요 없습니다.",
-                view=StartView(self.cog, self.guild_id, interaction.user.id), ephemeral=True,
-                allowed_mentions=discord.AllowedMentions.none())
+            await self.cog.open_panel(interaction)
             return
         await interaction.response.send_modal(VerificationModal(auth))
 
     async def start(self, interaction):
+        if self.member_id is None:
+            await self.cog.open_panel(interaction)
+            return
         cfg = self.cog.configs.get(str(self.guild_id))
         if not cfg or not cfg.get("enabled"):
             await interaction.response.send_message("온보딩이 아직 준비되지 않았습니다. 운영자에게 문의하세요.", ephemeral=True)
             return
         participant = next((p for p in cfg.get("participants", []) if p["discordId"] == str(interaction.user.id)), None)
         if not participant or participant["role"] != "student":
-            await interaction.response.send_message("멘토·운영자는 자기소개가 필요 없습니다. LMS의 업무 안내를 진행하세요." if participant else "LMS에서 Discord 인증을 먼저 완료하세요. 인증 직후라면 잠시 후 다시 눌러 주세요. 멘토는 자기소개가 필요 없습니다.", ephemeral=True)
+            await interaction.response.send_message("멘토·운영자는 자기소개가 필요 없습니다. LMS의 업무 안내를 진행하세요." if participant else "시작하기 채널의 공용 버튼으로 현재 상태를 다시 확인하세요. 인증을 완료했다면 코드를 다시 받을 필요가 없습니다. 과정 등록과 팀 배정은 운영자에게 확인하세요.", ephemeral=True)
             return
         if not participant.get("teamId"):
             await interaction.response.send_message("담당자가 팀을 배정해야 다음 단계로 진행할 수 있습니다.", ephemeral=True)
@@ -101,9 +111,9 @@ class Introduction(discord.ui.Modal, title="자기소개 작성"):
         try:
             result = await self.cog.submit_intro(self.guild_id, interaction.user.id, self.name.value.strip(), self.introduction.value.strip())
             await interaction.followup.send(result, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
-        except (OnboardingError, discord.HTTPException, asyncio.TimeoutError):
-            await interaction.followup.send("처리하지 못했습니다. 잠시 후 다시 누르거나 운영자에게 봇 권한과 연결 상태 확인을 요청하세요.", ephemeral=True)
-            log.warning("LMS introduction could not finish for guild %s", self.guild_id)
+        except (OnboardingError, discord.HTTPException, asyncio.TimeoutError) as error:
+            await interaction.followup.send("자기소개 처리를 완료하지 못했습니다. LMS 재인증은 필요 없습니다. 잠시 후 자기소개 버튼으로 다시 시도하세요.", ephemeral=True)
+            log.warning("LMS introduction could not finish for guild %s (%s)", self.guild_id, failure_code(error))
 
 
 class LMSOnboarding(commands.Cog):
@@ -376,23 +386,43 @@ class LMSOnboarding(commands.Cog):
                 del saved[cid]
                 await self.store.put(member.guild.id, "access-gate", key, saved)
 
+    async def open_panel(self, interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        auth = self.bot.get_cog("LMSAuth")
+        status, data = await auth.verification_state(interaction.user.id, interaction.guild_id) if auth else (503, None)
+        if status != 200 or not isinstance(data, dict) or not isinstance(data.get("verified"), bool):
+            await interaction.followup.send("인증 상태를 확인하지 못했습니다. 코드를 재발급하지 말고 잠시 후 이 버튼을 다시 눌러 주세요.", ephemeral=True)
+            return
+        if data["verified"]:
+            await self.after_verification(interaction)
+            return
+        await interaction.followup.send(
+            "**나의 LMS 인증 안내**\n이 안내와 인증 결과는 본인에게만 보입니다.\n웹에서 발급받은 코드를 아래 **1 · LMS 인증** 버튼에 입력하세요.\n수강생은 인증 후 **2 · 자기소개 작성**까지 진행하세요. 멘토·운영자는 자기소개가 필요 없습니다.",
+            view=StartView(self, interaction.guild_id, interaction.user.id), ephemeral=True,
+            allowed_mentions=discord.AllowedMentions.none())
+
     async def after_verification(self, interaction):
         try:
             await self.refresh([interaction.guild_id])
             cfg = self.configs.get(str(interaction.guild_id))
             if not cfg or not cfg.get("enabled"):
+                await interaction.followup.send("LMS 인증은 완료되어 있습니다. 온보딩 설정은 운영자에게 확인하세요. 재인증은 필요 없습니다.", ephemeral=True)
                 return
-            async with self.lock(interaction.guild_id):
-                await self.ensure_resources(interaction.guild, cfg)
-            async with self.member_lock(interaction.guild_id, interaction.user.id):
-                await self.sync_member(interaction.user, cfg, welcome=False)
+            # Show the next step without waiting for guild-wide channel/role repairs.
+            # The background reconciler applies permissions independently.
             participant = next((p for p in cfg["participants"] if p["discordId"] == str(interaction.user.id)), None)
-            text = ("인증 완료 · 다음으로 **2 · 자기소개 작성**을 눌러 주세요." if participant and participant["role"] == "student" and participant.get("teamId") else
+            record = await self.store.get(interaction.guild_id, "member", interaction.user.id) or {}
+            text = ("인증과 자기소개가 저장되어 있습니다. 채널이 아직 보이지 않으면 권한 반영을 기다려 주세요. 계속 지연되면 운영자에게 문의하세요." if participant and participant["role"] == "student" and record.get("introDone") else
+                    "인증 완료 · 다음으로 **2 · 자기소개 작성**을 눌러 주세요." if participant and participant["role"] == "student" and participant.get("teamId") else
                     "인증 완료 · 멘토·운영자는 자기소개 없이 LMS 업무 안내를 진행하세요." if participant and participant["role"] != "student" else
                     "인증 완료 · 팀 배정과 과정 등록을 운영자에게 확인해 주세요. 학습 채널은 온보딩 완료 후 열립니다.")
-            await interaction.followup.send(text, view=StartView(self, interaction.guild_id, interaction.user.id), ephemeral=True)
-        except (OnboardingError, discord.HTTPException, asyncio.TimeoutError):
-            await interaction.followup.send("계정 인증은 완료됐습니다. 역할 반영을 재시도 중이니 잠시 후 시작하기 패널을 확인하세요.", ephemeral=True)
+            text += "\n인증 코드가 만료돼도 완료된 LMS 인증은 유지됩니다. 안내 버튼이 만료되면 시작하기 채널의 공용 버튼을 다시 누르세요."
+            view = StartView(self, interaction.guild_id, interaction.user.id, verified=True)
+            view.children[1].disabled = bool(record.get("introDone")) or not participant or participant["role"] != "student" or not participant.get("teamId")
+            await interaction.followup.send(text, view=view, ephemeral=True)
+        except (OnboardingError, discord.HTTPException, asyncio.TimeoutError) as error:
+            await interaction.followup.send("계정 인증은 완료됐습니다. 재인증하지 말고 잠시 후 시작하기 채널의 공용 버튼을 다시 눌러 자기소개를 이어가세요.", ephemeral=True)
+            log.warning("LMS verified onboarding pending for guild %s (%s)", interaction.guild_id, failure_code(error))
 
     async def sync_member(self, member, cfg, welcome=True):
         if member.bot:
@@ -498,7 +528,11 @@ class LMSOnboarding(commands.Cog):
                 await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
                 record["introDone"] = True
                 await self.store.put(guild_id, "member", user_id, record)
-            await self.sync_member(member, cfg, welcome=False)
+            try:
+                await self.sync_member(member, cfg, welcome=False)
+            except (OnboardingError, discord.HTTPException, asyncio.TimeoutError) as error:
+                log.warning("LMS introduction saved; access sync pending for guild %s (%s)", guild_id, failure_code(error))
+                return "자기소개를 저장했습니다. 역할과 채널 권한 반영을 자동으로 재시도합니다. LMS 재인증이나 자기소개 재작성은 필요 없습니다. 계속 지연되면 운영자에게 문의하세요."
         participant = next((p for p in cfg["participants"] if p["discordId"] == str(user_id)), None)
         if not participant:
             return "자기소개를 저장했습니다. 웹 가입 승인·Discord 인증·과정 등록을 완료하면 역할과 배정 팀이 반영됩니다."

@@ -162,6 +162,10 @@ app.post('/api/auth/registration/renew', async (req, res) => {
 app.post('/api/integrations/discord/:operation', async (req, res) => {
     if (!auth.botAuthorized(req.get('authorization')))
         return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
+    if (req.params.operation === 'verification-state') {
+        await auth.limit('discord-verification-state', String(req.body?.discordId || ''), 30, 60000);
+        return res.json(await auth.verificationState(req.body));
+    }
     await auth.limit('discord-verify', String(req.body?.discordId || ''), 10, 60000);
     if (req.params.operation === 'preview')
         return res.json(await auth.preview(req.body));
