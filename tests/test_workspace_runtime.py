@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import inspect
+import json
 import os
 import tempfile
 import unittest
@@ -76,6 +77,81 @@ class WorkspaceRuntimeTests(unittest.IsolatedAsyncioTestCase):
         with config.guild_scope(GUILD_A), self.assertRaises(storage.StorageUnavailable):
             await self.router.call('get_mentors', (), {})
         self.assertTrue(all(call.args[0] == 'registry' for call in request.call_args_list))
+
+    async def test_assignment_modal_refreshes_its_guild_and_saves_with_current_team(self):
+        from cogs import assignment
+        self.activate()
+        user_id = 333456789012345678
+        calls, saved, replies = [], {}, {}
+
+        async def request(operation, body):
+            calls.append((operation, body))
+            await asyncio.sleep(0)
+            if operation == 'status':
+                value = state(int(body['guildId']))
+                value['teamMembers'] = {str(user_id): 'current-' + body['guildId']}
+                return value
+            self.assertEqual(operation, 'call')
+            self.assertEqual(body['operation'], 'create_submission')
+            saved[body['guildId']] = storage.decode(body['kwargs'])
+            return {'result': True}
+
+        async def submit(gid, kind):
+            with config.guild_scope(gid):
+                modal = assignment.DynamicSubmitModal(SimpleNamespace(), {'id': 1, 'week': 1, 'title': 'Test', 'type': kind}, 'old-team')
+                modal._field_inputs[0]._value = 'saved content'
+                modal._link_input._value = 'https://example.com/work'
+                interaction = SimpleNamespace(guild_id=gid, type=contexts.discord.InteractionType.modal_submit,
+                    user=SimpleNamespace(id=user_id, display_name='Student'),
+                    response=SimpleNamespace(defer=AsyncMock(), send_message=AsyncMock()), followup=SimpleNamespace(send=AsyncMock()))
+                self.assertTrue(await modal.interaction_check(interaction))
+                await modal.on_submit(interaction)
+                replies[gid] = interaction.followup.send.call_args.kwargs['embed'].title
+
+        with patch.object(storage.WebStorage, 'request', new=AsyncMock(side_effect=request)), \
+                patch.object(database, 'create_submission', new=AsyncMock()) as create, \
+                patch.object(assignment, 'refresh_dashboard', new=AsyncMock()) as dashboard:
+            async def remote(**kwargs):
+                return await self.router.call('create_submission', (), kwargs)
+            create.side_effect = remote
+            await asyncio.gather(submit(GUILD_A, 'team'), submit(GUILD_B, 'individual'))
+            self.assertEqual(dashboard.await_count, 2)
+        self.assertEqual({b['guildId'] for op, b in calls if op == 'status'}, {str(GUILD_A), str(GUILD_B)})
+        self.assertEqual(saved[str(GUILD_A)]['team'], 'current-' + str(GUILD_A))
+        self.assertEqual(saved[str(GUILD_B)]['team'], '개인')
+        for row in saved.values():
+            self.assertEqual(row['user_id'], str(user_id))
+            self.assertEqual(list(json.loads(row['content']).values()), ['saved content'])
+            self.assertEqual(row['link'], 'https://example.com/work')
+        self.assertTrue(all('제출 완료' in title for title in replies.values()))
+
+    async def test_assignment_modal_rejects_removed_members_and_reports_storage_failures(self):
+        from cogs import assignment
+        self.activate()
+        user_id = 333456789012345678
+        for failure in ('removed', 'refresh', 'save', 'duplicate'):
+            with self.subTest(failure=failure), config.guild_scope(GUILD_A):
+                value = state(GUILD_A)
+                value['teamMembers'] = {} if failure == 'removed' else {str(user_id): 'Team 1'}
+                status = AsyncMock(return_value=value, side_effect=storage.StorageUnavailable('unavailable') if failure == 'refresh' else None)
+                create = AsyncMock(return_value=False, side_effect=storage.StorageUnavailable('unavailable') if failure == 'save' else None)
+                modal = assignment.DynamicSubmitModal(SimpleNamespace(), {'id': 1, 'week': 1, 'title': 'Test', 'type': 'team'}, 'old-team')
+                interaction = SimpleNamespace(user=SimpleNamespace(id=user_id, display_name='Student'),
+                    response=SimpleNamespace(defer=AsyncMock()), followup=SimpleNamespace(send=AsyncMock()))
+                with patch.object(self.router, 'request', status), patch.object(database, 'create_submission', create), \
+                        patch.object(assignment, 'refresh_dashboard', new=AsyncMock()) as dashboard:
+                    await modal.on_submit(interaction)
+                    status.assert_awaited_once_with('status', {'guildId': str(GUILD_A)})
+                    if failure in ('removed', 'refresh'):
+                        create.assert_not_awaited()
+                    else:
+                        create.assert_awaited_once()
+                    dashboard.assert_not_awaited()
+                reply = interaction.followup.send.call_args
+                if failure == 'duplicate':
+                    self.assertIn('이미 제출', reply.kwargs['embed'].title)
+                else:
+                    self.assertIn({'removed': '승인', 'refresh': '시작하지 못했습니다', 'save': '결과를 확인하지 못했습니다'}[failure], reply.args[0])
 
     async def test_http_403_suspends_storage_and_recovers_on_next_discovery(self):
         self.activate()
