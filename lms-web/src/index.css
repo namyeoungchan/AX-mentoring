@@ -1193,3 +1193,5 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .schedule-import-preview table { min-width: 640px; }
 @media (max-width: 600px) { .schedule-import { padding: 12px; } .schedule-import .assignment-action-group { flex-wrap: wrap; } }
 @media (max-width: 420px) { .course-management-modal .course-period-fields { grid-template-columns: minmax(0, 1fr); } }
+
+.learner-delete-button { display: inline-flex; align-items: center; gap: 4px; color: #a44138; margin: 6px 0 6px 10px; white-space: nowrap; }

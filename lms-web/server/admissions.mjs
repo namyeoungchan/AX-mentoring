@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { z } from 'zod';
 import { ApiError } from './store.mjs';
 import { workspaceVerified } from './workspace-verification.mjs';
+import { archiveLearner } from './learner-removal.mjs';
 const digest = value => createHash('sha256').update(value).digest('hex');
 const snowflake = z.string().regex(/^\d{17,20}$/);
 export async function createAdmissions(db, workspaces, { token = '', now = Date.now } = {}) {
@@ -293,17 +294,14 @@ export async function createAdmissions(db, workspaces, { token = '', now = Date.
             const data = await workspaces.snapshot(id), profile = await studentProfile(id, userId);
             if (data.revision !== input.revision || digest(JSON.stringify(profile)) !== input.profileRevision) throw new ApiError(409, '수강생 정보가 변경됐습니다. 목록을 새로고침하세요.');
             const learner = await assignedLearner(application, data);
-            if (learner) {
-                const value = remove ? { ...learner, status: '비활성' } : { ...learner, name: input.name, email: input.email };
+            if (learner && remove) await archiveLearner(target, learner, actor.username || actor.id, now());
+            if (learner && !remove) {
+                const value = { ...learner, name: input.name, email: input.email };
                 await target.prepare("UPDATE lms_records SET data=? WHERE kind='learners' AND id=?").run(JSON.stringify(value), learner.id);
-                await target.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(actor.username, remove ? 'student.remove' : 'student.edit', learner.id, JSON.stringify(learner), JSON.stringify(value));
+                await target.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(actor.username, 'student.edit', learner.id, JSON.stringify(learner), JSON.stringify(value));
             }
             if (remove) {
-                await db.prepare('DELETE FROM lms_admissions WHERE workspace_id=? AND user_id=?').run(id, userId);
-                await db.prepare("DELETE FROM lms_workspace_members WHERE workspace_id=? AND user_id=? AND role='student'").run(id, userId);
-                await db.prepare('DELETE FROM lms_workspace_verifications WHERE workspace_id=? AND user_id=?').run(id, userId);
-                await db.prepare('DELETE FROM lms_registrations WHERE workspace_id=? AND user_id=?').run(id, userId);
-                await db.prepare("DELETE FROM lms_runtime_state WHERE guild_id=? AND kind='student-profile' AND record_key=?").run(`workspace:${id}`, userId);
+                await removeEnrollment(id, userId, application.username);
             } else {
                 const value = Object.fromEntries(Object.keys(profileFields).map(key => [key, input[key]]));
                 await db.prepare('INSERT INTO lms_runtime_state VALUES(?,?,?,?) ON CONFLICT(guild_id,kind,record_key) DO UPDATE SET data=excluded.data').run(`workspace:${id}`, 'student-profile', userId, JSON.stringify(value));
@@ -318,5 +316,53 @@ export async function createAdmissions(db, workspaces, { token = '', now = Date.
         }
         return await studentAccounts(id, actor);
     }
-    return { catalogue, validateStudentIssue, assignStudent, studentAccounts, changeStudentTeam, manageStudent, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete };
+    async function removeEnrollment(id, userId, username) {
+        await db.prepare("DELETE FROM lms_admissions WHERE workspace_id=? AND user_id=? AND purpose='student'").run(id, userId);
+        await db.prepare("DELETE FROM lms_workspace_members WHERE workspace_id=? AND user_id=? AND role='student'").run(id, userId);
+        await db.prepare('DELETE FROM lms_workspace_verifications WHERE workspace_id=? AND user_id=?').run(id, userId);
+        await db.prepare('DELETE FROM lms_registrations WHERE workspace_id=? AND user_id=?').run(id, userId);
+        await db.prepare("DELETE FROM lms_runtime_state WHERE guild_id=? AND kind='student-profile' AND record_key=?").run(`workspace:${id}`, userId);
+        await db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE workspace_id=? AND username=? AND accepted_at IS NULL AND revoked_at IS NULL').run(now(), id, username);
+    }
+    async function learnerRemovalPlan(id, learnerId, actor) {
+        await workspaces.requireRole(id, actor, ['admin']);
+        const data = await workspaces.snapshot(id), learner = data.learners.find(l => l.id === learnerId);
+        if (!learner) throw new ApiError(404, '이미 삭제되었거나 찾을 수 없는 수강생입니다.');
+        // Link by admission identity or verified Discord ID, never by a name/email guess.
+        const accounts = await db.prepare(`SELECT DISTINCT u.id,u.username,u.platform_role,m.role,a.id AS applicationId,a.purpose
+            FROM lms_users u LEFT JOIN lms_workspace_members m ON m.user_id=u.id AND m.workspace_id=?
+            LEFT JOIN lms_admissions a ON a.user_id=u.id AND a.workspace_id=?
+            WHERE (a.purpose='student' AND 'admission-' || a.id=?)
+               OR (u.discord_id=? AND u.verified_at IS NOT NULL AND (m.user_id IS NOT NULL OR a.id IS NOT NULL))
+            ORDER BY u.id`).all(id, id, learnerId, learner.discordId || 'no-discord-id');
+        if (accounts.some(a => a.platform_role === 'admin' || a.role && a.role !== 'student' || a.purpose && a.purpose !== 'student'))
+            throw new ApiError(403, '관리자·멘토 계정에 연결된 수강생입니다. 구성원 관리에서 연결을 먼저 확인하세요.');
+        const history = { attendance: data.attendance.filter(r => r.studentId === learnerId).length, scores: data.scores.filter(r => r.studentId === learnerId).length };
+        return { learner, course: data.courses.find(c => c.id === learner.courseId)?.title || '', accounts, history, revision: digest(JSON.stringify([learner, accounts])) };
+    }
+    async function removeLearner(id, learnerId, body, actor) {
+        await workspaces.requireRole(id, actor, ['admin']);
+        if ((await workspaces.metadata(id)).archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스입니다.');
+        const input = z.object({ revision: z.string().length(64) }).strict().parse(body), target = (await workspaces.open(id)).db;
+        await db.exec('BEGIN IMMEDIATE');
+        try {
+            if (target !== db) await target.exec('BEGIN IMMEDIATE');
+            const archived = await target.prepare("SELECT 1 FROM lms_records WHERE kind='removedLearners' AND id=?").get(learnerId);
+            if (!archived) {
+                const plan = await learnerRemovalPlan(id, learnerId, actor);
+                if (plan.revision !== input.revision) throw new ApiError(409, '수강생 정보나 계정 연결이 변경됐습니다. 최신 내역을 다시 확인하세요.');
+                await archiveLearner(target, plan.learner, actor.username || actor.id, now());
+                for (const account of plan.accounts) await removeEnrollment(id, account.id, account.username);
+                await db.prepare('INSERT INTO lms_audit(actor,action,target) VALUES(?,?,?)').run(actor.username || actor.id, 'learner.enrollment-remove', `${id}/${learnerId}`);
+            }
+            if (target !== db) await target.exec('COMMIT');
+            await db.exec('COMMIT');
+            return { deleted: !archived };
+        } catch (error) {
+            if (target !== db && target.isTransaction) await target.exec('ROLLBACK');
+            if (db.isTransaction) await db.exec('ROLLBACK');
+            throw error;
+        }
+    }
+    return { catalogue, validateStudentIssue, assignStudent, studentAccounts, changeStudentTeam, manageStudent, learnerRemovalPlan, removeLearner, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete };
 }

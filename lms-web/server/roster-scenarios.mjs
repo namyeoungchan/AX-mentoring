@@ -1,6 +1,8 @@
+import { learnerRemovalScenario } from './learner-removal-scenario.mjs';
 import assert from 'node:assert/strict';
 
 export async function rosterScenario(r, owner) {
+  await learnerRemovalScenario(r, owner);
   const w = await r.workspaces.create({ name: '명단 검증 과정' });
   const rows = [
     { row: 2, studentId: 'TEST-01', name: '검증 학생', status: '참여', team: '1팀', email: 'student@example.test', phone: '010-0000-0000', school: '검증대', department: '검증학과' },
@@ -46,7 +48,8 @@ export async function rosterScenario(r, owner) {
   list = await r.admissions.studentAccounts(w.id, owner);
   const deleted = await r.admissions.manageStudent(w.id, account.id, { username: account.username, revision: list.revision, profileRevision: account.profileRevision }, owner, true);
   assert.equal(deleted.accounts.some(a => a.id === account.id), false);
-  assert.equal((await r.workspaces.snapshot(w.id)).learners.find(l => l.id === learnerId).status, '비활성');
+  assert.equal((await r.workspaces.snapshot(w.id)).learners.find(l => l.id === learnerId), undefined);
+  assert.equal((await r.workspaces.snapshot(w.id)).removedLearners.find(l => l.id === learnerId).status, '비활성');
   assert.equal(await r.workspaces.role(w.id, login.user), null);
   assert.ok(await r.store.db.prepare('SELECT id FROM lms_users WHERE id=?').get(account.id), 'global login account is preserved');
   const config = (await r.onboarding.read(w.id)).configs[0];

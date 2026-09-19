@@ -432,14 +432,15 @@ export async function createWorkspaces({ store, dbPath, provision, syncToken = '
             data.teams = data.teams.filter(t => scope.teamIds.includes(t.id));
             data.courses = data.courses.filter(c => data.teams.some(t => t.courseId === c.id));
             data.learners = data.learners.filter(l => data.teams.some(t => t.courseId === l.courseId && t.name === l.team));
+            data.removedLearners = (data.removedLearners || []).filter(l => data.teams.some(t => t.courseId === l.courseId && t.name === l.team));
             for (const kind of ['attendance', 'scores'])
-                data[kind] = data[kind].filter(r => data.learners.some(l => l.id === r.studentId));
+                data[kind] = data[kind].filter(r => [...data.learners, ...data.removedLearners].some(l => l.id === r.studentId));
             data.assignments = data.assignments.filter(a => data.courses.some(c => c.id === a.courseId));
             const mentor = data.mentors.find(m => m.discordId === user.discordId);
             data.sessions = data.sessions.filter(s => mentor && s.mentorId === mentor.id);
         }
         return { ...data, servers: [], logs: [], notices: [], files: [], submissions: [], reminders: false, onboarding: false, qa: false,
-            learners: data.learners.map(row => ({ ...row, email: '', discordId: '' })), mentors: [] };
+            learners: data.learners.map(row => ({ ...row, email: '', discordId: '' })), removedLearners: (data.removedLearners || []).map(row => ({ ...row, email: '', discordId: '' })), mentors: [] };
     }
     async function teach(id, body, user) {
         await requireRole(id, user, ['instructor']);
@@ -454,7 +455,7 @@ export async function createWorkspaces({ store, dbPath, provision, syncToken = '
                     throw new ApiError(403, '기존 과제 변경은 관리자에게 요청하세요.');
             }
             else {
-                if (!allowed.learners.some(l => l.id === value?.studentId))
+                if (!allowed.learners.some(l => l.id === value?.studentId) && !allowed[kind].some(r => r.id === value?.id && r.studentId === value?.studentId))
                     throw new ApiError(403, '담당 수강생이 아닙니다.');
                 if (all[kind].some(r => r.id === value.id) && !allowed[kind].some(r => r.id === value.id))
                     throw new ApiError(403, '담당 범위 밖의 기록입니다.');
