@@ -4,8 +4,8 @@ import { apiRequest, demoMode, serviceUnavailable, setSessionToken } from './api
 
 type Mode = 'login' | 'signup' | 'admin' | 'setup'
 type Challenge = { ticket: string; code: string; expiresAt: number; state: 'pending' | 'verified' | 'expired' }
-export default function AuthScreen({ login, error, enterDemo, registered, staffInvitation = false, invitationToken = '', allowSignup = true }: { allowSignup?: boolean; registered: () => Promise<void>; staffInvitation?: boolean; invitationToken?: string; login: (username: string, password: string, admin?: boolean) => Promise<void>; error: string; enterDemo: () => void }) {
-  const [mode, setMode] = useState<Mode>(staffInvitation && location.hash === '#signup' ? 'signup' : 'login')
+export default function AuthScreen({ login, error, enterDemo, registered, staffInvitation = false, invitationToken = '', allowSignup = true, embedded = false, invitedUsername = '' }: { embedded?: boolean; invitedUsername?: string; allowSignup?: boolean; registered: () => Promise<void>; staffInvitation?: boolean; invitationToken?: string; login: (username: string, password: string, admin?: boolean) => Promise<void>; error: string; enterDemo: () => void }) {
+  const [mode, setMode] = useState<Mode>(staffInvitation && (location.hash === '#signup' || embedded && allowSignup) ? 'signup' : 'login')
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -74,9 +74,10 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
   }
   const remaining = challenge ? Math.max(0, Math.ceil((challenge.expiresAt - clock) / 1000)) : 0
   const expired = challenge?.state === 'expired' || (challenge?.state === 'pending' && remaining === 0)
-  return <div className="auth-page">
+  const Layout = embedded ? 'div' : 'main'
+  return <div className={embedded ? 'auth-page auth-embedded' : 'auth-page'}>
     <header className="auth-header"><a href="#login" onClick={() => changeMode('login')} className="auth-brand"><span><BookOpen size={21} /></span>AX <b>학습관리시스템</b></a><span>학습 관리 시스템</span></header>
-    <main className="auth-layout">
+    <Layout className="auth-layout">
       <section className="auth-intro"><span className="eyebrow">LEARNING MANAGEMENT</span><h1>학습 계정으로<br />로그인하세요.</h1><p>과정과 과제를 확인하고<br />나의 출결과 성적을 조회합니다.</p><div className="auth-discord"><ShieldCheck size={24} /><div><h2>{staffInvitation ? '초대받은 계정으로 참여' : configured ? '승인 후 Discord 참여' : '관리자가 발급한 계정으로 시작'}</h2><p>{staffInvitation ? 'LMS에 먼저 가입하고 초대를 수락한 뒤 Discord를 연결합니다.' : configured ? '관리자 또는 강사가 승인하면 Discord 초대 링크를 받습니다.' : '아이디와 초기 비밀번호를 받아 로그인하고 본인 정보를 설정하세요.'}</p></div></div><ol className="auth-steps"><li><span>01</span>{staffInvitation || configured ? '가입 정보 입력' : '발급받은 계정으로 로그인'}</li><li><span>02</span>{staffInvitation ? '초대 수락' : configured ? '관리자 · 강사 승인' : '내 정보 · 비밀번호 설정'}</li><li><span>03</span>{staffInvitation ? '기본 정보 · Discord 연결' : 'Discord 참여 및 인증'}</li></ol></section>
       <section className="auth-card" aria-label="계정 인증">
         {challenge ? <>
@@ -99,7 +100,7 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
             <fieldset disabled={busy}>
               {mode === 'signup' && !staffInvitation && <label>가입할 워크스페이스<select name="workspaceId" required defaultValue=""><option value="" disabled>워크스페이스 선택</option>{workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>}
               {(mode === 'signup' || mode === 'setup') && <label>이름<input name="name" autoComplete="name" required maxLength={50} placeholder="이름" /></label>}
-              {mode !== 'admin' && <label>아이디<input name="username" autoComplete="username" required minLength={4} maxLength={32} pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{3,31}" placeholder="영문·숫자 4~32자" autoCapitalize="none" spellCheck={false} /></label>}
+              {mode !== 'admin' && <label>아이디<input name="username" defaultValue={invitedUsername} autoComplete="username" required minLength={4} maxLength={32} pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{3,31}" placeholder="영문·숫자 4~32자" autoCapitalize="none" spellCheck={false} /></label>}
               <label>{mode === 'admin' ? '관리자 비밀번호' : '비밀번호'}<span className="auth-password"><input name="password" aria-label={mode === 'admin' ? '관리자 비밀번호' : '비밀번호'} type={showPassword ? 'text' : 'password'} autoComplete={(mode === 'signup' || mode === 'setup') ? 'new-password' : 'current-password'} required minLength={(mode === 'signup' || mode === 'setup') ? 8 : 1} maxLength={128} placeholder={(mode === 'signup' || mode === 'setup') ? '8자 이상' : '비밀번호 입력'} /><button type="button" aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>
               {(mode === 'signup' || mode === 'setup') && <label>비밀번호 확인<input name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required minLength={8} maxLength={128} placeholder="비밀번호 다시 입력" /></label>}
               {mode === 'setup' && <label>관리자 설정 키<input name="setupKey" aria-label="관리자 설정 키" type="password" required minLength={16} maxLength={256} autoComplete="off" /><small>API 서버의 ADMIN_PASSWORD 값입니다. 최초 등록에만 사용됩니다.</small></label>}
@@ -107,12 +108,12 @@ export default function AuthScreen({ login, error, enterDemo, registered, staffI
               <button className="button primary auth-submit" type="submit" disabled={demoMode || busy || (mode === 'signup' && !configured)}>{busy ? '처리 중…' : mode === 'setup' ? '관리자 계정 만들기' : mode === 'signup' ? (staffInvitation ? '계정 만들기' : '가입 및 승인 요청') : '로그인'}<ArrowRight size={16} /></button>
             </fieldset>
           </form>
-          {mode === 'admin' ? <button className="auth-back" onClick={() => changeMode('login')}>로그인으로 돌아가기</button> : legacyEnabled && <button className="auth-back" onClick={() => changeMode('admin')}><KeyRound size={13} />관리자 로그인</button>}
-          {!demoMode && setupEnabled && mode !== 'setup' && <button className="auth-back" onClick={() => changeMode('setup')}><KeyRound size={13} />최초 관리자 등록</button>}
+          {mode === 'admin' ? <button className="auth-back" onClick={() => changeMode('login')}>로그인으로 돌아가기</button> : !staffInvitation && legacyEnabled && <button className="auth-back" onClick={() => changeMode('admin')}><KeyRound size={13} />관리자 로그인</button>}
+          {!staffInvitation && !demoMode && setupEnabled && mode !== 'setup' && <button className="auth-back" onClick={() => changeMode('setup')}><KeyRound size={13} />최초 관리자 등록</button>}
           {!demoMode && mode === 'login' && <p className="auth-description">비밀번호를 잊었다면 운영자에게 계정 복구를 요청하세요.</p>}
           {demoMode && <button className="button secondary auth-submit" onClick={enterDemo}>데모 둘러보기 <ArrowRight size={15} /></button>}
         </>}
       </section>
-    </main><footer className="auth-footer">AX 학습관리시스템</footer>
+    </Layout><footer className="auth-footer">AX 학습관리시스템</footer>
   </div>
 }

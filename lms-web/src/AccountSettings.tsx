@@ -3,7 +3,7 @@ import { KeyRound } from 'lucide-react'
 import { ModalShell } from './components'
 import { apiRequest, setSessionToken } from './api'
 
-export default function AccountSettings({ requiredChange = false, changed }: { requiredChange?: boolean; changed?: () => Promise<void> } = {}) {
+export default function AccountSettings({ requiredChange = false, changed, invitationPending = false }: { requiredChange?: boolean; invitationPending?: boolean; changed?: () => Promise<void> } = {}) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -33,7 +33,7 @@ export default function AccountSettings({ requiredChange = false, changed }: { r
           <button className="button primary" type="submit">{busy ? '변경 중…' : '변경하기'}</button>
         </fieldset>
       </form>
-  if (requiredChange) return <section className="panel initial-password-panel"><h1>초기 비밀번호 변경</h1><p>전달받은 초기 비밀번호를 본인만 아는 비밀번호로 변경하세요. 변경 후 서비스를 이용할 수 있습니다.</p>{content}</section>
+  if (requiredChange) return <section className="panel initial-password-panel"><h1>초기 비밀번호 변경</h1><p>전달받은 초기 비밀번호를 본인만 아는 비밀번호로 변경하세요.</p>{invitationPending && <p className="inline-note">로그인은 완료됐습니다. 비밀번호를 변경하면 초대 수락 화면으로 이어집니다. 초대 링크를 다시 열 필요는 없습니다.</p>}{content}</section>
   return <>
     <button className="text-button" onClick={() => { setOpen(true); setError(''); setDone(false) }}><KeyRound size={14} />비밀번호 변경</button>
     {open && <ModalShell title="비밀번호 변경" close={() => { if (!busy) setOpen(false) }}>{content}</ModalShell>}
