@@ -12,7 +12,7 @@ const password = z.string().min(8, '비밀번호는 8자 이상 입력하세요.
 const registration = z.object({ username, name: z.string().trim().min(1).max(50), password, discordId: snowflake.optional() }).strict();
 const ticketSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const verification = z.object({ code: z.string().trim().toUpperCase().transform(v => v.replaceAll('-', '')).pipe(z.string().regex(/^[A-F0-9]{16}$/)), discordId: snowflake, guildId: snowflake }).strict();
-const publicUser = row => ({ id: row.id, username: row.username, name: row.name, discordId: /^\d{17,20}$/.test(row.discord_id) ? row.discord_id : '', role: row.platform_role || 'student', verified: row.verified_at !== null, mustCompleteProfile: Boolean(row.must_complete_profile), mustChangePassword: Boolean(row.must_change_password) });
+const publicUser = row => ({ id: row.id, username: row.username, name: row.name, discordId: /^\d{17,20}$/.test(row.discord_id) ? row.discord_id : '', role: row.platform_role || 'student', isSuperAdmin: Boolean(row.is_super_admin), verified: row.verified_at !== null, mustCompleteProfile: Boolean(row.must_complete_profile), mustChangePassword: Boolean(row.must_change_password) });
 const admin = { id: 'admin', username: 'admin', name: '관리자', discordId: '', role: 'admin' };
 const safeEqual = (a, b) => timingSafeEqual(Buffer.from(hash(a)), Buffer.from(hash(b)));
 const hashOptions = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 };
@@ -75,6 +75,28 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
         await db.exec('ALTER TABLE lms_users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0');
     if (!(await (db.prepare('PRAGMA table_info(lms_users)')).all()).some(row => row.name === 'must_complete_profile'))
         await db.exec('ALTER TABLE lms_users ADD COLUMN must_complete_profile INTEGER NOT NULL DEFAULT 0');
+    if (!(await (db.prepare('PRAGMA table_info(lms_users)')).all()).some(row => row.name === 'is_super_admin'))
+        await db.exec('ALTER TABLE lms_users ADD COLUMN is_super_admin INTEGER NOT NULL DEFAULT 0 CHECK(is_super_admin IN (0,1))');
+    // Server-console provisioning only. Never attach this method to an HTTP route.
+    async function createSuperAdmin(body) {
+        const input = z.object({ username, name: z.string().trim().min(1).max(50), password }).strict().parse(body);
+        const passwordHash = await hashPassword(input.password);
+        const id = randomUUID();
+        await db.exec('BEGIN IMMEDIATE');
+        try {
+            await available(input.username, `platform:${id}`);
+            await (db.prepare("INSERT INTO lms_users(id,username,name,password_hash,discord_id,guild_id,created_at,verified_at,platform_role,is_super_admin) VALUES(?,?,?,?,?,'',?,?,'admin',1)")).run(id, input.username, input.name, passwordHash, `platform:${id}`, now(), now());
+            await (db.prepare('DELETE FROM lms_auth_sessions WHERE admin_version IS NOT NULL')).run();
+            await (db.prepare('INSERT INTO lms_account_audit(actor_id,target_id,username,action,created_at) VALUES(?,?,?,?,?)')).run('server-console', id, input.username, 'super-admin.create', now());
+            const user = publicUser(await (db.prepare('SELECT * FROM lms_users WHERE id=?')).get(id));
+            await db.exec('COMMIT');
+            return user;
+        }
+        catch (error) {
+            await db.exec('ROLLBACK');
+            throw error;
+        }
+    }
     async function hasAdmin() { return Boolean(await (db.prepare("SELECT 1 FROM lms_users WHERE platform_role='admin'")).get()); }
     async function setupEnabled() { return adminPassword.length >= 16 && !await hasAdmin(); }
     async function legacyEnabled() { return allowLegacyAdmin && !await hasAdmin(); }
@@ -485,7 +507,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
         await platformAdmin(user);
         const memberships = await tableExists(db, 'lms_workspace_members') ? await (db.prepare('SELECT m.user_id,m.role,w.name FROM lms_workspace_members m JOIN lms_workspaces w ON w.id=m.workspace_id')).all() : [];
         const adminCount = (await (db.prepare("SELECT COUNT(*) AS n FROM lms_users WHERE platform_role='admin'")).get()).n;
-        return { accounts: (await (db.prepare('SELECT * FROM lms_users ORDER BY created_at DESC,username')).all()).map(row => ({ ...publicUser(row), createdAt: row.created_at, canDelete: row.platform_role !== 'admin' || adminCount > 1, memberships: memberships.filter(m => m.user_id === row.id).map(m => ({ role: m.role, name: m.name })) })) };
+        return { accounts: (await (db.prepare('SELECT * FROM lms_users ORDER BY created_at DESC,username')).all()).map(row => ({ ...publicUser(row), createdAt: row.created_at, canResetPassword: !row.is_super_admin, canDelete: !row.is_super_admin && (row.platform_role !== 'admin' || adminCount > 1), memberships: memberships.filter(m => m.user_id === row.id).map(m => ({ role: m.role, name: m.name })) })) };
     }
     async function confirmAdmin(user, currentPassword) {
         const row = await platformAdmin(user);
@@ -506,6 +528,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
     async function resetAccount(user, id, body) {
         const actor = await platformAdmin(user);
         const target = await confirmedAccount(id, body);
+        if (target.is_super_admin) throw new ApiError(403, '슈퍼계정 비밀번호는 본인 변경 또는 서버 콘솔 복구만 가능합니다.');
         await limit('admin-account-reset', actor.id, 30, 3600000);
         const initialPassword = randomBytes(18).toString('base64url');
         const passwordHash = await hashPassword(initialPassword);
@@ -514,6 +537,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             if ((await platformAdmin(user)).password_hash !== actor.password_hash)
                 throw new ApiError(409, '관리자 인증이 변경되었습니다. 다시 로그인하세요.');
             const row = await confirmedAccount(id, body);
+            if (row.is_super_admin) throw new ApiError(403, '슈퍼계정 비밀번호는 본인 변경 또는 서버 콘솔 복구만 가능합니다.');
             if (row.password_hash !== target.password_hash)
                 throw new ApiError(409, '이미 비밀번호가 변경되었습니다. 계정 목록을 새로고침하세요.');
             await (db.prepare('UPDATE lms_users SET password_hash=?,must_change_password=1 WHERE id=?')).run(passwordHash, row.id);
@@ -533,6 +557,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
         await db.exec('BEGIN IMMEDIATE');
         try {
             const actor = await platformAdmin(user), row = await confirmedAccount(id, body);
+            if (row.is_super_admin) throw new ApiError(403, '슈퍼계정은 웹에서 삭제할 수 없습니다.');
             if (row.platform_role === 'admin' && (await (db.prepare("SELECT COUNT(*) AS n FROM lms_users WHERE platform_role='admin'")).get()).n <= 1)
                 throw new ApiError(409, '마지막 총괄 관리자 계정은 삭제할 수 없습니다.');
             await (db.prepare('DELETE FROM lms_auth_sessions WHERE user_id=?')).run(row.id);
@@ -562,5 +587,5 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
         await (db.prepare('DELETE FROM lms_auth_limits WHERE expires_at<=?')).run(now());
         await (db.prepare('DELETE FROM lms_registrations WHERE created_at<=?')).run(now() - 24 * 3600000);
     }
-    return { enabled, setupEnabled, legacyEnabled, setup, changePassword, resetPassword, accounts, resetAccount, deleteAccount, register, signup, createInvitationAccount, createStudentAccount, completeFirstLogin, issueVerification, status, renew, botAuthorized, preview, verificationState, verify, login, adminLogin, session, logout, limit, cleanup, platformAdmin, confirmAdmin };
+    return { enabled, setupEnabled, legacyEnabled, setup, createSuperAdmin, changePassword, resetPassword, accounts, resetAccount, deleteAccount, register, signup, createInvitationAccount, createStudentAccount, completeFirstLogin, issueVerification, status, renew, botAuthorized, preview, verificationState, verify, login, adminLogin, session, logout, limit, cleanup, platformAdmin, confirmAdmin };
 }

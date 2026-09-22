@@ -307,7 +307,8 @@
         "verified_at",
         "platform_role",
         "must_change_password",
-        "must_complete_profile"
+        "must_complete_profile",
+        "is_super_admin"
       ],
       "identity": false
     },
@@ -793,7 +794,7 @@
     {
       "name": "lms_users",
       "type": "table",
-      "sql": "CREATE TABLE lms_users (\n      id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL,\n      password_hash TEXT NOT NULL, discord_id TEXT NOT NULL UNIQUE, guild_id TEXT NOT NULL,\n      created_at INTEGER NOT NULL\n    , verified_at INTEGER, platform_role TEXT NOT NULL DEFAULT 'student' CHECK(platform_role IN ('admin','student')), must_change_password INTEGER NOT NULL DEFAULT 0, must_complete_profile INTEGER NOT NULL DEFAULT 0)"
+      "sql": "CREATE TABLE lms_users (\n      id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL,\n      password_hash TEXT NOT NULL, discord_id TEXT NOT NULL UNIQUE, guild_id TEXT NOT NULL,\n      created_at INTEGER NOT NULL\n    , verified_at INTEGER, platform_role TEXT NOT NULL DEFAULT 'student' CHECK(platform_role IN ('admin','student')), must_change_password INTEGER NOT NULL DEFAULT 0, must_complete_profile INTEGER NOT NULL DEFAULT 0, is_super_admin INTEGER NOT NULL DEFAULT 0 CHECK(is_super_admin IN (0,1)))"
     },
     {
       "name": "lms_registrations",

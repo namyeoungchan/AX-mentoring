@@ -96,7 +96,9 @@ async function importDatabase(db, source) {
             if (!allowed.has(table.name) || seen.has(table.name) || !Array.isArray(table.columns) || !Array.isArray(table.rows))
                 throw invalid();
             seen.add(table.name);
-            const expected = await columns(db, table.name);
+            const current = await columns(db, table.name);
+            const expected = table.name === 'lms_users' && !table.columns.includes('is_super_admin')
+                ? current.filter(name => name !== 'is_super_admin') : current;
             if (table.columns.length !== expected.length || new Set(table.columns).size !== expected.length || table.columns.some(name => !expected.includes(name)))
                 throw invalid();
             const statement = db.prepare(`INSERT INTO ${quote(table.name)} (${table.columns.map(quote).join(',')}) VALUES (${table.columns.map(() => '?').join(',')})`);

@@ -69,7 +69,10 @@ export async function importPostgres(connection, data) {
         if (seen.has(table.name)) throw new Error('Duplicate backup table')
         seen.add(table.name)
         if (table.name === 'sqlite_sequence') continue
-        const expected = metadata.tables[table.name]?.columns
+        const current = metadata.tables[table.name]?.columns
+        // Backups created before super accounts have no flag; the database default is 0.
+        const expected = table.name === 'lms_users' && Array.isArray(table.columns) && !table.columns.includes('is_super_admin')
+          ? current.filter(name => name !== 'is_super_admin') : current
         if (!expected || !Array.isArray(table.columns) || table.columns.length !== expected.length || new Set(table.columns).size !== expected.length || table.columns.some(name=>!expected.includes(name)) || !Array.isArray(table.rows)) throw new Error('Invalid backup columns')
         const sql = `INSERT INTO ${identifier(table.name)} (${table.columns.map(identifier).join(',')}) VALUES (${table.columns.map((_,i)=>`$${i+1}`).join(',')})`
         for (const row of table.rows) {

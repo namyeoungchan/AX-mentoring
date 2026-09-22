@@ -7,9 +7,38 @@ import { join } from 'node:path';
 import { createAuth } from './auth.mjs';
 import { createStore } from './store.mjs';
 import { studentLearning } from './student.mjs';
+import { superAdminScenario } from './super-admin-scenario.mjs';
 const options = { adminPassword: 'test-admin-password-1234', allowLegacyAdmin: true, botToken: 'test-discord-auth-token-123456789012345', guildId: '123456789012345678' };
 const member = { username: 'student.test', name: '테스트 학생', password: 'test-password-1234', discordId: '555456789012345678' };
 const verify = (code, overrides = {}) => ({ code, discordId: member.discordId, guildId: options.guildId, ...overrides });
+
+test('console super account works alongside the first administrator and is protected from web management', async () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+        const auth = await createAuth(db, options);
+        const owner = await auth.setup({ username: 'owner.test', name: 'Owner', password: 'owner-test-password', setupKey: options.adminPassword });
+        assert.equal(owner.user.isSuperAdmin, false);
+        await superAdminScenario(auth, db, owner.user);
+        assert.ok(await auth.session(owner.token));
+        assert.equal((await auth.login({ username: 'owner.test', password: 'owner-test-password' })).user.isSuperAdmin, false);
+    } finally { db.close(); }
+});
+
+test('super account can bootstrap without a setup key; public signup cannot set its privilege', async () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+        const auth = await createAuth(db);
+        await assert.rejects(auth.signup({ ...member, isSuperAdmin: true }, () => {}), { name: 'ZodError' });
+        const student = await auth.signup(member, () => {});
+        await assert.rejects(auth.createSuperAdmin({ ...member }), { name: 'ZodError' });
+        await assert.rejects(auth.createSuperAdmin({ username: member.username, name: member.name, password: member.password }), { status: 409 });
+        assert.equal((await auth.session(student.token)).role, 'student');
+        const user = await auth.createSuperAdmin({ username: 'root.test', name: 'Root', password: 'bootstrap-test-password' });
+        assert.equal(user.isSuperAdmin, true);
+        const reopened = await createAuth(db);
+        assert.equal((await reopened.login({ username: user.username, password: 'bootstrap-test-password' })).user.isSuperAdmin, true);
+    } finally { db.close(); }
+});
 test('80 classroom logins queue safely; successful login clears attempts while wrong passwords stay limited', async () => {
     const db = new DatabaseSync(':memory:');
     try {
