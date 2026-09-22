@@ -1,5 +1,6 @@
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
 import { superAdminScenario } from './super-admin-scenario.mjs';
+import { accountRoleScenario } from './account-role-scenario.mjs';
 import { verificationResumeScenario } from './verification-resume-scenario.mjs';
 import { attendancePresenceScenario } from './attendance-presence-scenario.mjs'
 import { courseManagementScenario } from './course-management-scenario.mjs'
@@ -27,6 +28,10 @@ import { assignmentCourseScenario } from './assignment-course-scenario.mjs'
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL account role changes isolate workspaces, revoke sessions and preserve history', async t => {
+  const f = await fixture(t)
+  await accountRoleScenario(f.runtime, f.login.user)
+})
 pgTest('PostgreSQL console super accounts preserve existing administrators and protect credentials', async t => {
   const f = await fixture(t)
   await superAdminScenario(f.runtime.auth, f.runtime.store.db, f.login.user)

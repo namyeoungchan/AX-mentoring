@@ -151,6 +151,60 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
         await (target.prepare('UPDATE slots SET is_active=0 WHERE mentor_id IN (SELECT id FROM mentors WHERE discord_id=?)')).run(discordId);
         await (target.prepare('UPDATE mentors SET is_active=0 WHERE discord_id=?')).run(discordId);
     }
+    async function managedAccount(id, userId, actor) {
+        // Read authority from the database; client-supplied role flags grant nothing.
+        const administrator = await db.prepare('SELECT platform_role,must_change_password,must_complete_profile FROM lms_users WHERE id=?').get(actor?.id || '');
+        if (administrator?.platform_role !== 'admin' || administrator.must_change_password || administrator.must_complete_profile)
+            throw new ApiError(403, '총관리자 계정으로 로그인하세요.');
+        await active(id);
+        const account = await db.prepare('SELECT id,username,name,discord_id,platform_role,is_super_admin FROM lms_users WHERE id=?').get(userId);
+        if (!account) throw new ApiError(404, '계정을 찾을 수 없습니다.');
+        if (account.platform_role === 'admin' || account.is_super_admin)
+            throw new ApiError(403, '총관리자·슈퍼계정은 워크스페이스 역할을 변경할 수 없습니다. 별도 테스트 계정을 사용하세요.');
+        return account;
+    }
+    async function accountRole(id, userId, actor) {
+        await managedAccount(id, userId, actor);
+        const membership = await db.prepare('SELECT role FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').get(id, userId);
+        return { workspaceId: id, workspaceName: (await workspaces.metadata(id)).name, role: membership?.role || null,
+            ...await workspaces.mentorScope(id, userId), teams: (await workspaces.snapshot(id)).teams.map(team => ({ id: team.id, name: team.name })) };
+    }
+    async function changeAccountRole(id, userId, body, actor) {
+        const input = z.object({ role: z.enum(['admin', 'instructor', 'student']), expectedRole: z.enum(['admin', 'instructor', 'student']).nullable(), mentorType: z.enum(['main', 'group']).default('main'), teamIds: z.array(z.string()).max(50).default([]) }).strict().parse(body);
+        await managedAccount(id, userId, actor);
+        const target = (await workspaces.open(id)).db;
+        await db.exec('BEGIN IMMEDIATE');
+        try {
+            if (target !== db) await target.exec('BEGIN IMMEDIATE');
+            const account = await managedAccount(id, userId, actor);
+            const previous = await db.prepare('SELECT role FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').get(id, userId);
+            if ((previous?.role || null) !== input.expectedRole)
+                throw new ApiError(409, '역할이 이미 변경되었습니다. 창을 닫고 다시 열어 확인하세요.');
+            const before = { role: previous?.role || null, ...await workspaces.mentorScope(id, userId) };
+            const scope = await workspaces.validateScope(id, input.role === 'instructor' ? { mentorType: input.mentorType, teamIds: input.teamIds } : {});
+            await db.prepare('INSERT INTO lms_workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=excluded.role').run(id, userId, input.role, now());
+            if (input.role === 'instructor') {
+                await db.prepare('INSERT INTO lms_mentor_scopes VALUES(?,?,?,?) ON CONFLICT(workspace_id,subject_id) DO UPDATE SET kind=excluded.kind,team_ids=excluded.team_ids').run(id, userId, scope.mentorType, JSON.stringify(scope.teamIds));
+                await db.prepare("INSERT OR IGNORE INTO lms_staff_profiles(workspace_id,user_id,name,expertise,bio,updated_at) VALUES(?,?,?,'','',?)").run(id, userId, account.name, now());
+                await syncMentor(id, userId);
+            } else {
+                await db.prepare('DELETE FROM lms_mentor_scopes WHERE workspace_id=? AND subject_id=?').run(id, userId);
+                await disableMentor(target, account.discord_id);
+            }
+            // Preserve enrollment, profile, verification and learning history across role tests.
+            await db.prepare('UPDATE lms_admissions SET purpose=? WHERE workspace_id=? AND user_id=?').run(input.role === 'student' ? 'student' : 'staff', id, userId);
+            await db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE workspace_id=? AND username=? AND accepted_at IS NULL AND revoked_at IS NULL').run(now(), id, account.username);
+            await db.prepare('DELETE FROM lms_auth_sessions WHERE user_id=?').run(userId);
+            await db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(actor.username || actor.id, 'account.workspace-role', `${id}/${userId}`, JSON.stringify(before), JSON.stringify({ role: input.role, ...scope }));
+            if (target !== db) await target.exec('COMMIT');
+            await db.exec('COMMIT');
+        } catch (error) {
+            if (target !== db && target.isTransaction) await target.exec('ROLLBACK');
+            if (db.isTransaction) await db.exec('ROLLBACK');
+            throw error;
+        }
+        return { ...await accountRole(id, userId, actor), sessionsRevoked: true };
+    }
     async function editMember(id, memberId, body, user) {
         const member = await managedMember(id, memberId, user);
         const input = z.object({ name: z.string().trim().min(1).max(50), expertise: z.string().trim().max(150), role: z.enum(['admin', 'instructor']), mentorType: z.enum(['main', 'group']).default('main'), teamIds: z.array(z.string()).max(50).default([]) }).strict().parse(body);
@@ -211,5 +265,5 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
         }
         return await members(id, user);
     }
-    return { groups, setupGroups, enableTeams, read, profile, invite, step, syncDiscord, members, editMember, removeMember };
+    return { groups, setupGroups, enableTeams, read, profile, invite, step, syncDiscord, members, editMember, removeMember, accountRole, changeAccountRole };
 }

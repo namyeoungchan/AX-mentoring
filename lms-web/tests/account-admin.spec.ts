@@ -12,7 +12,7 @@ test('platform administrator resets and deletes accounts with session and member
   expect(issued.initialPassword).toBeTruthy()
   const targetLogin = await (await request.post(`${base}/auth/login`, { data: { username: issued.username, password: issued.initialPassword } })).json()
   const changed = await (await request.post(`${base}/auth/password`, { headers: { Authorization: `Bearer ${targetLogin.token}` }, data: { currentPassword: issued.initialPassword, newPassword: 'target-password-1234' } })).json()
-  const targetHeaders = { Authorization: `Bearer ${changed.token}` }
+  let targetHeaders = { Authorization: `Bearer ${changed.token}` }
   expect((await request.post(`${base}/invitations/accept`, { headers: targetHeaders, data: { token: issued.token } })).status()).toBe(200)
   expect((await request.get(`${base}/admin/accounts`, { headers: targetHeaders })).status()).toBe(403)
   expect((await request.post(`${base}/admin/accounts/${owner.user.id}/reset-password`, { headers: targetHeaders, data: { username: 'accounts.owner' } })).status()).toBe(403)
@@ -23,6 +23,32 @@ test('platform administrator resets and deletes accounts with session and member
   await page.locator('button[type=submit]').click()
   await expect(page.getByRole('heading', { name: '전체 계정 관리', exact: true }).first()).toBeVisible()
   const row = page.getByRole('row').filter({ hasText: 'account.target' })
+  await expect(page.getByRole('row').filter({ hasText: 'accounts.owner' }).getByRole('button', { name: '역할 변경', exact: true })).toBeDisabled()
+  const roleUrl = `${base}/workspaces/${created.id}/accounts/${changed.user.id}/role`
+  expect((await request.get(roleUrl, { headers: targetHeaders })).status()).toBe(403)
+  expect((await request.patch(roleUrl, { headers: targetHeaders, data: { role: 'admin', expectedRole: 'admin' } })).status()).toBe(403)
+  const groups = await (await request.get(`${base}/workspaces/${created.id}/discord/groups`, { headers })).json()
+  const configured = await (await request.post(`${base}/workspaces/${created.id}/discord/groups`, { headers, data: { count: 2, revision: groups.revision } })).json()
+  for (const [choice, role] of [['student', 'student'], ['main', 'instructor'], ['group', 'instructor'], ['admin', 'admin']]) {
+    await row.getByRole('button', { name: '역할 변경', exact: true }).click()
+    const editor = page.getByRole('dialog', { name: '워크스페이스 역할 변경' })
+    await expect(editor.getByText('계정 관리 검증', { exact: true })).toBeVisible()
+    await editor.getByLabel('변경할 역할').selectOption(choice)
+    if (choice === 'group') {
+      await expect(editor.getByRole('button', { name: '역할 저장' })).toBeDisabled()
+      await editor.getByRole('checkbox', { name: configured.teams[0].name, exact: true }).check()
+    }
+    await editor.getByRole('button', { name: '역할 저장' }).click()
+    await expect(editor).toHaveCount(0)
+    expect((await request.get(`${base}/auth/me`, { headers: targetHeaders })).status()).toBe(401)
+    const relogin = await (await request.post(`${base}/auth/login`, { data: { username: 'account.target', password: 'target-password-1234' } })).json()
+    targetHeaders = { Authorization: `Bearer ${relogin.token}` }
+    const list = await (await request.get(`${base}/workspaces`, { headers: targetHeaders })).json()
+    expect(list.workspaces.find((w: { id: string }) => w.id === created.id).role).toBe(role)
+    const state = await (await request.get(roleUrl, { headers })).json()
+    expect(state.mentorType).toBe(choice === 'group' ? 'group' : 'main')
+    if (choice === 'group') expect(state.teamIds).toEqual([configured.teams[0].id])
+  }
   await row.getByRole('button', { name: '초기 비밀번호 재설정' }).click()
   const reset = page.getByRole('dialog', { name: '초기 비밀번호 재설정' })
   await expect(reset.getByRole('button', { name: '새 초기 비밀번호 발급' })).toBeDisabled()

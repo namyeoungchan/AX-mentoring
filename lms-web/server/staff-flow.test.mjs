@@ -1,4 +1,5 @@
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
+import { accountRoleScenario } from './account-role-scenario.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -42,6 +43,12 @@ async function fixture(t) {
     t.after(() => { workspaces.close(); store.db.close(); rmSync(folder, { recursive: true, force: true }); });
     return { store, auth, workspaces, workspace, staff, admissions, onboarding, signup, setup, connect, verify };
 }
+test('global account management switches workspace roles without granting platform authority or losing history', async (t) => {
+    const f = await fixture(t);
+    const administrator = await f.auth.createSuperAdmin({ username: 'role.owner', name: 'Owner', password: 'test-role-admin-password' });
+    await accountRoleScenario(f, administrator);
+});
+
 test('workspace administrator joins before a Discord server exists and invites scoped mentors without platform privileges', async (t) => {
     const { workspaces, workspace, signup, setup } = await fixture(t);
     const owner = await signup('workspace.owner', 'admin');

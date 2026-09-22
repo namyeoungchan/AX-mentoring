@@ -505,9 +505,9 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
     }
     async function accounts(user) {
         await platformAdmin(user);
-        const memberships = await tableExists(db, 'lms_workspace_members') ? await (db.prepare('SELECT m.user_id,m.role,w.name FROM lms_workspace_members m JOIN lms_workspaces w ON w.id=m.workspace_id')).all() : [];
+        const memberships = await tableExists(db, 'lms_workspace_members') ? await (db.prepare('SELECT m.user_id,m.role,m.workspace_id,w.name FROM lms_workspace_members m JOIN lms_workspaces w ON w.id=m.workspace_id')).all() : [];
         const adminCount = (await (db.prepare("SELECT COUNT(*) AS n FROM lms_users WHERE platform_role='admin'")).get()).n;
-        return { accounts: (await (db.prepare('SELECT * FROM lms_users ORDER BY created_at DESC,username')).all()).map(row => ({ ...publicUser(row), createdAt: row.created_at, canResetPassword: !row.is_super_admin, canDelete: !row.is_super_admin && (row.platform_role !== 'admin' || adminCount > 1), memberships: memberships.filter(m => m.user_id === row.id).map(m => ({ role: m.role, name: m.name })) })) };
+        return { accounts: (await (db.prepare('SELECT * FROM lms_users ORDER BY created_at DESC,username')).all()).map(row => ({ ...publicUser(row), createdAt: row.created_at, canResetPassword: !row.is_super_admin, canDelete: !row.is_super_admin && (row.platform_role !== 'admin' || adminCount > 1), memberships: memberships.filter(m => m.user_id === row.id).map(m => ({ workspaceId: m.workspace_id, role: m.role, name: m.name })) })) };
     }
     async function confirmAdmin(user, currentPassword) {
         const row = await platformAdmin(user);
