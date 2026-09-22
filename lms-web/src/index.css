@@ -1206,6 +1206,28 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .workspace-after-create strong { font-size: 13px; color: #34533e; }
 .workspace-after-create p { margin-bottom: 0; }
 .member-invitation { margin-bottom: 22px; }
+.staff-invite-method { display: flex; gap: 10px; margin-bottom: 16px; }
+.staff-invite-method [aria-pressed="true"] { background: #315a43; color: white; border-color: #315a43; }
+.staff-import { margin-bottom: 22px; }
+.staff-import-body { padding: 0 24px 24px; min-width: 0; }
+.staff-import-body > p { font-size: 13px; line-height: 1.85; color: #53634f; margin-bottom: 18px; }
+.staff-import-body h3 { font-size: 16px; margin: 25px 0 10px; }
+.staff-import-mapping { display: flex; flex-wrap: wrap; gap: 12px 32px; padding: 16px 0; margin-bottom: 16px; border-block: 1px solid #e4eade; list-style: none; font-size: 13px; }
+.staff-import-mapping strong { margin-left: 12px; color: #315a43; }
+.staff-import-body > .staff-import-note { font-size: 12px; margin-top: 16px; }
+.staff-import table { min-width: 940px; }
+.staff-import td { vertical-align: top; max-width: 270px; white-space: normal; overflow-wrap: anywhere; }
+.staff-import td p { margin-bottom: 7px; line-height: 1.65; }
+.staff-import td small { display: block; margin-top: 8px; }
+.staff-import td .text-button { display: flex; margin-top: 10px; min-height: 36px; }
+.staff-import-teams { border: 0; margin: 12px 0 0; padding: 0; min-width: 150px; }
+.staff-import-teams legend { font-size: 11px; margin-bottom: 6px; }
+.staff-import-teams label { display: flex; align-items: center; gap: 7px; min-height: 36px; }
+.staff-import input[type="checkbox"] { width: 17px; height: 17px; accent-color: #315a43; }
+.staff-import-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.staff-import .button, .staff-invite-method .button { min-height: 44px; }
+@media (max-width: 760px) { .staff-import-body { padding: 0 18px 20px; } .staff-import-actions { flex-direction: column; } .staff-import-mapping { display: grid; } }
+@media (max-width: 760px) { .staff-import .table-scroll::before { content: '표를 좌우로 밀어 역할·담당 조·검증 결과를 확인하세요.'; display: block; position: sticky; left: 0; margin: 8px 0 14px; font-size: 12px; line-height: 1.8; color: #53634f; } }
 .member-invitation > .card-heading { margin-bottom: 18px; }
 .invite-compose-layout, .invite-delivery-layout { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 32px; padding: 0 24px 24px; }
 .invite-compose-layout > .membership-form { padding: 0; min-width: 0; }

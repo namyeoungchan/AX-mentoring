@@ -1,5 +1,6 @@
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
 import { accountRoleScenario } from './account-role-scenario.mjs';
+import { issueStaffAccounts, previewStaffAccounts } from './staff-import.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -47,6 +48,53 @@ test('global account management switches workspace roles without granting platfo
     const f = await fixture(t);
     const administrator = await f.auth.createSuperAdmin({ username: 'role.owner', name: 'Owner', password: 'test-role-admin-password' });
     await accountRoleScenario(f, administrator);
+});
+
+test('bulk staff issuance maps categories, rejects invalid batches and never overwrites passwords', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    const groups = await f.setup(2);
+    const rows = ['PM', '강의', '기술멘토', '자문/운영'].map((category, i) => ({ row: i + 2, category, name: `구성원 ${i}`, username: `bulk.person${i}`, teamIds: category === '기술멘토' ? [groups.teams[0].id] : [] }));
+    const preview = body => previewStaffAccounts(f.store.db, f.workspaces, id, body, admin);
+    const issue = (body, actor = admin) => issueStaffAccounts(f.store.db, f.auth, f.workspaces, id, body, actor);
+    assert.equal((await preview({ rows })).valid, true);
+    assert.equal((await preview({ rows: [rows[0], { ...rows[0], row: 20 }] })).valid, false);
+    assert.equal((await preview({ rows: [{ ...rows[2], teamIds: [] }] })).valid, false);
+    assert.equal((await preview({ rows: [{ ...rows[2], teamIds: ['foreign-team'] }] })).valid, false);
+    assert.equal((await preview({ rows: [{ ...rows[0], category: 'superadmin' }] })).valid, false);
+    const owner = await f.signup('bulk.owner', 'admin');
+    await assert.rejects(issue({ rows }, owner), { status: 422 });
+    assert.equal(await f.store.db.prepare('SELECT id FROM lms_users WHERE username=?').get(rows[0].username), undefined);
+    const result = await issue({ rows }); assert.equal(result.results.length, 4);
+    for (const [index, issued] of result.results.entries()) {
+        assert.ok(issued.token); assert.ok(issued.initialPassword);
+        const invitation = await f.workspaces.previewInvitation(issued.token);
+        assert.equal(invitation.role, index === 3 ? 'admin' : 'instructor');
+        assert.equal(invitation.mentorType, index === 2 ? 'group' : 'main');
+        const login = await f.auth.login({ username: issued.username, password: issued.initialPassword });
+        assert.equal(login.user.mustChangePassword, true); assert.equal(login.user.role, 'student');
+        for (const table of ['lms_users', 'lms_audit', 'lms_workspace_invitations']) assert.ok(!JSON.stringify(await f.store.db.prepare(`SELECT * FROM ${table}`).all()).includes(issued.initialPassword));
+    }
+    assert.equal((await preview({ rows })).valid, false);
+    await assert.rejects(issue({ rows }), { status: 422 });
+    const same = await f.auth.login({ username: result.results[0].username, password: result.results[0].initialPassword });
+    assert.ok(same.user.id);
+    await assert.rejects(issue({ rows: [{ ...rows[0], username: 'unauthorized.new' }] }, same.user), { status: 403 });
+    await f.workspaces.setArchived(id, true, admin);
+    await assert.rejects(issue({ rows: [{ ...rows[0], username: 'archived.new' }] }), { status: 409 });
+});
+
+test('bulk issuance reports partial failures and preserves successful credentials on retry', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    const rows = ['bulk.first', 'bulk.failed', 'bulk.last'].map((username, i) => ({ row: i + 2, category: 'PM', name: username, username, teamIds: [] }));
+    const flaky = { createInvitationAccount: async (...args) => {
+        if (args[0].username === 'bulk.failed') throw new Error('simulated database failure');
+        return f.auth.createInvitationAccount(...args);
+    } };
+    const result = await issueStaffAccounts(f.store.db, flaky, f.workspaces, id, { rows }, admin);
+    assert.ok(result.results[0].token); assert.ok(result.results[1].error); assert.ok(result.results[2].token);
+    const retried = await issueStaffAccounts(f.store.db, f.auth, f.workspaces, id, { rows: [rows[1]] }, admin);
+    assert.ok(retried.results[0].token);
+    assert.ok((await f.auth.login({ username: rows[0].username, password: result.results[0].initialPassword })).user.id);
 });
 
 test('workspace administrator joins before a Discord server exists and invites scoped mentors without platform privileges', async (t) => {

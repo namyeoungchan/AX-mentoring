@@ -4,6 +4,7 @@ import { workspaceRequest, demoMode } from './api'
 import { Badge, CardHeading, ModalShell } from './components'
 import { roleNames, type WorkspaceRole } from './demoWorkspaces'
 import MemberInvitation from './MemberInvitation'
+import StaffAccountImport from './StaffAccountImport'
 
 type Scope = { mentorType: 'main' | 'group'; teamIds: string[] }
 type Team = { id: string; name: string }
@@ -16,6 +17,7 @@ export default function WorkspaceMembers({ workspaceId, workspaceName, platformA
   const [state, setState] = useState<Members>({ members: [], invitations: [], teams: [] })
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [notice, setNotice] = useState('')
   const [inviteVersion, setInviteVersion] = useState(0)
+  const [inviteMethod, setInviteMethod] = useState('single')
   const [editing, setEditing] = useState<Edit | null>(null), [removing, setRemoving] = useState<Removal | null>(null)
   const [clock, setClock] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 30000); return () => clearInterval(timer) }, [])
@@ -57,7 +59,9 @@ export default function WorkspaceMembers({ workspaceId, workspaceName, platformA
     {demoMode && <p className="inline-note">데모에서는 구성원을 변경하거나 초대를 발급할 수 없습니다.</p>}
     {error && !editing && !removing && <p className="inline-note error-note" role="alert">{error}</p>}
     {notice && <p className="inline-note" role="status">{notice}</p>}
-    <MemberInvitation key={`${workspaceId}:${inviteVersion}`} workspaceId={workspaceId} workspaceName={workspaceName} platformAdmin={platformAdmin} teams={state.teams} refreshed={() => refresh()} openSetup={openSetup} />
+    <div className="staff-invite-method" aria-label="초대 방식"><button className="button secondary" aria-pressed={inviteMethod === 'single'} onClick={() => setInviteMethod('single')}>한 명씩 초대</button><button className="button secondary" aria-pressed={inviteMethod === 'file'} onClick={() => setInviteMethod('file')}>엑셀 일괄 등록</button></div>
+    <div hidden={inviteMethod !== 'single'}><MemberInvitation key={`${workspaceId}:${inviteVersion}`} workspaceId={workspaceId} workspaceName={workspaceName} platformAdmin={platformAdmin} teams={state.teams} refreshed={() => refresh()} openSetup={openSetup} /></div>
+    <div hidden={inviteMethod !== 'file'}><StaffAccountImport key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} platformAdmin={platformAdmin} teams={state.teams} refreshed={() => refresh()} openSetup={openSetup} /></div>
     <section className="panel"><CardHeading title="구성원" subtitle="수정한 활동명과 담당 조는 연결된 Discord 봇에도 반영됩니다."><button className="text-button" disabled={busy} onClick={() => void refresh()}><RefreshCw size={14} />새로고침</button></CardHeading>
       <div className="table-scroll"><table><thead><tr><th>이름 · 담당 분야</th><th>아이디</th><th>권한 · 담당 조</th><th>관리</th></tr></thead><tbody>{state.members.map(m => <tr key={m.id}>
         <td>{m.name}{m.expertise && <small>{m.expertise}</small>}</td><td>{m.username}</td><td><Badge>{roleLabel(m)}</Badge>{teamsLabel(m) && <p>{teamsLabel(m)}</p>}</td>
