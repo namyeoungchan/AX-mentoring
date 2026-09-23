@@ -133,6 +133,26 @@ test('registry discovers only joined and registered guilds with independent sett
     assert.deepEqual((await storage.registry({ guildIds: [secondGuild] })).workspaces.map(row => row.guildId), [secondGuild]);
 });
 
+test('provisioning can persist the complete panel binding payload including attendance entrance', async t => {
+    const { storage, workspace, workspaces } = await fixture(t);
+    const otherGuild = '888456789012345678';
+    await workspaces.create({ name: '별도 서버', guildId: otherGuild });
+    const before = (await storage.state(workspace.id)).settings.find(row => row.guildId === guildId);
+    const preserved = { channels: { ADMIN_ROLE_ID: '777456789012345678' }, teams: [{ name: '1조', channelId: '777456789012345679' }], qaUnansweredHours: 12, qaNotifyRoleIds: [] };
+    await storage.settings(workspace.id, { guildId, value: preserved, revision: before?.revision || '' });
+    const channels = {
+        ONBOARDING_CHANNEL_ID: '555456789012345671',
+        ASSIGNMENT_DASHBOARD_CHANNEL_ID: '555456789012345672',
+        ASSIGNMENT_SUBMIT_CHANNEL_ID: '555456789012345673',
+        MENTORING_CHANNEL_ID: '555456789012345674',
+    };
+    await storage.bindPanels({ guildId, channels });
+    await storage.bindPanels({ guildId, channels }); // A retry safely reuses the same settings.
+    assert.deepEqual((await storage.status(guildId)).settings, { ...preserved, channels: { ...preserved.channels, ...channels } });
+    assert.deepEqual((await storage.status(otherGuild)).settings.channels, {});
+    await assert.rejects(storage.bindPanels({ guildId, channels: { ADMIN_ROLE_ID: '555456789012345675' } }));
+});
+
 test('archived workspaces stop bot jobs and onboarding, while restore resumes the saved configuration', async t => {
     const { storage, workspaces, workspace, onboarding, call } = await fixture(t);
     const actor = { id: 'owner', username: 'owner', role: 'admin' };

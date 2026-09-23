@@ -72,9 +72,8 @@ class AutoPanels(commands.Cog):
         if client and changed:
             await client.request('bind-panels', {'guildId': str(guild.id), 'channels': changed})
             await client.refresh_settings(guild.id)
-        if not config.managed_storage or guild.id in getattr(client, 'ready', {}):
-            with config.guild_scope(guild.id):
-                await self.sync_once(force=True)
+        # The periodic worker publishes panels independently. Scanning message
+        # history for statistics must not delay a completed channel setup.
 
     async def build(self, guild, kind, days=None):
         if kind == "attendance":

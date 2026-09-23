@@ -19,6 +19,24 @@ async def stream(values):
 
 
 class PanelTests(unittest.IsolatedAsyncioTestCase):
+    async def test_binding_setup_saves_all_channels_without_waiting_for_panel_statistics(self):
+        cog = module.AutoPanels(MagicMock())
+        cog.store = SimpleNamespace(put=AsyncMock())
+        cog.sync_once = AsyncMock(side_effect=TimeoutError('slow history scan'))
+        client = SimpleNamespace(request=AsyncMock(), refresh_settings=AsyncMock())
+        items = [{'id': key, 'type': 'text'} for key in ['start', 'assignment-dashboard', 'assignments', 'mentoring']]
+        results = [{'id': item['id'], 'discordId': str(123456789012345670 + i)} for i, item in enumerate(items)]
+        with patch('storage_client.client', client):
+            await cog.bind_channels(self.guild, items, results)
+        client.request.assert_awaited_once_with('bind-panels', {'guildId': str(self.guild.id), 'channels': {
+            'ONBOARDING_CHANNEL_ID': results[0]['discordId'],
+            'ASSIGNMENT_DASHBOARD_CHANNEL_ID': results[1]['discordId'],
+            'ASSIGNMENT_SUBMIT_CHANNEL_ID': results[2]['discordId'],
+            'MENTORING_CHANNEL_ID': results[3]['discordId'],
+        }})
+        client.refresh_settings.assert_awaited_once_with(self.guild.id)
+        cog.sync_once.assert_not_awaited()
+
     async def asyncSetUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

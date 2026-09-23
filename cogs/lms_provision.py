@@ -147,6 +147,7 @@ class LMSProvision(commands.Cog):
             await manager.bind_channels(guild, items, results)
 
     async def run_once(self):
+        from storage_client import StorageUnavailable
         if not self.url or self.lock.locked():
             return
         async with self.lock:
@@ -170,6 +171,11 @@ class LMSProvision(commands.Cog):
                         error_code = error.code
                     except discord.Forbidden:
                         error_code = "forbidden"
+                    except StorageUnavailable as error:
+                        # StorageUnavailable inherits TimeoutError, including for
+                        # rejected writes. Do not present those as Discord timeouts.
+                        log.warning("LMS setup storage failed: guild=%s (%s)", guild.id if guild else None, error)
+                        error_code = "api_error"
                     except asyncio.TimeoutError:
                         error_code = "timeout"
                     except discord.HTTPException:

@@ -224,7 +224,7 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
         return await state(id);
     }
     async function bindPanels(body) {
-        const input = z.object({ guildId: snowflake, channels: z.partialRecord(z.enum(['ASSIGNMENT_DASHBOARD_CHANNEL_ID', 'ASSIGNMENT_SUBMIT_CHANNEL_ID', 'MENTORING_CHANNEL_ID']), snowflake) }).strict().parse(body);
+        const input = z.object({ guildId: snowflake, channels: z.partialRecord(z.enum(['ONBOARDING_CHANNEL_ID', 'ASSIGNMENT_DASHBOARD_CHANNEL_ID', 'ASSIGNMENT_SUBMIT_CHANNEL_ID', 'MENTORING_CHANNEL_ID']), snowflake) }).strict().parse(body);
         const db = await open(await owner(input.guildId));
         const previous = await (db.prepare('SELECT data FROM lms_bot_settings WHERE guild_id=?')).get(input.guildId);
         const value = previous ? JSON.parse(previous.data) : { channels: {}, teams: [], qaUnansweredHours: 24 };

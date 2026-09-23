@@ -8,7 +8,7 @@ import { CheckCircle2, CircleAlert, Clock3, LoaderCircle } from 'lucide-react'
 type Provision = {
   enabled: boolean; worker: { id: string; connected: boolean } | null
   template: { revision: string } | null; boundGuildIds: string[]
-  plans: { guildId: string; revision: string }[]
+  plans: { guildId: string; revision: string; channels?: { id: string }[] }[]
   guilds: { id: string; name: string; connected: boolean; manageChannels?: number }[]
   jobs: { id: string; guildId: string; state: string; errorCode: string | null; results: { id: string; discordId: string }[] }[]
 }
@@ -29,11 +29,17 @@ function provisionChecks(p: Provision): ConnectionCheck[] {
   return [
     { title: initialChecks[1].title, state: botReady ? 'ready' : 'waiting', detail: !p.enabled ? '봇 연결 설정이 필요합니다.' : botReady ? '봇의 최근 응답을 확인했습니다.' : '최근 응답이 없습니다. 운영자에게 봇 실행 상태를 확인해 달라고 요청하세요.' },
     { title: initialChecks[2].title, state: !connected ? 'waiting' : job?.state === 'failed' ? 'error' : job?.state === 'succeeded' ? 'ready' : 'waiting',
-      detail: !botReady ? '봇이 응답하면 서버 연결을 확인할 수 있습니다.' : !guild?.connected ? '서버 참여를 기다리고 있습니다. 아래 ‘이 서버에 앱 초대’에서 설치를 완료하세요.' : guild.manageChannels === 0 ? '채널 관리 권한이 필요합니다. Discord에서 봇 권한을 확인하세요.' : job?.state === 'failed' ? failures[job.errorCode || ''] || '구축에 실패했습니다. 상세 설정에서 결과를 확인하세요.' : job?.state === 'succeeded' ? '서버 연결과 채널 구축을 완료했습니다. 내 LMS 인증을 진행하세요.' : job?.state === 'running' ? '서버에 연결됐습니다. 채널과 역할을 만드는 중입니다.' : '서버에 연결됐습니다. 봇이 구축 작업을 시작하기를 기다리고 있습니다.' },
+      detail: !botReady ? '봇이 응답하면 서버 연결을 확인할 수 있습니다.' : !guild?.connected ? '서버 참여를 기다리고 있습니다. 아래 ‘이 서버에 앱 초대’에서 설치를 완료하세요.' : guild.manageChannels === 0 ? '채널 관리 권한이 필요합니다. Discord에서 봇 권한을 확인하세요.' : job?.state === 'failed' ? failureDetail(p, job) : job?.state === 'succeeded' ? '서버 연결과 채널 구축을 완료했습니다. 내 LMS 인증을 진행하세요.' : job?.state === 'running' ? '서버에 연결됐습니다. 기존 채널과 역할을 확인하고 필요한 설정을 적용하고 있습니다.' : '서버에 연결됐습니다. 봇이 구축 작업을 시작하기를 기다리고 있습니다.' },
   ]
 }
 const steps = ['조 구성', '서버 연결', '앱 초대·구축', '내 LMS 인증']
-const failures: Record<string, string> = { forbidden: 'Discord에서 앱의 채널·역할 관리 권한과 역할 순서를 확인하세요.', missing_guild: '선택한 서버에 앱을 초대하세요.', conflict: '같은 이름의 채널이 중복됐는지 확인하세요.', timeout: '응답 시간이 초과됐습니다. Discord의 생성 결과를 확인한 뒤 다시 시도하세요.', api_error: 'Discord 연결 오류입니다. 잠시 후 다시 시도하세요.' }
+const failures: Record<string, string> = { forbidden: 'Discord에서 앱의 채널·역할 관리 권한과 역할 순서를 확인하세요.', missing_guild: '선택한 서버에 앱을 초대하세요.', conflict: '같은 이름의 채널이 중복됐는지 확인하세요.', timeout: '이전 구축 작업의 최종 확인이 시간 안에 끝나지 않았습니다. ‘기존 구축 재확인’을 눌러 채널과 설정을 확인하세요.', api_error: '구축 결과를 처리하는 중 연결 또는 저장 오류가 발생했습니다. 잠시 후 다시 시도하세요.' }
+function failureDetail(p: Provision, job: Provision['jobs'][number]) {
+  const expected = p.plans.find(plan => plan.guildId === job.guildId)?.channels
+  const completed = expected?.filter(channel => job.results.some(row => row.id === channel.id)).length || 0
+  const progress = completed ? `이전 작업에서 채널 ${completed}/${expected!.length}개의 생성·연결 결과가 저장됐습니다. ` : ''
+  return progress + (failures[job.errorCode || ''] || '구축을 완료하지 못했습니다. 상세 설정에서 결과를 확인하세요.')
+}
 function connectionResult(state: State) {
   const p = state.provision, guildId = p.boundGuildIds[0]
   const guild = p.guilds.find(row => row.id === guildId), job = p.jobs.find(row => row.guildId === guildId)
@@ -43,7 +49,7 @@ function connectionResult(state: State) {
   if (!p.worker?.connected) return '봇의 최근 응답이 없습니다. 운영자에게 봇 실행 상태를 확인해 달라고 요청하세요.'
   if (!guild?.connected) return '이 서버의 앱 연결은 아직 확인되지 않았습니다. ‘이 서버에 앱 초대’에서 설치를 완료한 뒤 다시 확인하세요.'
   if (guild.manageChannels === 0) return '앱은 연결됐지만 채널 관리 권한이 없습니다. Discord에서 봇 권한을 확인하세요.'
-  if (job?.state === 'failed') return `앱은 연결됐지만 채널 구축에 실패했습니다. ${failures[job.errorCode || ''] || '상세 설정에서 결과를 확인하세요.'}`
+  if (job?.state === 'failed') return `앱 연결은 정상이며 구축 결과를 재확인해야 합니다. ${failureDetail(p, job)}`
   if (job?.state === 'running') return '앱 연결을 확인했습니다. 채널과 역할을 만들고 있습니다. 완료되면 다음 단계가 열립니다.'
   if (job?.state === 'succeeded') return '앱 연결과 채널 구축을 확인했습니다. 내 LMS 인증으로 진행하세요.'
   return '앱 연결을 확인했습니다. 채널 구축 작업을 기다리고 있습니다. 잠시 후 다시 확인하세요.'
@@ -95,6 +101,7 @@ export default function DiscordQuickSetup({ workspaceId, advanced }: { workspace
         if (signal.aborted) return null
         const result: State = { provision, groups, workspace, personal: account.user.id !== 'admin' }
         setState(result); setError('')
+        setChecks(rows => rows ? [workspaceCheck(workspace), ...provisionChecks(provision)] : null)
         return result
       } catch (e) {
         if (!parent?.aborted) setError(timeout.aborted ? '연결 상태 확인에 시간이 오래 걸립니다. 잠시 후 다시 확인하세요.' : e instanceof TypeError ? '연결 상태를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도하세요.' : (e as Error).message)
@@ -146,8 +153,8 @@ export default function DiscordQuickSetup({ workspaceId, advanced }: { workspace
   async function retry() {
     const plan = p?.plans.find(plan => plan.guildId === guildId)
     if (!plan || busy) return
-    setBusy(true); setError('')
-    try { await workspaceRequest(workspaceId, 'discord/provision/jobs', { method: 'POST', body: JSON.stringify({ guildId, revision: plan.revision }) }); await refresh() }
+    setBusy(true); setError(''); setNotice('')
+    try { await workspaceRequest(workspaceId, 'discord/provision/jobs', { method: 'POST', body: JSON.stringify({ guildId, revision: plan.revision }) }); await refresh(); setNotice('기존 채널과 역할을 다시 확인하도록 요청했습니다. 이미 있는 채널은 재사용하고, 빠진 설정을 적용합니다. 결과는 자동으로 갱신됩니다.') }
     catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   return <section className="discord-quick" aria-label="Discord 빠른 설정">
@@ -167,7 +174,7 @@ export default function DiscordQuickSetup({ workspaceId, advanced }: { workspace
       {step === 2 && <section className="panel quick-stage-content"><h2>3. 앱 초대 및 자동 구축</h2><p>연결된 서버: {guildId}</p><p>Discord에서 서버 관리 권한이 있는 계정으로 설치를 승인하세요. 승인 후 이 화면으로 돌아오면 연결 상태를 자동 확인합니다.</p>
         {p?.worker?.id ? <a className="button primary" href={`https://discord.com/oauth2/authorize?client_id=${p.worker.id}&scope=bot%20applications.commands&permissions=2251800216456273&guild_id=${guildId}&disable_guild_select=true`} target="_blank" rel="noreferrer">이 서버에 앱 초대</a> : <p className="inline-note">앱 정보를 기다리고 있습니다. 운영자에게 봇 실행 및 LMS 연결 상태 확인을 요청하세요.</p>}
         <p><Badge tone={guild?.connected ? 'green' : 'orange'}>{guild?.connected ? `${guild.name} · 앱 연결 확인` : '앱 연결 대기'}</Badge></p>
-        {job?.state === 'failed' ? <><p role="alert" className="error-note">{failures[job.errorCode || ''] || '구축에 실패했습니다. 상세 설정에서 결과를 확인하세요.'}</p><button className="button secondary" disabled={!p?.enabled} onClick={() => void retry()}>구축 다시 시도</button></> : <p>{job?.state === 'running' ? '채널과 역할을 만들고 있습니다.' : job?.state === 'succeeded' ? '채널 구축 완료 · 앱 연결을 확인하고 있습니다.' : '앱이 참여하면 기본 채널과 역할을 자동으로 만듭니다.'}</p>}
+        {job?.state === 'failed' && p ? <><p role="alert" className="error-note">{failureDetail(p, job)}</p><button className="button secondary" disabled={!p.enabled} onClick={() => void retry()}>{job.errorCode === 'timeout' ? '기존 구축 재확인' : '구축 다시 시도'}</button></> : <p>{job?.state === 'running' ? '기존 채널과 역할을 확인하고 필요한 설정을 적용하고 있습니다.' : job?.state === 'succeeded' ? '채널 구축 완료 · 앱 연결을 확인하고 있습니다.' : '앱이 참여하면 기본 채널과 역할을 자동으로 만듭니다.'}</p>}
         <button className="button secondary" disabled={checking} aria-busy={checking} onClick={() => void checkConnection()}>{checking ? '연결 확인 중…' : '연결 상태 확인'}</button>{built && <button className="button primary" onClick={() => setSelected(null)}>LMS 인증으로 계속</button>}
       </section>}
       {step === 3 && <section className="panel quick-stage-content"><h2>4. 내 LMS 인증</h2>{state?.workspace.discordVerified ? <><p role="status" className="inline-note">Discord 연결과 LMS 인증을 완료했습니다.</p><a className="button primary" href={channelUrl} target="_blank" rel="noreferrer">학습 서버 열기</a><p>이제 구성원 · 초대에서 멘토를 초대하고 가입 승인에서 수강생을 배정하세요.</p></> : state?.personal ? <DiscordVerification workspaceId={workspaceId} channelUrl={channelUrl} onVerified={() => void refresh()} /> : <p>공용 개발 관리자 계정은 개인 Discord 계정과 연결하지 않습니다. 초대받은 개인 관리자 계정으로 로그인해 인증하세요.</p>}</section>}
