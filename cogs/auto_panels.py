@@ -13,6 +13,7 @@ import database
 from cogs.lms_onboarding_store import OnboardingStore
 from cogs.panel_messages import ensure_panel
 from cogs.panel_objects import PANEL_OBJECTS
+from storage_client import StorageUnavailable
 
 log = logging.getLogger("asanAX.auto_panels")
 
@@ -22,6 +23,7 @@ class AutoPanels(commands.Cog):
         self.bot = bot
         self.store = OnboardingStore(config.DB_PATH)
         self.locks, self.last_refresh = {}, {}
+        self.failures = {}
 
     async def cog_load(self):
         await self.store.initialize()
@@ -117,6 +119,23 @@ class AutoPanels(commands.Cog):
             return None
         if kind not in PANEL_OBJECTS:
             raise ValueError("Unknown panel object")
+        # Check before resolving/repairing channels; gateway events and the timer
+        # can otherwise issue the same expensive requests concurrently.
+        key = (guild.id, kind)
+        async with self.locks.setdefault(key, asyncio.Lock()):
+            attempts, retry_at = self.failures.get(key, (0, 0))
+            if not force and (time.monotonic() < retry_at or time.monotonic() - self.last_refresh.get(key, float('-inf')) < PANEL_OBJECTS[kind].refresh_seconds):
+                return None
+            try:
+                message = await self._publish(guild, kind, channel, days)
+            except (discord.HTTPException, asyncio.TimeoutError, ValueError):
+                self.failures[key] = (attempts + 1, time.monotonic() + min(300, 60 * 2 ** min(attempts, 3)))
+                raise
+            self.failures.pop(key, None)
+            self.last_refresh[key] = time.monotonic()
+            return message
+
+    async def _publish(self, guild, kind, channel, days):
         channel = channel or await self.resolve_channel(guild, kind)
         if PANEL_OBJECTS[kind].template_id == "assignment-dashboard":
             onboarding = self.bot.get_cog("LMSOnboarding")
@@ -130,23 +149,17 @@ class AutoPanels(commands.Cog):
         if not channel:
             log.warning("Automatic panel channel not found: guild=%s object=%s", guild.id, kind)
             return None
-        key = (guild.id, channel.id, kind)
-        async with self.locks.setdefault(key, asyncio.Lock()):
-            if not force and time.monotonic() - self.last_refresh.get(key, float('-inf')) < PANEL_OBJECTS[kind].refresh_seconds:
-                return None
-            payload = await self.build(guild, kind, days)
-            if payload is None:
-                self.last_refresh[key] = time.monotonic()
-                return None
-            embeds, view = payload
-            message = await ensure_panel(channel, kind, embeds, view, self.store, await self.legacy_id(guild, channel, kind))
-            self.bot.add_view(view, message_id=message.id)
-            if kind == "mentoring":
-                await database.upsert_panel(str(guild.id), str(channel.id), str(message.id))
-            else:
-                await database.save_assignment_panel(kind, str(channel.id), str(message.id))
-            self.last_refresh[key] = time.monotonic()
-            return message
+        payload = await self.build(guild, kind, days)
+        if payload is None:
+            return None
+        embeds, view = payload
+        message = await ensure_panel(channel, kind, embeds, view, self.store, await self.legacy_id(guild, channel, kind))
+        self.bot.add_view(view, message_id=message.id)
+        if kind == "mentoring":
+            await database.upsert_panel(str(guild.id), str(channel.id), str(message.id))
+        else:
+            await database.save_assignment_panel(kind, str(channel.id), str(message.id))
+        return message
 
     async def sync_once(self, force=False):
         if not self.bot.get_guild(config.current().GUILD_ID):
@@ -155,9 +168,11 @@ class AutoPanels(commands.Cog):
             try:
                 await self.publish(kind, force=force)
             except discord.Forbidden:
-                log.warning("Automatic panel permission denied: object=%s; check view/send/history/embed/pin permissions", kind)
+                log.warning("Automatic panel permission denied: guild=%s object=%s; check view/send/history/embed/pin permissions", config.current().GUILD_ID, kind)
+            except StorageUnavailable as error:
+                log.warning("Automatic panel storage pending: guild=%s object=%s (%s)", config.current().GUILD_ID, kind, error)
             except (discord.HTTPException, asyncio.TimeoutError, ValueError):
-                log.exception("Automatic panel update failed: object=%s", kind)
+                log.exception("Automatic panel update failed: guild=%s object=%s", config.current().GUILD_ID, kind)
 
     @tasks.loop(seconds=60)
     @each_workspace

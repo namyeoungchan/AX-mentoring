@@ -130,7 +130,8 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
         const { guildIds } = z.object({ guildIds: z.array(snowflake).max(10000) }).strict().parse(body);
         const result = { workspaces: [], unavailable: [] };
         for (const guildId of new Set(guildIds)) {
-            if (!await (main.prepare('SELECT 1 FROM lms_workspace_guilds WHERE guild_id=?')).get(guildId))
+            const binding = await main.prepare('SELECT workspace_id FROM lms_workspace_guilds WHERE guild_id=?').get(guildId);
+            if (!binding || (await workspaces.metadata(binding.workspace_id)).archivedAt !== null)
                 continue;
             try {
                 result.workspaces.push({ guildId, ...await status(guildId) });

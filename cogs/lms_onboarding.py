@@ -376,7 +376,7 @@ class LMSOnboarding(commands.Cog):
             if overwrites != channel.overwrites:
                 await channel.edit(overwrites=overwrites, reason="LMS verification required before channel access")
 
-    async def gate_member(self, member, restricted):
+    async def gate_member(self, member, restricted, channel_snapshot=None):
         # A role denial cannot override another role's allowance. Member-specific
         # overwrites close that bypass while preserving prior custom permissions.
         start = await self.store.get(member.guild.id, "channel", "start")
@@ -386,7 +386,8 @@ class LMSOnboarding(commands.Cog):
         saved = await self.store.get(member.guild.id, "access-gate", key) or {}
         if not restricted and not saved:
             return
-        channels = [channel for channel in await member.guild.fetch_channels() if channel.id != start["id"]]
+        fetched = await channel_snapshot() if channel_snapshot else await member.guild.fetch_channels()
+        channels = [channel for channel in fetched if channel.id != start["id"]]
         original = dict(saved)
         if restricted:
             for channel in channels:
@@ -482,7 +483,7 @@ class LMSOnboarding(commands.Cog):
             await interaction.followup.send("계정 인증은 완료됐습니다. 재인증하지 말고 잠시 후 시작하기 채널의 공용 버튼을 다시 눌러 자기소개를 이어가세요.", ephemeral=True)
             log.warning("LMS verified onboarding pending for guild %s (%s)", interaction.guild_id, failure_code(error))
 
-    async def sync_member(self, member, cfg, welcome=True):
+    async def sync_member(self, member, cfg, welcome=True, channel_snapshot=None):
         if member.bot:
             return
         current = self.configs.get(str(member.guild.id))
@@ -502,7 +503,7 @@ class LMSOnboarding(commands.Cog):
         if participant and participant["role"] == "student" and not any(t["id"] == participant.get("teamId") for t in cfg["teams"]):
             desired = {"pending"}
         if "pending" in desired:
-            await self.gate_member(member, True)
+            await self.gate_member(member, True, channel_snapshot)
         mappings = await self.store.all(member.guild.id, "role")
         if any(key not in mappings for key in desired):
             self.resources_checked.pop(str(member.guild.id), None)
@@ -523,7 +524,7 @@ class LMSOnboarding(commands.Cog):
         if add:
             await member.add_roles(*add, reason="LMS onboarding and web team assignment")
         if "pending" not in desired:
-            await self.gate_member(member, False)
+            await self.gate_member(member, False, channel_snapshot)
         mentor = participant and participant["role"] == "instructor"
         if participant and (mentor or record["introDone"]):
             team = next((team for team in cfg["teams"] if team["id"] == participant.get("teamId")), None)
@@ -609,11 +610,21 @@ class LMSOnboarding(commands.Cog):
                     await self.ensure_resources(guild, cfg)
                 if not guild.chunked:
                     await guild.chunk(cache=True)
+                channels = None
+                channel_lock = asyncio.Lock()
+                async def channel_snapshot():
+                    nonlocal channels
+                    # One fresh snapshot per scan; each member changes only their
+                    # own overwrite. Never cache permission state across scans.
+                    async with channel_lock:
+                        if channels is None:
+                            channels = await guild.fetch_channels()
+                        return channels
                 async def reconcile(member):
                     failure_code = ""
                     try:
                         async with self.member_lock(guild.id, member.id):
-                            state = await self.sync_member(member, cfg)
+                            state = await self.sync_member(member, cfg, channel_snapshot=channel_snapshot)
                     except discord.Forbidden:
                         failure_code = "permissions"
                     except discord.HTTPException:

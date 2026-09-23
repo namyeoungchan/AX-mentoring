@@ -55,6 +55,9 @@ export async function createOnboarding(db, workspaces, provision, { now = Date.n
         if (!id)
             return null;
         const cfg = await config(guildId);
+        const { archivedAt } = await workspaces.metadata(id);
+        if (archivedAt !== null)
+            return { guildId, enabled: false, revision: digest({ revision: cfg.revision, archivedAt }) };
         if (!cfg.enabled)
             return { guildId, enabled: false, revision: cfg.revision };
         const data = await workspaces.snapshot(id);

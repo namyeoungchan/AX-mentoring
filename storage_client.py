@@ -49,6 +49,14 @@ class WebStorage:
                         )
                     elif response.status == 401:
                         guidance = '봇과 웹 서비스의 LEARNINGOPS_PROVISION_TOKEN이 같은지 확인하세요.'
+                    elif response.status == 409 and operation == 'call':
+                        guidance = '워크스페이스 보관 상태 또는 요청 충돌을 확인하세요.'
+                        try:
+                            body = await response.json()
+                            if isinstance(body, dict) and body.get('error') == '보관된 워크스페이스입니다.':
+                                guidance = '보관된 워크스페이스의 자동 작업이 중지될 때까지 기다리세요.'
+                        except (aiohttp.ClientError, ValueError):
+                            pass
                     raise StorageUnavailable(f'웹 데이터 연결 오류 (HTTP {response.status}, 작업={operation}). {guidance}', retryable=response.status in {408, 429, 500, 502, 503, 504})
                 return await response.json()
         except StorageUnavailable:

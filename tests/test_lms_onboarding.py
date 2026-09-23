@@ -34,6 +34,24 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
                 async with self.cog.member_lock(456, 7):
                     self.assertTrue(lock.locked())
 
+    async def test_member_scan_fetches_channels_once_for_multiple_pending_members(self):
+        role = Role(1)
+        guild = SimpleNamespace(id=123, chunked=True, get_role=lambda _: role,
+                                fetch_channels=AsyncMock(return_value=[]), me=SimpleNamespace(top_role=Role(100)))
+        guild.members = [SimpleNamespace(id=i, bot=False, guild=guild, roles=[role]) for i in range(7, 13)]
+        await self.store.put(123, 'role', 'pending', {'id': role.id})
+        await self.store.put(123, 'channel', 'start', {'id': 11})
+        for member in guild.members:
+            await self.store.put(123, 'member', member.id, {'introDone': False, 'welcomed': True})
+        self.cog.ensure_resources = AsyncMock()
+        self.cog.request = AsyncMock()
+        cfg = {'enabled': True, 'revision': 'r1', 'participants': [], 'teams': []}
+        await self.cog.sync_guild(guild, cfg)
+        guild.fetch_channels.assert_awaited_once()
+        self.assertEqual(len(self.cog.request.call_args.args[1]['members']), 6)
+        await self.cog.sync_guild(guild, cfg)
+        self.assertEqual(guild.fetch_channels.await_count, 2)
+
     async def test_partial_transfer_retries_after_restart_and_reports_only_requested_members(self):
         roles = {i: Role(i) for i in range(1, 7)}
         for key, value in {'student': 2, 'complete': 3, 'team:old': 4, 'team:new': 5}.items():

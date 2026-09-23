@@ -132,6 +132,24 @@ test('registry discovers only joined and registered guilds with independent sett
     await assert.rejects(storage.call({ guildId: '999456789012345678', operation: 'get_mentors', requestId: randomUUID() }), { status: 403 });
     assert.deepEqual((await storage.registry({ guildIds: [secondGuild] })).workspaces.map(row => row.guildId), [secondGuild]);
 });
+
+test('archived workspaces stop bot jobs and onboarding, while restore resumes the saved configuration', async t => {
+    const { storage, workspaces, workspace, onboarding, call } = await fixture(t);
+    const actor = { id: 'owner', username: 'owner', role: 'admin' };
+    const { report: _report, progress: _progress, ...before } = (await onboarding.read(workspace.id)).configs[0];
+    await onboarding.save(workspace.id, { ...before, enabled: true });
+    const active = (await onboarding.poll({ guildIds: [guildId] })).configs[0];
+    assert.equal(active.enabled, true);
+    await workspaces.setArchived(workspace.id, true, actor);
+    assert.deepEqual(await storage.registry({ guildIds: [guildId] }), { workspaces: [], unavailable: [] });
+    const stopped = (await onboarding.poll({ guildIds: [guildId] })).configs[0];
+    assert.equal(stopped.enabled, false);
+    assert.notEqual(stopped.revision, active.revision);
+    await assert.rejects(call('save_assignment_panel', ['attendance', '555456789012345671', '555456789012345672']), { status: 409 });
+    await workspaces.setArchived(workspace.id, false, actor);
+    assert.equal((await storage.registry({ guildIds: [guildId] })).workspaces.length, 1);
+    assert.equal((await onboarding.poll({ guildIds: [guildId] })).configs[0].enabled, true);
+});
 test('generated channel and role IDs are resolved per guild and change after resource recreation', async (t) => {
     const { storage, workspaces, workspace, onboarding } = await fixture(t);
     const secondGuild = '888456789012345678';

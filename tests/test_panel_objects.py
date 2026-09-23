@@ -110,6 +110,39 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         repair.assert_awaited_once_with(self.guild, None)
         self.channel.send.assert_awaited_once()
 
+    async def test_automatic_cooldown_precedes_channel_permission_queries(self):
+        import asyncio
+        cog = module.AutoPanels(MagicMock(get_guild=MagicMock(return_value=self.guild)))
+        cog.store = self.store
+        cog.resolve_channel = AsyncMock(return_value=self.channel)
+        repair = AsyncMock(return_value=self.channel)
+        cog.bot.get_cog.return_value = SimpleNamespace(ensure_dashboard=repair)
+        cog.build = AsyncMock(return_value=([discord.Embed(title='현황')], MagicMock()))
+        cog.legacy_id = AsyncMock(return_value=None)
+        with patch.object(module.database, 'save_assignment_panel', new_callable=AsyncMock):
+            await asyncio.gather(*(cog.publish('dashboard', force=False) for _ in range(5)))
+        repair.assert_awaited_once()
+        cog.resolve_channel.assert_awaited_once()
+
+    async def test_storage_failure_backs_off_before_touching_discord_and_recovers_same_panel(self):
+        cog = module.AutoPanels(MagicMock(get_guild=MagicMock(return_value=self.guild)))
+        cog.store = self.store
+        cog.resolve_channel = AsyncMock(return_value=self.channel)
+        cog.build = AsyncMock(return_value=([discord.Embed(title='출석')], MagicMock()))
+        cog.legacy_id = AsyncMock(return_value=None)
+        saved = AsyncMock(side_effect=[module.StorageUnavailable('archived', retryable=False), None])
+        with patch.object(module.database, 'save_assignment_panel', saved):
+            with self.assertRaises(module.StorageUnavailable):
+                await cog.publish('attendance', force=False)
+            self.assertIsNone(await cog.publish('attendance', force=False))
+            cog.resolve_channel.assert_awaited_once()
+            # Retry the existing persisted message once the failure delay expires.
+            cog.failures[(self.guild.id, 'attendance')] = (1, 0)
+            await cog.publish('attendance', force=False)
+        self.channel.send.assert_awaited_once()
+        self.message.edit.assert_awaited_once()
+        self.assertFalse(cog.failures)
+
 
 if __name__ == '__main__':
     unittest.main()
