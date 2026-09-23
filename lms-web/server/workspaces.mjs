@@ -477,10 +477,18 @@ export async function createWorkspaces({ store, dbPath, provision, syncToken = '
     }
     async function teach(id, body, user) {
         await requireRole(id, user, ['instructor']);
-        if (!Array.isArray(body?.changes) || body.changes.some(change => !['attendance', 'scores', 'assignments'].includes(change?.kind)))
-            throw new ApiError(403, '멘토는 담당 범위의 출결·성적 관리와 과제 생성만 할 수 있습니다.');
+        if (!Array.isArray(body?.changes) || body.changes.some(change => !['attendance', 'scores', 'assignments', 'sessions'].includes(change?.kind)))
+            throw new ApiError(403, '멘토는 담당 범위의 출결·성적 관리, 과제 생성과 멘토링 예약 상태 변경만 할 수 있습니다.');
         const allowed = await teaching(id, user), all = await snapshot(id);
         for (const { kind, value } of body.changes) {
+            if (kind === 'sessions') {
+                const session = allowed.sessions.find(s => s.id === value?.id);
+                if (!session)
+                    throw new ApiError(403, '담당 범위의 기존 멘토링 예약만 변경할 수 있습니다.');
+                if (Object.keys(session).some(key => key !== 'status' && session[key] !== value[key]))
+                    throw new ApiError(422, '기존 예약은 승인·완료·취소만 지원합니다.');
+                continue;
+            }
             if (!allowed.courses.some(c => c.id === value?.courseId))
                 throw new ApiError(403, '담당 과정이 아닙니다.');
             if (kind === 'assignments') {

@@ -24,7 +24,7 @@ const schemas = {
     servers: z.object({ id, name: text, provider: text, region: text, status: z.literal('미연결'), version: z.string().max(40) }),
     mentors: z.object({ id, name: text, discordId: discord, bio: z.string().max(1000) }),
     assignments: z.object({ id, type: z.enum(['team', 'individual']).optional(), title: text, course: text, courseId: z.string().optional(), due: date, submitted: z.number().int().nonnegative(), total: z.number().int().nonnegative(), status: z.enum(['진행 중', '마감']) }),
-    sessions: z.object({ id, title: text, mentor: text, mentorId: id.optional(), studentId: id.optional(), team: z.string(), date, time: z.string().regex(/^\d{2}:\d{2}$/).refine(v => +v.slice(0, 2) < 24 && +v.slice(3) < 60), status: z.enum(['승인 대기', '예약 확정', '완료', '취소']) }),
+    sessions: z.object({ id, title: text, mentor: text, mentorId: id.optional(), studentId: z.union([id, z.literal('')]).optional(), team: z.string(), date, time: z.string().regex(/^\d{2}:\d{2}$/).refine(v => +v.slice(0, 2) < 24 && +v.slice(3) < 60), status: z.enum(['승인 대기', '예약 확정', '완료', '취소']) }),
     settings: z.object({ name: text, reminders: z.boolean(), onboarding: z.boolean(), qa: z.boolean() }),
 };
 export class ApiError extends Error {

@@ -90,7 +90,7 @@ export default function BotData({ workspaceId }: { workspaceId: string }) {
           <label>질문 미응답 알림 기준(시간)<input type="number" min={1} max={168} value={draft.qaUnansweredHours} onChange={e => setDraft({ ...draft, qaUnansweredHours: Number(e.target.value) })} /></label>
           <label>질문 알림을 받을 역할 ID (한 줄에 하나)<textarea value={(draft.qaNotifyRoleIds || []).join('\n')} onChange={e => setDraft({ ...draft, qaNotifyRoleIds: e.target.value.split('\n') })} /></label>
           <h3>이관된 팀 채널</h3>{draft.teams.map((team, index) => <div className="form-row" key={index}><label>팀 이름<input value={team.name} onChange={e => setDraft({ ...draft, teams: draft.teams.map((t, i) => i === index ? { ...t, name: e.target.value } : t) })} /></label><label>대화 채널 ID<input value={team.channelId} onChange={e => setDraft({ ...draft, teams: draft.teams.map((t, i) => i === index ? { ...t, channelId: e.target.value } : t) })} /></label></div>)}
-          <p>새 팀 생성과 인원 배정은 팀 관리·수강생 관리에서 설정합니다.</p><button className="button primary" onClick={() => void saveSettings()}><Save size={15} />채널 설정 저장</button>
+          <p>새 팀 생성과 인원 배정은 팀 관리·학생 계정 발급에서 설정합니다.</p><button className="button primary" onClick={() => void saveSettings()}><Save size={15} />채널 설정 저장</button>
         </fieldset>}
       </section>
     </div>

@@ -23,7 +23,6 @@ import WorkspaceSwitcher from './WorkspaceSwitcher'
 import WorkspaceMembers from './WorkspaceMembers'
 import WorkspaceStart from './WorkspaceStart'
 import InvitationPage from './InvitationPage'
-import { AdmissionsReview } from './Admissions'
 
 const CourseVideos = lazy(() => import('./CourseVideos'))
 const StudentHome = lazy(() => import('./StudentHome'))
@@ -33,12 +32,12 @@ const roleLoading = <div className="connection-screen" role="status"><Command si
 const navigation = [
   { id: 'dashboard', name: '대시보드', icon: LayoutDashboard }, { id: 'courses', name: '학습 과정', icon: BookOpen },
   { id: 'videos', name: '강의 영상', icon: BookOpen },
-  { id: 'learners', name: '수강생 관리', icon: Users }, { id: 'mentoring', name: '멘토링 일정', icon: CalendarDays },
+  { id: 'mentoring', name: '멘토링 일정', icon: CalendarDays },
   { id: 'assignments', name: '과제 관리', icon: ClipboardList }, { id: 'bots', name: '봇 · 서버 관리', icon: Bot },
   { id: 'logs', name: '활동 로그', icon: Activity }, { id: 'settings', name: '워크스페이스 설정', icon: Settings2 },
 ]
 navigation.splice(1, 0, { id: 'connection', name: '봇 연결 현황', icon: Bot })
-navigation.push({ id: 'members', name: '구성원 · 초대', icon: Users }, { id: 'admissions', name: '가입 승인', icon: CheckCheck })
+navigation.push({ id: 'members', name: '구성원 · 초대', icon: Users })
 navigation.push({ id: 'student-accounts', name: '학생 계정 발급', icon: Users })
 navigation.push({ id: 'accounts', name: '전체 계정 관리', icon: Users }, { id: 'data-admin', name: '백업 · 데이터 관리', icon: Settings2 })
 navigation.push({ id: 'discord', name: 'Discord 채널 설정', icon: Settings2 })
@@ -55,10 +54,10 @@ const pageInfo: Record<string, [string, string]> = {
   accounts: ['전체 계정 관리', '총관리자 · 초기 비밀번호 재설정 및 계정 삭제'],
   'bot-data': ['봇 데이터 · 운영', '기존 데이터 이관 · 예약·과제·평가 운영 · 채널 패널 설정'],
   onboarding: ['온보딩 · 팀 연동', '서버 참여 안내 · 역할 부여 · 팀 채널 자동 구성'],
-  members: ['구성원 · 초대', '워크스페이스 권한 및 초대 관리'], admissions: ['가입 승인', '기존 가입 신청 검토 · 새 학생은 학생 계정 발급에서 등록'],
+  members: ['구성원 · 초대', '워크스페이스 권한 및 초대 관리'],
   discord: ['Discord 채널 설정', '봇 초대 시 적용할 서버 채널 구성'],
   connection: ['봇 연결 현황', 'Render 봇 연결 상태 · 멘토링 · 과제 · 제출 데이터'], submissions: ['제출 내역', '기존 봇의 과제 제출 데이터'], teams: ['팀 관리', '과정별 팀 구성 및 담당 멘토'], attendance: ['출결 관리', '차시별 출결 등록 및 변경 이력'], scores: ['성적 관리', '항목별 점수 및 종합점수'], notices: ['공지 관리', '과정별 공지 초안'], files: ['통합 파일함', '과정·팀별 파일 및 S3 연동 상태'],
-  dashboard: ['운영 대시보드', '과정, 수강생, 과제, 멘토링 현황'], courses: ['과정 관리', '과정 및 기수 등록 · 운영 상태 관리'], learners: ['수강생 관리', '수강생 정보 · Discord 계정 · 팀 배정'], mentoring: ['멘토링 일정', '예약 등록 · 승인 · 진행 이력'], assignments: ['과제 관리', '과제 등록 · 제출 현황 · 마감 관리'], bots: ['봇 · 서버 관리', '배포 환경 및 연동 상태'], logs: ['활동 로그', '데이터 변경 및 운영 작업 이력'], settings: ['워크스페이스 설정', '기본 정보 및 연결 설정'],
+  dashboard: ['운영 대시보드', '과정, 수강생, 과제, 멘토링 현황'], courses: ['과정 관리', '과정 및 기수 등록 · 운영 상태 관리'], mentoring: ['멘토링 일정', '예약 등록 · 승인 · 진행 이력'], assignments: ['과제 관리', '과제 등록 · 제출 현황 · 마감 관리'], bots: ['봇 · 서버 관리', '배포 환경 및 연동 상태'], logs: ['활동 로그', '데이터 변경 및 운영 작업 이력'], settings: ['워크스페이스 설정', '기본 정보 및 연결 설정'],
 }
 export default function App() {
   const workspace = useWorkspace()
@@ -126,8 +125,7 @@ function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspa
       <main><div className="page-heading"><div><div className="eyebrow">LEARNING OPERATIONS</div><h1>{pageInfo[page][0]}</h1><p>{pageInfo[page][1]}</p></div><div className="page-actions">{page === 'dashboard' && <button className="button secondary" onClick={exportReport}><ArrowDownToLine size={16} /> 리포트 내보내기</button>}{['dashboard', 'courses', 'bots', 'mentoring', 'assignments'].includes(page) && <button className="button primary" onClick={() => setModal(page === 'bots' ? 'server' : page === 'mentoring' ? 'session' : page === 'assignments' ? 'assignment' : 'course')}><Plus size={17} />{page === 'bots' ? '서버 추가' : page === 'mentoring' ? '일정 등록' : page === 'assignments' ? '과제 만들기' : '새 과정 만들기'}</button>}</div></div>
       {error && <div role="alert" className="inline-note error-note">{error}<button onClick={() => void refresh()} className="text-button">다시 불러오기</button></div>}
       {page === 'dashboard' && <WorkspaceStart platformAdmin={workspace.account?.role === 'admin' || data.mode === 'demo'} go={go} />}
-      {page === 'learners' && <section className="learner-admissions"><AdmissionsReview workspaceId={activeId} pendingOnly onReviewed={workspace.refreshQuietly} /></section>}
-      {page === 'videos' ? <Suspense fallback={roleLoading}><CourseVideos key={activeId} workspaceId={activeId} /></Suspense> : page === 'data-admin' ? (workspace.account?.role === 'admin' && workspace.account.id !== 'admin' ? <DataAdministration /> : <p role="alert">총관리자 계정으로 로그인하세요.</p>) : page === 'student-accounts' ? <StudentAccounts key={activeId} workspaceId={activeId} refreshWorkspace={workspace.refreshQuietly} /> : page === 'accounts' ? (workspace.account?.role === 'admin' && workspace.account.id !== 'admin' ? <AccountAdministration key={activeId} workspaceId={activeId} workspaceName={data.name} currentId={workspace.account.id} logout={logout} /> : <p role="alert">총관리자 계정으로 로그인하세요.</p>) : page === 'bot-data' ? <BotData workspaceId={activeId} /> : page === 'onboarding' ? <OnboardingSetup workspaceId={activeId} /> : page === 'members' ? <WorkspaceMembers key={activeId} workspaceId={activeId} workspaceName={data.name} openSetup={() => go('discord')} platformAdmin={workspace.account?.role === 'admin' || data.mode === 'demo'} /> : page === 'admissions' ? <AdmissionsReview workspaceId={activeId} /> : page === 'discord' ? <DiscordSetup workspaceId={activeId} /> : page === 'connection' ? <RenderMonitor query={query} workspaceId={activeId} workspaceName={data.name} /> : page === 'dashboard' ? <Dashboard data={data} query={query} go={go} selectCourse={setSelectedCourse} addSession={() => setModal('session')} /> : ['learners', 'teams', 'attendance', 'scores', 'notices', 'files', 'submissions'].includes(page) ? <Operations refresh={workspace.refreshQuietly} key={page} page={page} data={data} query={query} change={change} saving={saving} error={error} /> : <Management refresh={workspace.refreshQuietly} page={page} data={data} query={query} filter={filter} setFilter={setFilter} change={change} go={go} selectCourse={setSelectedCourse} help={() => setModal('help')} />}
+      {page === 'videos' ? <Suspense fallback={roleLoading}><CourseVideos key={activeId} workspaceId={activeId} /></Suspense> : page === 'data-admin' ? (workspace.account?.role === 'admin' && workspace.account.id !== 'admin' ? <DataAdministration /> : <p role="alert">총관리자 계정으로 로그인하세요.</p>) : page === 'student-accounts' ? <StudentAccounts key={activeId} workspaceId={activeId} refreshWorkspace={workspace.refreshQuietly} /> : page === 'accounts' ? (workspace.account?.role === 'admin' && workspace.account.id !== 'admin' ? <AccountAdministration key={activeId} workspaceId={activeId} workspaceName={data.name} currentId={workspace.account.id} logout={logout} /> : <p role="alert">총관리자 계정으로 로그인하세요.</p>) : page === 'bot-data' ? <BotData workspaceId={activeId} /> : page === 'onboarding' ? <OnboardingSetup workspaceId={activeId} /> : page === 'members' ? <WorkspaceMembers key={activeId} workspaceId={activeId} workspaceName={data.name} openSetup={() => go('discord')} platformAdmin={workspace.account?.role === 'admin' || data.mode === 'demo'} /> : page === 'discord' ? <DiscordSetup workspaceId={activeId} /> : page === 'connection' ? <RenderMonitor query={query} workspaceId={activeId} workspaceName={data.name} /> : page === 'dashboard' ? <Dashboard data={data} query={query} go={go} selectCourse={setSelectedCourse} addSession={() => setModal('session')} /> : ['teams', 'attendance', 'scores', 'notices', 'files', 'submissions'].includes(page) ? <Operations refresh={workspace.refreshQuietly} key={page} page={page} data={data} query={query} change={change} saving={saving} error={error} /> : <Management refresh={workspace.refreshQuietly} page={page} data={data} query={query} filter={filter} setFilter={setFilter} change={change} go={go} selectCourse={setSelectedCourse} help={() => setModal('help')} />}
       <footer><span>© 2026 {data.name}</span><span>AX 학습관리시스템 <Sparkles size={12} /></span><button onClick={() => setModal('help')}>도움말 <ExternalLink size={12} /></button></footer>
       </main>
     </div>

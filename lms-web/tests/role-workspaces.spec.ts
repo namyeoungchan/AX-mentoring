@@ -29,7 +29,7 @@ for (const role of ['instructor', 'student'] as const) {
     page.on('pageerror', e => errors.push(e.message))
     const home = role === 'instructor' ? 'courses' : 'learning'
     const destinations = role === 'instructor'
-      ? [['courses', '수업 현황'], ['attendance', '출결 관리'], ['teams', '팀 배정'], ['scores', '성적 관리'], ['admissions', '가입 승인'], ['onboarding', '멘토 온보딩'], ['videos', '강의 영상']]
+      ? [['courses', '수업 현황'], ['mentoring', '멘토링 관리'], ['attendance', '출결 관리'], ['teams', '팀 배정'], ['scores', '성적 관리'], ['onboarding', '멘토 온보딩'], ['videos', '강의 영상']]
       : [['learning', '나의 학습'], ['attendance', '나의 출결'], ['scores', '나의 성적'], ['assignments', '과제'], ['participation', '워크스페이스 참여'], ['videos', '강의 영상']]
     await page.goto('/?workspace=' + ws.id + '#' + home)
     await expect(page.locator('.role-workspace')).toBeVisible()

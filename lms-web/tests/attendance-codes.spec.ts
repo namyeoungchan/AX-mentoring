@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 
-test('mentor code UI accepts verified Discord check-ins, updates roster, preserves corrections and revokes codes', async ({ page }) => {
+test('mentor code UI accepts verified check-ins and preserves recorded evidence across code rotation and corrections', async ({ page }) => {
   const request = page.request, suffix = randomUUID().slice(0, 8)
   const guildId = '8' + Date.now().toString().padStart(17, '0'), discordId = '9' + Date.now().toString().padStart(17, '0')
   const legacy = await (await request.post('/api/login', { data: { password: 'test-only-password-1234' } })).json()
@@ -43,19 +43,31 @@ test('mentor code UI accepts verified Discord check-ins, updates roster, preserv
   expect((await request.post(path, { headers: studentHeaders, data: { guildId, discordId, code } })).status()).toBe(401)
   const results = await Promise.all([check(), check()])
   expect(results.map(r => r.status())).toEqual([200, 200])
-  expect((await Promise.all(results.map(r => r.json()))).map(r => r.alreadyRecorded).sort()).toEqual([false, true])
+  const recorded = await Promise.all(results.map(r => r.json()))
+  expect(recorded.map(r => r.alreadyRecorded).sort()).toEqual([false, true])
   await page.getByRole('button', {name:'명단 새로고침'}).click()
   await expect(page.locator('.attendance-summary')).toContainText('미처리 1명')
   await expect(page.locator('.attendance-code-times')).toContainText('10:00–12:00')
+  const reissued = page.waitForResponse(response => response.url().endsWith(base + '/attendance/code') && response.request().method() === 'POST')
   await page.getByRole('button', { name: '시작 코드 재발급', exact: true }).click()
+  expect((await reissued).ok()).toBeTruthy()
+  await expect(codeOutput).toHaveText(/^\d{6}$/)
   await expect(codeOutput).not.toHaveText(code)
-  expect((await check()).status()).toBe(410)
+  // Retries return this verified student's committed evidence even after rotation.
+  const retry = await check()
+  expect(retry.status()).toBe(200)
+  expect(await retry.json()).toMatchObject({ alreadyRecorded: true, checkInAt: recorded[0].checkInAt })
   const nextCode = (await codeOutput.textContent())!
   page.once('dialog', dialog => dialog.accept())
+  const ended = page.waitForResponse(response => response.url().endsWith(base + '/attendance/code') && response.request().method() === 'POST')
   await page.getByRole('button', {name:'종료 코드 생성 · 강의 종료'}).click()
+  expect((await ended).ok()).toBeTruthy()
+  await expect(codeOutput).toHaveText(/^\d{6}$/)
   await expect(codeOutput).not.toHaveText(nextCode)
   const endCode = (await codeOutput.textContent())!
-  expect((await check(nextCode)).status()).toBe(410)
+  const endedRetry = await check(nextCode)
+  expect(endedRetry.status()).toBe(200)
+  expect(await endedRetry.json()).toMatchObject({ alreadyRecorded: true, checkInAt: recorded[0].checkInAt })
   expect((await check(endCode)).status()).toBe(200)
   await page.getByRole('button', {name:'명단 새로고침'}).click()
   await expect(page.getByRole('group', { name: '코드 학생 출결 상태', exact: true }).getByRole('button', { name: '출석', exact: true })).toHaveAttribute('aria-pressed', 'true')
