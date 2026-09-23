@@ -21,6 +21,7 @@ export default function Attendance({ data, refresh }: { data: Workspace; refresh
   const [error, setError] = useState(''), [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false), [reason, setReason] = useState('')
   const [search, setSearch] = useState(''), [team, setTeam] = useState(''), [status, setStatus] = useState('')
+  const [reviewOnly, setReviewOnly] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [reload, setReload] = useState(0)
   const generation = useRef(0), locked = useRef(false)
@@ -29,7 +30,7 @@ export default function Attendance({ data, refresh }: { data: Workspace; refresh
   useEffect(() => {
     const version = ++generation.current, controller = new AbortController()
     // eslint-disable-next-line react/set-state-in-effect -- Reset the editor when fetching a different persisted roster.
-    setRoster(null); setDraft({}); setSelected([]); setSearch(''); setTeam(''); setStatus(''); setError(''); setMessage(''); setReason(''); pending.current = null
+    setRoster(null); setDraft({}); setSelected([]); setSearch(''); setTeam(''); setStatus(''); setReviewOnly(false); setError(''); setMessage(''); setReason(''); pending.current = null
     if (!courseId || !date || period < 1 || period > 100) return
     workspaceRequest(workspaceId, `attendance?${new URLSearchParams({ courseId, date, period: String(period) })}`, { signal: controller.signal })
       .then((value: Roster) => { if (generation.current === version) setRoster(value) })
@@ -49,10 +50,17 @@ export default function Attendance({ data, refresh }: { data: Workspace; refresh
     }, 5000)
     return () => { controller.abort(); clearInterval(timer) }
   }, [workspaceId, courseId, date, period, roundState, dirty, busy])
-  const visible = rows.filter(row => (!search.trim() || row.name.toLowerCase().includes(search.trim().toLowerCase())) && (!team || (row.team || '미배정') === team) && (!status || row.status === status))
+  const missingCheckout = (row: Row) => !!roster?.session?.endedAt && !!row.checkInAt && !row.checkOutAt && ['출석', '지각'].includes(row.status)
+  const needsReview = (row: Row) => row.status === '미처리' || missingCheckout(row)
+  const reviewCount = rows.filter(needsReview).length
+  const visible = rows.filter(row => (!search.trim() || row.name.toLowerCase().includes(search.trim().toLowerCase())) && (!team || (row.team || '미배정') === team) && (!status || row.status === status) && (!reviewOnly || needsReview(row)))
   const selectedRows = visible.filter(row => selected.includes(row.studentId))
   const pendingRows = visible.filter(row => row.status === '미처리' && row.enrollment === '정상')
   const editable = !busy && roster?.state !== '진행 전'
+  const closeBlocker = dirty ? `변경한 ${Object.keys(draft).length}명의 출결을 먼저 저장하세요.`
+    : roster?.session && !roster.session.endedAt ? '종료 코드를 생성해 강의를 종료하세요.'
+    : roster?.counts['미처리'] ? `미처리 ${roster.counts['미처리']}명의 출결을 입력하세요.`
+    : !rows.length ? '확정할 수강생이 없습니다.' : ''
   function mark(targets: Row[], status: string) {
     setDraft(previous => {
       const next = { ...previous }
@@ -107,7 +115,7 @@ export default function Attendance({ data, refresh }: { data: Workspace; refresh
     } catch (e) { if (version === generation.current) setError((e as Error).message) }
   }
   return <section className="panel attendance-panel">
-    <CardHeading title="명단 출결" subtitle="강의 시간대를 정하고 시작·종료 코드를 안내하세요. 학생의 코드 입력이 입실·퇴실 출석으로 기록됩니다." />
+    <CardHeading title="명단 출결" subtitle="코드로 입퇴실을 받고, 누락된 학생만 확인한 뒤 출결을 확정하세요." />
     <fieldset disabled={busy} className="attendance-controls">
       <label>출결 과정<select value={courseId} onChange={e => { if (discard()) setCourseId(e.target.value) }}>{!data.courses.length && <option value="">등록된 과정 없음</option>}{data.courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label>
       <label>출결 날짜<input type="date" value={date} onChange={e => { if (discard()) setDate(e.target.value) }} /></label>
@@ -120,36 +128,42 @@ export default function Attendance({ data, refresh }: { data: Workspace; refresh
       <div className="attendance-summary"><Badge>{roster.state === '마감' ? '출결 확정' : roster.session?.endedAt ? '강의 종료 · 출결 확인' : roster.state}</Badge><span>전체 <strong>{rows.length}명</strong></span>{states.map(value => <button key={value} className={`attendance-count ${status === value ? 'selected' : ''}`} aria-pressed={status === value} onClick={() => { setStatus(status === value ? '' : value); setSelected([]) }}>{value} <strong>{rows.filter(row => row.status === value).length}명</strong></button>)}</div>
       <div className="attendance-round-actions">
         <p>{roster.state === '진행 전' ? '아래에서 강의 시간대를 입력하고 시작 코드를 생성하세요.' : roster.state === '마감' ? '확정된 회차입니다. 정정할 때는 사유를 입력하세요.' : '시작 코드로 입실, 종료 코드로 퇴실을 받습니다. 강의 종료 후 누락·예외를 확인하고 출결을 확정하세요.'}</p>
-        {roster.canManage && roster.state === '진행 중' && <button className="button secondary" disabled={busy || dirty || !!roster.counts['미처리'] || !rows.length || !!(roster.session && !roster.session.endedAt)} onClick={() => void save('close')}>출결 확정</button>}
         {!roster.canManage && roster.state === '진행 전' && <span>관리자 또는 메인 강사가 회차를 시작하면 입력할 수 있습니다.</span>}
       </div>
-      <AttendanceCode key={`${workspaceId}/${courseId}/${date}/${period}`} workspaceId={workspaceId} courseId={courseId} date={date} period={period} roundState={roster.state} disabled={busy || dirty} suggestedStart={data.courses.find(c => c.id === courseId)?.schedule?.filter(s => s.date === date)[period - 1]?.startTime} suggestedEnd={data.courses.find(c => c.id === courseId)?.schedule?.filter(s => s.date === date)[period - 1]?.endTime} onUpdated={async () => { setRoster(await workspaceRequest(workspaceId, `attendance?${new URLSearchParams({ courseId, date, period: String(period) })}`)) }} />
+      {roster.state !== '마감' && <AttendanceCode key={`${workspaceId}/${courseId}/${date}/${period}`} workspaceId={workspaceId} courseId={courseId} date={date} period={period} roundState={roster.state} disabled={busy || dirty} suggestedStart={data.courses.find(c => c.id === courseId)?.schedule?.filter(s => s.date === date)[period - 1]?.startTime} suggestedEnd={data.courses.find(c => c.id === courseId)?.schedule?.filter(s => s.date === date)[period - 1]?.endTime} onUpdated={async () => { setRoster(await workspaceRequest(workspaceId, `attendance?${new URLSearchParams({ courseId, date, period: String(period) })}`)) }} />}
+      <div className="attendance-review">
+        <div role="group" aria-label="명단 보기"><button className="attendance-count" aria-pressed={!reviewOnly} onClick={() => { setReviewOnly(false); setStatus(''); setSelected([]) }}>전체 명단</button><button className="attendance-count" aria-pressed={reviewOnly} onClick={() => { setReviewOnly(true); setStatus(''); setSelected([]) }}>확인 필요 <strong>{reviewCount}명</strong></button></div>
+        <small>미처리와 강의 종료 후 퇴실이 누락된 출석·지각 학생을 모아봅니다.</small>
+      </div>
       <fieldset disabled={busy} className="attendance-controls attendance-filters">
         <label>수강생 검색<input type="search" value={search} placeholder="이름으로 검색" onChange={e => { setSearch(e.target.value); setSelected([]) }} /></label>
         <label>출결 조 필터<select value={team} onChange={e => { setTeam(e.target.value); setSelected([]) }}><option value="">전체 조</option>{[...new Set(rows.map(row => row.team || '미배정'))].sort((a, b) => a.localeCompare(b, 'ko', { numeric: true })).map(value => <option key={value}>{value}</option>)}</select></label>
         <label>출결 상태 필터<select value={status} onChange={e => { setStatus(e.target.value); setSelected([]) }}><option value="">전체 상태</option>{states.map(value => <option key={value}>{value}</option>)}</select></label>
         <span className="attendance-filter-count">{visible.length}명 표시 · {selectedRows.length}명 선택</span>
+        {(search || team || status || reviewOnly) && <button className="button secondary" onClick={() => { setSearch(''); setTeam(''); setStatus(''); setReviewOnly(false); setSelected([]) }}>필터 초기화</button>}
       </fieldset>
       <fieldset disabled={!editable} className="attendance-bulk">
         <div><strong>선택한 {selectedRows.length}명</strong><div className="attendance-status-buttons" role="group" aria-label="선택 학생 일괄 출결">{states.slice(1).map(value => <button key={value} className={`attendance-state attendance-state-${states.indexOf(value)}`} disabled={!selectedRows.length} onClick={() => mark(selectedRows, value)}>{value}</button>)}</div></div>
         <button className="button secondary" disabled={!pendingRows.length} onClick={() => mark(pendingRows, '출석')}>미처리 {pendingRows.length}명 출석</button>
-        <small>현재 표시된 정상 수강생 중 미처리만 적용합니다. 기존 지각·결석은 유지합니다.</small>
+        <button className="button secondary" disabled={!pendingRows.length} onClick={() => mark(pendingRows, '결석')}>미처리 {pendingRows.length}명 결석</button>
+        <small>현재 표시된 정상 수강생 중 미처리에만 적용합니다. 확인 후 일괄 저장하세요.</small>
       </fieldset>
-      <div className="table-scroll attendance-roster"><table><thead><tr>
+      <div className="table-scroll attendance-roster" role="region" aria-label="출결 명단" tabIndex={0}><table><thead><tr>
         <th><input type="checkbox" aria-label="표시된 수강생 전체 선택" disabled={!editable || !visible.length} checked={visible.length > 0 && selectedRows.length === visible.length} ref={element => { if (element) element.indeterminate = selectedRows.length > 0 && selectedRows.length < visible.length }} onChange={e => setSelected(e.target.checked ? visible.map(row => row.studentId) : [])} /></th>
         <th>수강생 · 조</th><th>입실 · 퇴실 (한국시간)</th><th>출결 체크</th><th>입력 사유</th>
       </tr></thead><tbody>{visible.map(row => <tr key={row.studentId} className={draft[row.studentId] ? 'attendance-row-dirty' : ''}>
         <td><input type="checkbox" aria-label={`${row.name} 선택`} checked={selected.includes(row.studentId)} disabled={!editable} onChange={e => setSelected(previous => e.target.checked ? [...previous, row.studentId] : previous.filter(id => id !== row.studentId))} /></td>
         <td className="attendance-person"><strong>{row.name}</strong><span>{row.team || '미배정'} · {row.enrollment}{draft[row.studentId] && ' · 저장 전'}</span></td>
-        <td><strong>{row.checkInAt ? new Date(row.checkInAt).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }) : '입실 전'}</strong><small>{row.checkOutAt ? new Date(row.checkOutAt).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }) : row.checkInAt ? '퇴실 미등록' : '—'}</small></td><td><div className="attendance-status-buttons" role="group" aria-label={`${row.name} 출결 상태`}>{states.slice(1).map(value => <button key={value} className={`attendance-state attendance-state-${states.indexOf(value)}`} disabled={!editable} aria-pressed={row.status === value} onClick={() => mark([row], value)}>{value}</button>)}</div>{row.status === '미처리' && <small className="attendance-pending">아직 체크하지 않음</small>}</td>
+        <td><strong>{row.checkInAt ? new Date(row.checkInAt).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }) : '입실 전'}</strong><small className={missingCheckout(row) ? 'attendance-missing' : ''}>{row.checkOutAt ? new Date(row.checkOutAt).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }) : row.checkInAt ? '퇴실 미등록' : '—'}</small></td><td><div className="attendance-status-buttons" role="group" aria-label={`${row.name} 출결 상태`}>{states.slice(1).map(value => <button key={value} className={`attendance-state attendance-state-${states.indexOf(value)}`} disabled={!editable} aria-pressed={row.status === value} onClick={() => mark([row], value)}>{value}</button>)}</div>{row.status === '미처리' && <small className="attendance-pending">아직 체크하지 않음</small>}</td>
         <td className="attendance-row-reason">{row.reason || '—'}</td>
       </tr>)}</tbody></table></div>
       {!visible.length && <p className="calendar-empty">{rows.length ? '조건에 맞는 수강생이 없습니다. 검색이나 필터를 변경하세요.' : '해당 과정에 담당 수강생이 없습니다.'}</p>}
       <fieldset disabled={!editable} className="attendance-savebar">
-        <div><strong>{dirty ? `저장 전 변경 ${Object.keys(draft).length}명` : '저장 전 변경 없음'}</strong><small>선택 여부와 관계없이 변경한 학생의 출결을 저장합니다.</small></div>
+        <div><strong>{dirty ? `저장 전 변경 ${Object.keys(draft).length}명` : '저장 전 변경 없음'}</strong><small>{dirty ? '필터로 숨겨진 학생을 포함해 변경한 출결을 모두 저장합니다.' : '출결을 선택하거나 미처리 학생을 일괄 처리하세요.'}</small></div>
         <label>등록·정정 사유<input maxLength={200} value={reason} placeholder={roster.state === '마감' ? '마감 후 정정 시 필수' : '선택 입력'} onChange={e => setReason(e.target.value)} /></label>
         <button className="button secondary" disabled={!dirty} onClick={() => { if (discard()) { setDraft({}); setReason(''); setSelected([]) } }}>입력 되돌리기</button>
         <button className="button primary" disabled={!dirty} onClick={() => void save('save')}>{busy ? '저장 중…' : '출결 일괄 저장'}</button>
+        {roster.canManage && roster.state === '진행 중' && <div className="attendance-finalize"><p id="attendance-close-hint">{closeBlocker || (reviewCount ? `퇴실 누락 ${reviewCount}명을 확인한 뒤 확정하세요.` : '모든 출결이 저장됐습니다. 확정하면 수강생에게 공개됩니다.')}</p><button className="button secondary" aria-describedby="attendance-close-hint" disabled={busy || !!closeBlocker} onClick={() => void save('close')}>출결 확정</button></div>}
       </fieldset>
       <AttendanceDiscord key={`${courseId}:${date}:${period}`} workspaceId={workspaceId} courseId={courseId} date={date} period={period} revision={roster.revision} dirty={dirty} />
       <details className="attendance-history"><summary>CSV 내보내기 · 복구 입력</summary><p className="inline-note">입퇴실 시각은 조회용으로 내보냅니다. CSV 가져오기는 출결 상태와 사유만 반영합니다.</p><fieldset disabled={busy} className="attendance-controls"><button className="button secondary" onClick={download}>출결 CSV 내보내기</button><label>출결 CSV 가져오기<input type="file" accept=".csv,text/csv" disabled={roster.state === '진행 전'} onChange={e => { void upload(e.target.files?.[0]); e.target.value = '' }} /></label></fieldset></details>

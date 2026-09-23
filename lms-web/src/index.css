@@ -927,6 +927,10 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .attendance-history summary { cursor: pointer; padding: 10px 0; }
 .attendance-count { border: 1px solid #d8ded9; border-radius: 12px; background: white; padding: 9px 12px; cursor: pointer; }
 .attendance-count.selected { background: #e8f1eb; border-color: #315c48; }
+.attendance-review { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 16px 0; }
+.attendance-review > div { display: flex; gap: 8px; }
+.attendance-review small { color: #647469; }
+.attendance-review button[aria-pressed=true] { background: #e8f1eb; border-color: #315c48; color: #21593a; }
 .attendance-round-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 16px; }
 .attendance-round-actions p { flex: 1; font-size: 13px; color: #526359; min-width: 220px; }
 .attendance-filter-count { color: #526359; font-size: 13px; padding: 10px 0; }
@@ -942,6 +946,11 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .attendance-state-3[aria-pressed=true] { color: #913e3e; background: #fbe2e2; }
 .attendance-state-4[aria-pressed=true] { color: #3c5688; background: #e4edfa; }
 .attendance-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.attendance-roster { max-height: 560px; max-height: clamp(280px, 55dvh, 560px); overflow: auto; margin-top: 0; scrollbar-gutter: stable; }
+.attendance-roster thead { position: sticky; top: 0; z-index: 1; background: #f8faf6; }
+.attendance-roster td > small { display: block; margin-top: 5px; }
+.attendance-roster .attendance-missing { color: #805410; font-weight: 600; }
+.attendance-panel :is(button, input, select, [tabindex]):focus-visible { outline: 2px solid #315c48; outline-offset: 3px; }
 .attendance-roster input[type=checkbox] { width: 19px; height: 19px; accent-color: #315c48; cursor: pointer; }
 .attendance-person strong, .attendance-person span { display: block; }
 .attendance-person span, .attendance-pending { font-size: 12px; color: #647469; margin-top: 5px; }
@@ -952,6 +961,9 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .attendance-savebar small { display: block; color: #647469; font-size: 11px; margin-top: 5px; }
 .attendance-savebar label { font-size: 12px; display: grid; gap: 5px; }
 .attendance-savebar input { border: 1px solid #d8ded9; border-radius: 8px; padding: 9px; max-width: 100%; }
+.attendance-savebar > .attendance-finalize { flex: 1 0 100%; display: flex; align-items: center; gap: 12px; border-top: 1px solid #e6ebe5; padding-top: 12px; }
+.attendance-finalize p { flex: 1; margin: 0; font-size: 13px; color: #526359; }
+.attendance-summary strong { font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) {
   .attendance-roster table, .attendance-roster tbody { display: block; min-width: 0; width: 100%; }
   .attendance-roster thead { display: block; }
@@ -965,7 +977,8 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
   .attendance-status-buttons { flex-wrap: nowrap; }
   .attendance-state { flex: 1; min-width: 0; padding: 9px 10px; }
   .attendance-savebar label { width: 100%; }
-  .attendance-panel .attendance-savebar { bottom: 0; margin: 12px; padding: 12px; }
+  .attendance-panel .attendance-savebar { position: static; margin: 12px; padding: 12px; }
+  .attendance-finalize { flex-wrap: wrap; }
 }
 
 .discord-quick { min-width: 0; }
@@ -1048,8 +1061,10 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .data-backup-list { list-style: none; padding: 0; margin: 0; }
 .data-backup-list li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 0; border-top: 1px solid #dde4da; }
 .data-backup-list small { display: block; margin-top: 4px; }
-.attendance-code { margin: 18px 0; padding: 18px; border: 1px solid var(--border, #dce3de); border-radius: 14px; background: #f6faf7; }
+.attendance-code { margin: 12px 16px; padding: 14px; border: 1px solid var(--border, #dce3de); border-radius: 10px; background: #f6faf7; }
 .attendance-code h3 { margin: 0 0 8px; }
+.attendance-code summary { cursor: pointer; font-weight: 600; }
+.attendance-code summary small { margin-left: 8px; color: #647469; font-weight: 400; }
 .attendance-code p, .attendance-code small { overflow-wrap: anywhere; }
 .attendance-code-controls, .attendance-code-display { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 14px 0; }
 .attendance-code-controls label { display: grid; gap: 6px; }
