@@ -61,8 +61,8 @@ export default function OnboardingSetup({ workspaceId }: { workspaceId: string }
         </fieldset></form>
         {report?.error && <p className="inline-note error-note">{errors[report.error] || '봇 로그를 확인하세요.'}</p>}
       </section>
-      <aside className="panel modal-form"><h2>팀 배정 · {teams.length}개 팀</h2><p>팀 관리에서 팀을 만들고 수강생 관리에서 팀원을 배정합니다. 저장한 배정은 봇에 자동 반영됩니다.</p>
-        <div className="flex gap-2"><a className="button secondary" href="#teams">팀 관리</a><a className="button secondary" href="#learners">수강생 배정</a></div>
+      <aside className="panel modal-form"><h2>팀 배정 · {teams.length}개 팀</h2><p>팀 관리에서 팀을 만들고 학생 계정 발급에서 학생의 조를 배정합니다. 저장한 배정은 봇에 자동 반영됩니다.</p>
+        <div className="flex gap-2"><a className="button secondary" href="#teams">팀 관리</a><a className="button secondary" href="#student-accounts">수강생 배정</a></div>
         <div className="table-scroll"><table><thead><tr><th>팀</th><th>배정 인원</th></tr></thead><tbody>{teams.map(t => <tr key={t.id}><td>{t.name}</td><td>{t.members}명</td></tr>)}</tbody></table></div>
         <h3>참여 순서</h3><ol><li>서버 참여 → 안내 DM, 대기 역할 부여</li><li>DM이 막혀 있으면 시작 안내 채널에서 진행</li><li>웹 가입 승인·Discord 인증·과정 등록 확인</li><li>자기소개 완료 → 수강생·완료·배정 팀 역할 부여</li></ol>
         <p>팀별 대화·음성 채널은 팀원·워크스페이스 관리자·메인 강사·해당 조 담당 멘토에게 공개됩니다. 팀 변경 시 이전 팀 역할을 회수합니다.</p>

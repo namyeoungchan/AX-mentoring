@@ -6,7 +6,7 @@ test('a shared classroom IP is not blocked after 120 login requests', async ({ r
   }
 })
 
-test('workspace administrator invites an instructor; student signs up, instructor approves and Discord invite precedes verification', async ({ page, request, browser }) => {
+test('workspace administrator invites an instructor; student signs up, administrator approves and Discord invite precedes verification', async ({ page, request, browser }) => {
   test.setTimeout(90000)
   const platform = await (await request.post('/api/login', { data: { password: 'test-only-password-1234' } })).json()
   const platformHeaders = { Authorization: `Bearer ${platform.token}` }
@@ -70,17 +70,9 @@ test('workspace administrator invites an instructor; student signs up, instructo
     await expect(student.getByRole('link', { name: 'Discord 서버 참여' })).toHaveCount(0)
     await student.reload()
     await expect(student.getByText('승인 대기', { exact: true })).toBeVisible()
-    await teacher.getByRole('button', { name: '가입 승인', exact: true }).click()
-    await expect(teacher.getByRole('heading', { name: '승인 대기 학생', exact: true })).toBeVisible()
-    await page.getByRole('navigation').getByRole('button', { name: '수강생 관리', exact: true }).click()
-    await expect(page.getByRole('heading', { name: '승인 대기 학생', exact: true })).toBeVisible()
-    await teacher.getByRole('button', { name: '승인 대기 학생 개별 처리' }).click()
-    await teacher.locator('form').getByRole('button', { name: '가입 승인', exact: true }).click()
-    await expect(teacher.getByLabel('배정 팀 (필수)')).toHaveValue('')
-    await expect(teacher.getByRole('article').getByText('승인 완료', { exact: true })).toHaveCount(0)
-    await teacher.getByLabel('배정 팀 (필수)').selectOption(groups.teams[0].id)
-    await teacher.locator('form').getByRole('button', { name: '가입 승인', exact: true }).click()
-    await expect(teacher.getByRole('article').getByText('승인 완료', { exact: true })).toBeVisible()
+    const pendingApplications = await (await page.request.get('/api/workspaces/' + workspace.id + '/admissions')).json()
+    const pendingApplication = pendingApplications.applications.find((a: { username: string }) => a.username === 'admission.learner')
+    expect((await page.request.post('/api/workspaces/' + workspace.id + '/admissions/' + pendingApplication.id + '/review', { data: { action: 'approve', guildId, teamId: groups.teams[0].id } })).status()).toBe(200)
     const pendingRoster = await (await request.get(`/api/workspaces/${workspace.id}/workspace`, { headers: platformHeaders })).json()
     expect(pendingRoster.learners).toHaveLength(1)
     expect(pendingRoster.learners[0].status).toBe('대기')
@@ -144,9 +136,6 @@ test('workspace administrator invites an instructor; student signs up, instructo
     expect(learner.id).toBe(pendingRoster.learners[0].id)
     expect(learner.discordId).toBe('488456789012345672')
     expect(learner.status).toBe('정상')
-    await page.getByLabel('계정 메뉴', { exact: true }).click()
-    await page.getByRole('button', { name: '새로고침', exact: true }).click()
-    await expect(page.getByRole('row').filter({ hasText: '승인 대기 학생' })).toContainText('1조')
     await teacher.getByLabel('계정 메뉴', { exact: true }).click()
     await teacher.getByRole('button', { name: '새로고침', exact: true }).click()
     await teacher.getByRole('button', { name: '성적 관리', exact: true }).click()

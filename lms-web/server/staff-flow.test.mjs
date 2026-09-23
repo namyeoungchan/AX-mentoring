@@ -269,6 +269,48 @@ test('changing mentor teams changes bot roles and LMS scope; foreign teams and o
     assert.equal((await workspaces.teaching(workspace.id, user)).learners.length, 2);
     assert.equal((await onboarding.poll({ guildIds: [guildId] })).configs[0].participants[0].teamIds.length, 2);
 });
+test('mentors manage existing bookings within their scope without creating or reassigning bookings', async t => {
+    const { store, workspace, workspaces, auth, staff, signup, setup, connect, verify } = await fixture(t);
+    const { teams } = await setup(1);
+    await connect();
+    const account = await signup('booking.mentor', 'instructor', { mentorType: 'group', teamIds: [teams[0].id] });
+    await staff.profile(workspace.id, { name: '예약 멘토', expertise: 'AI' }, account);
+    await verify(account);
+    await staff.syncDiscord(discordId, guildId);
+    const user = (await auth.login({ username: account.username, password: 'test-staff-password-1234' })).user;
+    const id = workspace.id, db = (await workspaces.open(id)).db;
+    const own = (await db.prepare('SELECT id FROM mentors WHERE discord_id=?').get(discordId)).id;
+    const other = Number((await db.prepare("INSERT INTO mentors(discord_id,name,bio) VALUES('other-mentor','다른 멘토','')").run()).lastInsertRowid);
+    for (const mentorId of [own, own, other]) {
+        const slot = await db.prepare("INSERT INTO slots(mentor_id,start_time,end_time,label) VALUES(?,'2030-01-01T12:00:00','2030-01-01T12:50:00','멘토링')").run(mentorId);
+        await db.prepare("INSERT INTO bookings(slot_id,user_id,user_name,status) VALUES(?,?,'학생','pending')").run(Number(slot.lastInsertRowid), `student-${slot.lastInsertRowid}`);
+    }
+    const visible = await workspaces.teaching(id, user);
+    assert.equal(visible.sessions.length, 2);
+    const [first, second] = visible.sessions;
+    const foreign = (await workspaces.snapshot(id)).sessions.find(s => s.mentorId === String(other));
+    const change = async (value, actor = user, revision) => workspaces.teach(id, { revision: revision || (await workspaces.snapshot(id)).revision, changes: [{ kind: 'sessions', value }] }, actor);
+    const before = (await workspaces.snapshot(id)).revision;
+    await assert.rejects(change({ ...foreign, status: '예약 확정' }), { status: 403 });
+    await assert.rejects(change({ ...first, id: 'new-booking' }), { status: 403 });
+    await assert.rejects(change({ ...first, mentorId: String(other), status: '예약 확정' }), { status: 422 });
+    await assert.rejects(change({ ...first, status: '완료' }), { status: 422 });
+    const { user: student } = await auth.signup({ username: 'booking.student', name: '학생', password: 'test-student-password-1234' }, () => {});
+    await store.db.prepare("INSERT INTO lms_workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,'student',?)").run(id, student.id, Date.now());
+    await assert.rejects(change({ ...first, status: '예약 확정' }, student), { status: 403 });
+    assert.equal((await workspaces.snapshot(id)).revision, before);
+    assert.equal((await change({ ...first, status: '예약 확정' })).sessions.find(s => s.id === first.id).status, '예약 확정');
+    await assert.rejects(change({ ...second, status: '취소' }, user, before), { status: 409 });
+    assert.equal((await change({ ...first, status: '완료' })).sessions.find(s => s.id === first.id).status, '완료');
+    await assert.rejects(change({ ...first, status: '취소' }), { status: 422 });
+    const cancelled = await change({ ...second, status: '취소' });
+    assert.equal(cancelled.sessions.filter(s => s.status === '취소').length, 1);
+    assert.equal((await db.prepare('SELECT status FROM bookings WHERE id=?').get(foreign.id)).status, 'pending');
+    const main = await signup('booking.main');
+    assert.equal((await workspaces.teaching(id, main)).sessions.length, 3);
+    assert.equal((await change({ ...foreign, status: '예약 확정' }, main)).sessions.find(s => s.id === foreign.id).status, '예약 확정');
+});
+
 test('member editing is workspace scoped, updates mentor identity, and prevents administrator escalation', async (t) => {
     const { store, staff, workspace, workspaces, signup, setup, connect, verify } = await fixture(t);
     const { teams } = await setup(2);
