@@ -88,6 +88,17 @@ h1 { font-size: 27px; font-weight: 700; letter-spacing: -1.3px; line-height: 1.6
 .button.secondary { background: white; color: #69776c; border-color: #e1e6df; }
 .button.secondary:hover { background: #f1f5ee; border-color: #c1d0bf; }
 .button.compact { padding: 7px 11px; min-height: 31px; }
+.account-menu { position: relative; }
+.account-menu > summary { list-style: none; cursor: pointer; }
+.account-menu > summary::-webkit-details-marker { display: none; }
+.account-menu[open] > summary { background: #edf2e9; }
+.account-menu-panel { position: absolute; right: 0; top: calc(100% + 10px); z-index: 60; width: 232px; max-width: calc(100vw - 32px); padding: 14px; background: #fff; border: 1px solid #dce3da; border-radius: 12px; box-shadow: 0 8px 28px #203b2714; }
+.account-menu-identity { display: grid; gap: 5px; padding: 4px 8px 12px; margin-bottom: 5px; border-bottom: 1px solid #e5eae2; overflow-wrap: anywhere; }
+.account-menu-identity strong { font-size: 13px; }
+.account-menu-identity small { color: #768477; font-size: 11px; }
+.account-menu-panel > .text-button { display: flex; gap: 8px; width: 100%; padding: 11px 8px; font-size: 12px; text-align: left; border-radius: 6px; }
+.account-menu-panel > .text-button:hover { background: #f2f5ef; }
+.account-menu-panel > p { font-size: 12px; line-height: 1.6; color: #943e34; }
 .demo-indicator { display: flex; align-items: center; gap: 6px; font-size: 9px; color: #789077; margin: 17px 0 19px; }
 .demo-indicator > span:last-child { color: #a1aaa1; border-left: 1px solid #d9dfd6; padding-left: 8px; margin-left: 2px; }
 .demo-indicator .online-dot { width: 5px; height: 5px; }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowUpRight, ChevronRight, Command, Menu, RefreshCw, X, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, Command, Menu, X, type LucideIcon } from 'lucide-react'
 import { Avatar } from './components'
-import AccountSettings from './AccountSettings'
+import AccountMenu from './AccountMenu'
 import LogoutButton from './LogoutButton'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import type { WorkspaceMetadata } from './demoWorkspaces'
@@ -73,9 +73,8 @@ export default function RoleWorkspace({ role, name, username, title, pages, page
       <div className="sidebar-bottom"><div className="help-card"><h3>이용 도움말</h3><a className="role-guide-link" href={pdf} target="_blank" rel="noreferrer">{roleName} 가이드 PDF <ArrowUpRight size={14} /></a></div><div className="profile"><Avatar name={name.slice(0, 1)} color="sage" /><span><strong>{name}</strong><small>{roleName}{username && ` · ${username}`}</small></span></div></div>
     </aside>
     <div className="main-shell" inert={mobile && open}>
-      <header className="topbar"><div className="role-breadcrumb"><button ref={menuButton} className="icon-button mobile-menu" aria-label="메뉴 열기" aria-expanded={open} onClick={() => setOpen(true)}><Menu size={22} /></button><span className="breadcrumb">{active?.name || '워크스페이스 참여'}</span><ChevronRight size={13} className="breadcrumb" /><strong>{current.name}</strong></div><div className="header-tools"><LogoutButton logout={logout} /></div></header>
+      <header className="topbar"><div className="role-breadcrumb"><button ref={menuButton} className="icon-button mobile-menu" aria-label="메뉴 열기" aria-expanded={open} onClick={() => setOpen(true)}><Menu size={22} /></button><span className="breadcrumb">{active?.name || '워크스페이스 참여'}</span><ChevronRight size={13} className="breadcrumb" /><strong>{current.name}</strong></div><div className="header-tools"><AccountMenu name={name} role={roleName} refresh={reload} disabled={saving || refreshing} status={status} /><LogoutButton logout={logout} /></div></header>
       <main id="role-main"><div className="page-heading"><div><div className="eyebrow">{role === 'mentor' ? 'TEACHING' : 'MY LEARNING'}</div><h1 ref={heading} tabIndex={-1}>{title}</h1><p>{current.description}</p></div></div>
-        <div className="demo-indicator"><span className="online-dot" /><span>{roleName} · {active?.name || '참여 준비'}</span>{status}<button className="text-button" disabled={saving || refreshing} onClick={() => void reload()}><RefreshCw size={13} />{refreshing ? '불러오는 중…' : '새로고침'}</button><AccountSettings /></div>
         {error && <div className="inline-note error-note" role="alert">{error}<button className="text-button" disabled={refreshing} onClick={() => void reload()}>다시 불러오기</button></div>}
         <div className="role-content">{children}</div>
       <footer><span>© {new Date().getFullYear()} {active?.name || 'AX 학습관리시스템'} · {roleName}</span><a href={pdf} target="_blank" rel="noreferrer">이용 가이드 PDF <ArrowUpRight size={12} /></a></footer>

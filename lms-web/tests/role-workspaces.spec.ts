@@ -47,6 +47,7 @@ for (const role of ['instructor', 'student'] as const) {
     await nav.getByRole('button', { name: destinations[2][1], exact: true }).click()
     await page.goBack()
     await expect(nav.getByRole('button', { name: destinations[1][1], exact: true })).toHaveAttribute('aria-current', 'page')
+    await page.getByLabel('계정 메뉴', { exact: true }).click()
     await page.getByRole('button', { name: '새로고침', exact: true }).click()
     await expect(nav.getByRole('button', { name: destinations[1][1], exact: true })).toHaveAttribute('aria-current', 'page')
     await page.screenshot({ path: `test-results/${role}-workspace-1440.png`, fullPage: true, animations: 'disabled' })
