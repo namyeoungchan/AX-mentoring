@@ -861,6 +861,19 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .quick-stage-content p { line-height: 1.65; }
 .quick-stage-content details { margin-top: 20px; }
 .quick-stage-content summary { cursor: pointer; }
+.connection-check { margin: 18px 20px; padding-top: 16px; border-top: 1px solid var(--border, #e4e7e5); }
+.connection-check-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.connection-check-heading > span { color: #66736d; font-size: 12px; }
+.connection-check ol { list-style: none; padding: 0; margin: 0; }
+.connection-check li { display: flex; gap: 12px; padding: 12px 0; }
+.connection-check li > svg { flex: 0 0 auto; margin-top: 2px; }
+.connection-check li > div { min-width: 0; }
+.connection-check li strong { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px; }
+.connection-check li small { font-size: 11px; font-weight: 500; }
+.connection-check li p { margin: 5px 0 0; font-size: 13px; line-height: 1.65; color: #66736d; overflow-wrap: anywhere; }
+.connection-check-ready > svg, .connection-check-ready small { color: #315c48; }
+.connection-check-waiting > svg, .connection-check-waiting small { color: #97601b; }
+.connection-check-error > svg, .connection-check-error small { color: #ae3d38; }
 .quick-stage-content .button { margin: 6px 8px 6px 0; }
 .quick-verification ol { padding-left: 22px; }
 .quick-verification li { margin-block: 20px; }

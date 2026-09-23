@@ -1,6 +1,67 @@
 import { test, expect, type APIResponse } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 
+test('connection check shows progress, unchanged results, errors and timeout without overlapping polls', async ({ page }) => {
+  test.setTimeout(60000)
+  const json = async (response: APIResponse) => { expect(response.ok(), await response.text()).toBeTruthy(); return response.json() }
+  await json(await page.request.post('/api/login', { data: { password: 'test-only-password-1234' } }))
+  const workspace = await json(await page.request.post('/api/workspaces', { data: { name: '연결 확인 테스트', guildId: '685456789012345679' } }))
+  const base = `/api/workspaces/${workspace.id}`
+  const groups = await json(await page.request.get(`${base}/discord/groups`))
+  await json(await page.request.post(`${base}/discord/groups`, { data: { revision: groups.revision, courseId: groups.courseId, count: 1, title: '연결 확인 과정' } }))
+  const provision = await json(await page.request.get(`${base}/discord/provision`))
+  provision.worker = { id: '885456789012345679', connected: true }
+  provision.guilds = []
+  let mode = 'ok', count = 0, release: () => void = () => {}
+  await page.route(`**${base}/discord/provision`, async route => {
+    count++
+    if (mode === 'hold') await new Promise<void>(resolve => { release = resolve })
+    await route.fulfill({ status: mode === 'error' ? 503 : 200, json: mode === 'error' ? { error: '연결 정보를 불러오지 못했습니다.' } : provision }).catch(() => {})
+  })
+  await page.goto(`/?workspace=${workspace.id}#discord`)
+  const check = page.getByRole('button', { name: '연결 상태 확인', exact: true })
+  await expect(check).toBeVisible()
+  await page.clock.install()
+  await page.clock.pauseAt(new Date())
+  mode = 'hold'; count = 0
+  await check.click()
+  await expect(page.getByRole('button', { name: '연결 확인 중…' })).toBeDisabled()
+  await expect(page.getByRole('status')).toContainText('연결 상태를 확인하고 있습니다')
+  const progress = page.getByLabel('연결 확인 과정')
+  await expect(progress.getByText('워크스페이스를 확인했습니다.', { exact: false })).toBeVisible()
+  await expect(progress.getByText('봇 응답 확인')).toBeVisible()
+  await page.clock.runFor(5000)
+  expect(count).toBe(1)
+  mode = 'ok'; release()
+  await expect(page.getByRole('status')).toContainText('이 서버의 앱 연결은 아직 확인되지 않았습니다')
+  await expect(check).toBeEnabled()
+  await expect(progress).toContainText('2 / 3 확인 완료')
+  await expect(progress).toContainText('서버 참여를 기다리고 있습니다')
+  await check.click() // An unchanged result still acknowledges the user's action.
+  await expect(page.getByRole('status')).toContainText('확인 · 이 서버의 앱 연결은 아직')
+  mode = 'error'
+  await check.click()
+  await expect(page.getByRole('alert')).toContainText('연결 정보를 불러오지 못했습니다')
+  await expect(check).toBeEnabled()
+  mode = 'ok'
+  await check.click()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByRole('status')).toContainText('이 서버의 앱 연결은 아직')
+  mode = 'hold'
+  await check.click()
+  await page.clock.runFor(16000)
+  await expect(page.getByRole('alert')).toContainText('시간이 오래 걸립니다', { timeout: 20000 })
+  await expect(check).toBeEnabled()
+  mode = 'ok'; release()
+  await check.click()
+  await expect(page.getByRole('status')).toContainText('이 서버의 앱 연결은 아직')
+  await page.clock.resume()
+  await page.setViewportSize({ width: 390, height: 900 })
+  await expect(page.locator('.sidebar')).not.toBeInViewport()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/connection-check-mobile.png', fullPage: true, animations: 'disabled' })
+})
+
 test('a personal administrator connects by channel link, recovers setup and verifies without refreshing', async ({ page, request, context }) => {
   test.setTimeout(60000)
   const json = async (response: APIResponse) => { expect(response.ok(), await response.text()).toBeTruthy(); return response.json() }
