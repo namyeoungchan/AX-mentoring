@@ -478,6 +478,11 @@ app.post('/api/workspaces/:workspaceId/staff-import', maintenance.track(async (r
 }));
 app.patch('/api/workspaces/:workspaceId/invitations/:invitationId', async (req, res) => { await workspaces.editInvitation(req.workspaceId, req.params.invitationId, req.body, req.account); res.json(await staff.members(req.workspaceId, req.account)); });
 app.post('/api/workspaces/:workspaceId/invitations/:invitationId/revoke', async (req, res) => res.json(await workspaces.revokeInvitation(req.workspaceId, req.params.invitationId, req.account)));
+app.post('/api/workspaces/:workspaceId/invitations/:invitationId/reissue', async (req, res) => {
+    await workspaces.requireRole(req.workspaceId, req.account, ['admin']);
+    await auth.limit('invitation-reissue', req.account.id, 60, 3600000);
+    res.json(await workspaces.reissueInvitation(req.workspaceId, req.params.invitationId, req.account));
+});
 app.get('/api/workspaces/:workspaceId/workspace', async (req, res) => res.json(await workspaces.snapshot(req.workspaceId)));
 app.patch('/api/workspaces/:workspaceId/workspace', async (req, res) => res.json(await workspaces.mutate(req.workspaceId, req.body, req.account.username)));
 app.get('/api/workspaces/:workspaceId/audit', async (req, res) => res.json(await ((await workspaces.open(req.workspaceId)).db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 500')).all()));

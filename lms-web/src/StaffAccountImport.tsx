@@ -3,10 +3,11 @@ import { ArrowDownToLine, Copy, Upload } from 'lucide-react'
 import { staffCsv, staffExport, staffRoles, staffRows, type StaffRow } from '../shared/staff-import.mjs'
 import { demoMode, workspaceRequest } from './api'
 import { CardHeading } from './components'
+import type { RenewedInvitations } from './invitationLinks'
 
 type Row = StaffRow & { teamIds: string[]; selected: boolean; teamWarning: string }
 type Preview = { valid: boolean; rows: { row: number; errors: string[] }[] }
-type Result = { row: number; username: string; name?: string; token?: string; initialPassword?: string; expiresAt?: number; error?: string }
+type Result = { row: number; id?: string; username: string; name?: string; token?: string; initialPassword?: string; expiresAt?: number; error?: string }
 type Team = { id: string; name: string }
 const mapping = (category: string) => Object.hasOwn(staffRoles, category) ? staffRoles[category] : undefined
 function download(text: string, name: string) {
@@ -14,10 +15,11 @@ function download(text: string, name: string) {
   const link = document.createElement('a'); link.href = url; link.download = name; link.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
-export default function StaffAccountImport({ workspaceId, workspaceName, teams, platformAdmin, refreshed, openSetup }: { workspaceId: string; workspaceName: string; teams: Team[]; platformAdmin: boolean; refreshed: () => Promise<void>; openSetup: () => void }) {
+export default function StaffAccountImport({ workspaceId, workspaceName, teams, platformAdmin, refreshed, openSetup, renewed = {} }: { workspaceId: string; workspaceName: string; teams: Team[]; platformAdmin: boolean; refreshed: () => Promise<void>; openSetup: () => void; renewed?: RenewedInvitations }) {
   const input = useRef<HTMLInputElement>(null), locked = useRef(false)
   const [rows, setRows] = useState<Row[]>([]), [preview, setPreview] = useState<Preview | null>(null)
-  const [results, setResults] = useState<Result[]>([]), [busy, setBusy] = useState(false), [filename, setFilename] = useState('')
+  const [originalResults, setResults] = useState<Result[]>([]), [busy, setBusy] = useState(false), [filename, setFilename] = useState('')
+  const results = originalResults.map(result => result.id && renewed[result.id] ? { ...result, ...renewed[result.id] } : result)
   const [error, setError] = useState(''), [notice, setNotice] = useState('')
   const issued = (row: Row) => results.find(r => r.row === row.row && r.token)
   const pending = rows.filter(row => row.selected && !issued(row))

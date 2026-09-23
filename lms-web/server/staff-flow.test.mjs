@@ -1,6 +1,7 @@
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
 import { accountRoleScenario } from './account-role-scenario.mjs';
 import { issueStaffAccounts, previewStaffAccounts } from './staff-import.mjs';
+import { issueMentorAccount } from './mentor-accounts.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -48,6 +49,44 @@ test('global account management switches workspace roles without granting platfo
     const f = await fixture(t);
     const administrator = await f.auth.createSuperAdmin({ username: 'role.owner', name: 'Owner', password: 'test-role-admin-password' });
     await accountRoleScenario(f, administrator);
+});
+
+test('reissuing an expired mentor invitation rotates only its token and preserves account and scope', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    const owner = await f.signup('renew.owner', 'admin'), groups = await f.setup(2);
+    const issued = await issueMentorAccount(f.auth, f.workspaces, id, { username: 'renew.mentor', name: '재초대 멘토', mentorType: 'group', teamIds: [groups.teams[1].id] }, owner);
+    const before = await f.store.db.prepare('SELECT * FROM lms_users WHERE username=?').get(issued.username);
+    await f.store.db.prepare('UPDATE lms_workspace_invitations SET expires_at=0 WHERE id=?').run(issued.id);
+    const renewed = await f.workspaces.reissueInvitation(id, issued.id, owner);
+    assert.notEqual(renewed.token, issued.token); assert.equal(renewed.id, issued.id);
+    assert.ok(renewed.expiresAt > Date.now() + 6 * 86400000);
+    await assert.rejects(f.workspaces.previewInvitation(issued.token), { status: 410 });
+    const preview = await f.workspaces.previewInvitation(renewed.token);
+    assert.equal(preview.role, 'instructor'); assert.equal(preview.mentorType, 'group'); assert.deepEqual(preview.teamIds, [groups.teams[1].id]);
+    assert.deepEqual(await f.store.db.prepare('SELECT * FROM lms_users WHERE username=?').get(issued.username), before);
+    for (const table of ['lms_workspace_invitations', 'lms_audit']) assert.ok(!JSON.stringify(await f.store.db.prepare(`SELECT * FROM ${table}`).all()).includes(renewed.token));
+    const login = await f.auth.login({ username: issued.username, password: issued.initialPassword });
+    const changed = await f.auth.changePassword(login.user, { currentPassword: issued.initialPassword, newPassword: 'renew-personal-password' });
+    await f.workspaces.acceptInvitation(renewed.token, changed.user);
+    assert.equal(await f.workspaces.role(id, changed.user), 'instructor');
+    await assert.rejects(f.workspaces.reissueInvitation(id, issued.id, owner), { status: 409 });
+});
+
+test('invitation renewal enforces workspace and administrator boundaries, cancellation and archival', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    const owner = await f.signup('renew.boundary.owner', 'admin'), mentor = await f.signup('renew.boundary.teacher');
+    const invitation = await f.workspaces.invite(id, { username: 'renew.pending', role: 'instructor' }, owner);
+    const adminInvite = await f.workspaces.invite(id, { username: 'renew.admin', role: 'admin' }, admin);
+    await assert.rejects(f.workspaces.reissueInvitation('default', invitation.id, admin), { status: 404 });
+    await assert.rejects(f.workspaces.reissueInvitation(id, invitation.id, mentor), { status: 403 });
+    await assert.rejects(f.workspaces.reissueInvitation(id, adminInvite.id, owner), { status: 403 });
+    assert.ok((await f.workspaces.reissueInvitation(id, adminInvite.id, admin)).token);
+    await f.workspaces.revokeInvitation(id, invitation.id, owner);
+    await assert.rejects(f.workspaces.reissueInvitation(id, invitation.id, owner), { status: 409 });
+    const pending = await f.workspaces.invite(id, { username: 'renew.archived', role: 'instructor' }, owner);
+    await f.workspaces.setArchived(id, true, admin);
+    await assert.rejects(f.workspaces.reissueInvitation(id, pending.id, admin), { status: 409 });
+    assert.ok(await f.workspaces.previewInvitation(pending.token));
 });
 
 test('bulk staff issuance maps categories, rejects invalid batches and never overwrites passwords', async t => {

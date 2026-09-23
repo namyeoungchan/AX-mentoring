@@ -35,6 +35,11 @@ test('xlsx staff registration previews inherited roles, assigns a team and expor
   await page.getByRole('button', { name: '한 명씩 초대', exact: true }).click()
   await page.getByRole('button', { name: '엑셀 일괄 등록', exact: true }).click()
   await expect(region.getByRole('status')).toContainText('계정 5개 발급 완료')
+  const mentorInvite = page.locator('.membership-history').getByRole('row').filter({ hasText: 'mentor.tech.sample' })
+  await mentorInvite.getByRole('button', { name: '초대 링크 재발급', exact: true }).click()
+  const renewal = page.getByRole('dialog', { name: '초대 링크 재발급 완료' })
+  const newLink = await renewal.getByLabel('재발급된 초대 링크').inputValue()
+  await renewal.getByRole('button', { name: '확인', exact: true }).click()
   const saved = page.waitForEvent('download')
   await region.getByRole('button', { name: '발급 결과 CSV 다운로드' }).click()
   const download = await saved
@@ -42,6 +47,7 @@ test('xlsx staff registration previews inherited roles, assigns a team and expor
   expect(rows).toHaveLength(6)
   expect(rows[3][0]).toBe('강의')
   expect(rows[4][6]).toBe('1조')
+  expect(rows[4][9]).toBe(newLink)
   for (const [i, row] of rows.slice(1).entries()) {
     const token = new URL(row[9]).hash.slice(8)
     const preview = await (await request.post('/api/invitations/preview', { data: { token } })).json()

@@ -336,6 +336,27 @@ export async function createWorkspaces({ store, dbPath, provision, syncToken = '
         }
         return { id: invitationId, token, expiresAt, username: input.username, role: input.role, workspaceName: (await metadata(id)).name };
     }
+    async function reissueInvitation(id, invitationId, user) {
+        await requireRole(id, user, ['admin']);
+        const workspace = await metadata(id);
+        if (workspace.archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스에는 초대할 수 없습니다.');
+        await db.exec('BEGIN IMMEDIATE');
+        try {
+            const row = await db.prepare('SELECT * FROM lms_workspace_invitations WHERE workspace_id=? AND id=?').get(id, invitationId);
+            if (!row) throw new ApiError(404, '초대를 찾을 수 없습니다.');
+            if (row.role === 'admin' && user.role !== 'admin') throw new ApiError(403, '관리자 초대는 전체 관리자만 재발급할 수 있습니다.');
+            if (row.accepted_at !== null) throw new ApiError(409, '이미 수락한 초대입니다. 구성원은 기존 계정으로 로그인하면 됩니다.');
+            if (row.revoked_at !== null) throw new ApiError(409, '취소된 초대입니다. 기존 계정 초대에서 새로 초대하세요.');
+            if (await db.prepare('SELECT 1 FROM lms_workspace_members m JOIN lms_users u ON u.id=m.user_id WHERE m.workspace_id=? AND u.username=?').get(id, row.username)) throw new ApiError(409, '이미 참여한 구성원입니다.');
+            const scope = await validateScope(id, row.role === 'instructor' ? await mentorScope(id, invitationId) : {});
+            const token = randomBytes(32).toString('hex'), expiresAt = now() + 7 * 24 * 3600000;
+            const changed = await db.prepare('UPDATE lms_workspace_invitations SET token_hash=?,expires_at=? WHERE workspace_id=? AND id=? AND token_hash=? AND role=? AND accepted_at IS NULL AND revoked_at IS NULL').run(digest(token), expiresAt, id, invitationId, row.token_hash, row.role);
+            if (!changed.changes) throw new ApiError(409, '초대 상태가 변경되었습니다. 새로고침 후 다시 확인하세요.');
+            await db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(user.username || user.id, 'invitation.reissue', `${id}/${invitationId}`, JSON.stringify({ expiresAt: row.expires_at }), JSON.stringify({ expiresAt }));
+            await db.exec('COMMIT');
+            return { id: invitationId, token, expiresAt, username: row.username, role: row.role, workspaceName: workspace.name, ...scope };
+        } catch (error) { if (db.isTransaction) await db.exec('ROLLBACK'); throw error; }
+    }
     async function pendingInvitation(token) {
         if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token))
             throw new ApiError(404, '초대 링크를 확인하세요.');
@@ -471,5 +492,5 @@ export async function createWorkspaces({ store, dbPath, provision, syncToken = '
                 value.db.close();
     }
     return { list, create, setArchived, metadata, requireAccess, open, snapshot, mutate, remote, ingest, savePlan, enqueue,
-        provisionRead: async (id) => ({ ...await provision.read((await metadata(id)).guildIds), template: await template(id), boundGuildIds: (await metadata(id)).guildIds }), template, saveTemplate, addServer, connection, role, requireRole, invite, previewInvitation, invitationGuild, acceptInvitation, members, revokeInvitation, editInvitation, mentorScope, assignMentor, validateScope, teaching, teach, close };
+        provisionRead: async (id) => ({ ...await provision.read((await metadata(id)).guildIds), template: await template(id), boundGuildIds: (await metadata(id)).guildIds }), template, saveTemplate, addServer, connection, role, requireRole, invite, reissueInvitation, previewInvitation, invitationGuild, acceptInvitation, members, revokeInvitation, editInvitation, mentorScope, assignMentor, validateScope, teaching, teach, close };
 }

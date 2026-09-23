@@ -2,15 +2,18 @@ import { useState, type FormEvent } from 'react'
 import { ArrowRight, Check, Copy, LoaderCircle, RefreshCw, UserRoundPlus } from 'lucide-react'
 import { workspaceRequest, demoMode } from './api'
 import { CardHeading } from './components'
+import { invitationUrl, type RenewedInvitations } from './invitationLinks'
 
 type Team = { id: string; name: string }
-type Delivery = { url: string; text: string; username: string; role: string; name: string; expiresAt: number }
+type Delivery = { id: string; url: string; text: string; username: string; role: string; name: string; expiresAt: number }
 const suggestedUsername = () => `member.${crypto.randomUUID().slice(0, 8)}`
-export default function MemberInvitation({ workspaceId, workspaceName, platformAdmin, teams, refreshed, openSetup }: { workspaceId: string; workspaceName: string; platformAdmin: boolean; teams: Team[]; refreshed: () => Promise<void>; openSetup: () => void }) {
+export default function MemberInvitation({ workspaceId, workspaceName, platformAdmin, teams, refreshed, openSetup, renewed = {} }: { workspaceId: string; workspaceName: string; platformAdmin: boolean; teams: Team[]; refreshed: () => Promise<void>; openSetup: () => void; renewed?: RenewedInvitations }) {
   const [mode, setMode] = useState('new'), [username, setUsername] = useState(suggestedUsername)
   const [role, setRole] = useState('instructor'), [mentorType, setMentorType] = useState('main'), [teamIds, setTeamIds] = useState<string[]>([])
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [conflict, setConflict] = useState(false)
-  const [delivery, setDelivery] = useState<Delivery | null>(null), [copied, setCopied] = useState(false)
+  const [originalDelivery, setDelivery] = useState<Delivery | null>(null), [copied, setCopied] = useState(false)
+  const replacement = originalDelivery && renewed[originalDelivery.id]
+  const delivery = originalDelivery && replacement ? { ...originalDelivery, url: invitationUrl(replacement.token), expiresAt: replacement.expiresAt, text: originalDelivery.text.replace(originalDelivery.url, invitationUrl(replacement.token)).replace(new Date(originalDelivery.expiresAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), new Date(replacement.expiresAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })) } : originalDelivery
   const label = role === 'admin' ? '워크스페이스 관리자' : mentorType === 'group' ? '조 담당 멘토' : '메인 강사'
   function changeMode(value: string) { setMode(value); setUsername(value === 'new' ? suggestedUsername() : ''); setError(''); setConflict(false) }
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -31,7 +34,7 @@ export default function MemberInvitation({ workspaceId, workspaceName, platformA
         '3. 초대 수락을 누르면 워크스페이스에 참여합니다.',
         ...(role === 'instructor' ? ['4. 참여 후 기본 정보를 저장하고 화면 안내에 따라 Discord를 연결하세요.'] : []),
         '', `초대 만료: ${expiry} (한국 시간)`, '이 초대는 본인 계정으로 한 번만 사용할 수 있습니다.'].join('\n')
-      setDelivery({ url: url.href, text, username: result.username, role: label, name: result.workspaceName, expiresAt: result.expiresAt }); setCopied(false)
+      setDelivery({ id: result.id, url: url.href, text, username: result.username, role: label, name: result.workspaceName, expiresAt: result.expiresAt }); setCopied(false)
       await refreshed()
     } catch (e) { setError((e as Error).message); setConflict((e as Error & { status?: number }).status === 409) }
     finally { setBusy(false) }

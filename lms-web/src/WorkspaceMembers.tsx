@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { LoaderCircle, RefreshCw, ShieldCheck, UserMinus } from 'lucide-react'
+import { Copy, LoaderCircle, RefreshCw, ShieldCheck, UserMinus } from 'lucide-react'
 import { workspaceRequest, demoMode } from './api'
 import { Badge, CardHeading, ModalShell } from './components'
 import { roleNames, type WorkspaceRole } from './demoWorkspaces'
 import MemberInvitation from './MemberInvitation'
 import StaffAccountImport from './StaffAccountImport'
+import { invitationUrl, type RenewedInvitations } from './invitationLinks'
 
 type Scope = { mentorType: 'main' | 'group'; teamIds: string[] }
 type Team = { id: string; name: string }
@@ -18,6 +19,9 @@ export default function WorkspaceMembers({ workspaceId, workspaceName, platformA
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [notice, setNotice] = useState('')
   const [inviteVersion, setInviteVersion] = useState(0)
   const [inviteMethod, setInviteMethod] = useState('single')
+  const [renewed, setRenewed] = useState<RenewedInvitations>({})
+  const [reissued, setReissued] = useState<(Invitation & { token: string; workspaceName: string }) | null>(null)
+  const [copyNotice, setCopyNotice] = useState('')
   const [editing, setEditing] = useState<Edit | null>(null), [removing, setRemoving] = useState<Removal | null>(null)
   const [clock, setClock] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setClock(Date.now()), 30000); return () => clearInterval(timer) }, [])
@@ -55,23 +59,48 @@ export default function WorkspaceMembers({ workspaceId, workspaceName, platformA
       setRemoving(null)
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
+  async function reissue(invitation: Invitation) {
+    if (busy || demoMode) return
+    begin(); setCopyNotice('')
+    try {
+      const result = await workspaceRequest(workspaceId, `invitations/${invitation.id}/reissue`, { method: 'POST', body: '{}' })
+      setRenewed(current => ({ ...current, [result.id]: { token: result.token, expiresAt: result.expiresAt } }))
+      setReissued(result)
+      await refresh()
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
+  const newLink = reissued ? invitationUrl(reissued.token) : ''
+  const newMessage = reissued ? [`[${reissued.workspaceName}] 초대 링크 재발급`, `아이디: ${reissued.username}`, `참여 역할: ${roleLabel(reissued)}${teamsLabel(reissued) ? ` (${teamsLabel(reissued)})` : ''}`, `초대 링크: ${newLink}`, '', '이전에 받은 초대 링크 대신 이 링크를 열어주세요.', '기존 비밀번호 또는 전달받은 초기 비밀번호로 로그인한 뒤 초대를 수락하세요. 초기 비밀번호는 첫 로그인 시 변경합니다.', '아직 계정이 없다면 초대 화면에서 계정을 만들어 주세요.', `초대 만료: ${new Date(reissued.expiresAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (한국 시간)`].join('\n') : ''
+  async function copyReissued(text: string) {
+    try { await navigator.clipboard.writeText(text); setCopyNotice('복사했습니다. 초대받는 분에게 전달하세요.'); setError('') }
+    catch { setError('복사가 허용되지 않았습니다. 아래 내용을 직접 선택해 복사하세요.') }
+  }
   return <>
     {demoMode && <p className="inline-note">데모에서는 구성원을 변경하거나 초대를 발급할 수 없습니다.</p>}
-    {error && !editing && !removing && <p className="inline-note error-note" role="alert">{error}</p>}
+    {error && !editing && !removing && !reissued && <p className="inline-note error-note" role="alert">{error}</p>}
     {notice && <p className="inline-note" role="status">{notice}</p>}
     <div className="staff-invite-method" aria-label="초대 방식"><button className="button secondary" aria-pressed={inviteMethod === 'single'} onClick={() => setInviteMethod('single')}>한 명씩 초대</button><button className="button secondary" aria-pressed={inviteMethod === 'file'} onClick={() => setInviteMethod('file')}>엑셀 일괄 등록</button></div>
-    <div hidden={inviteMethod !== 'single'}><MemberInvitation key={`${workspaceId}:${inviteVersion}`} workspaceId={workspaceId} workspaceName={workspaceName} platformAdmin={platformAdmin} teams={state.teams} refreshed={() => refresh()} openSetup={openSetup} /></div>
-    <div hidden={inviteMethod !== 'file'}><StaffAccountImport key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} platformAdmin={platformAdmin} teams={state.teams} refreshed={() => refresh()} openSetup={openSetup} /></div>
+    <div hidden={inviteMethod !== 'single'}><MemberInvitation key={`${workspaceId}:${inviteVersion}`} workspaceId={workspaceId} workspaceName={workspaceName} platformAdmin={platformAdmin} teams={state.teams} refreshed={() => refresh()} openSetup={openSetup} renewed={renewed} /></div>
+    <div hidden={inviteMethod !== 'file'}><StaffAccountImport key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} platformAdmin={platformAdmin} teams={state.teams} refreshed={() => refresh()} openSetup={openSetup} renewed={renewed} /></div>
     <section className="panel"><CardHeading title="구성원" subtitle="수정한 활동명과 담당 조는 연결된 Discord 봇에도 반영됩니다."><button className="text-button" disabled={busy} onClick={() => void refresh()}><RefreshCw size={14} />새로고침</button></CardHeading>
       <div className="table-scroll"><table><thead><tr><th>이름 · 담당 분야</th><th>아이디</th><th>권한 · 담당 조</th><th>관리</th></tr></thead><tbody>{state.members.map(m => <tr key={m.id}>
         <td>{m.name}{m.expertise && <small>{m.expertise}</small>}</td><td>{m.username}</td><td><Badge>{roleLabel(m)}</Badge>{teamsLabel(m) && <p>{teamsLabel(m)}</p>}</td>
         <td>{canManage(m.role) ? <div className="flex gap-2"><button className="button secondary compact" disabled={busy} onClick={() => { setError(''); setEditing({ kind: 'member', value: { ...m } }) }}>수정</button><button className="button secondary compact" disabled={busy} onClick={() => { setError(''); setRemoving({ kind: 'member', value: m }) }}>삭제</button></div> : m.role === 'admin' ? '총관리자만 관리' : '—'}</td>
       </tr>)}</tbody></table></div>{!state.members.length && <p className="calendar-empty">참여한 구성원이 없습니다.</p>}
     </section>
-    <section className="panel membership-history"><CardHeading title="초대 내역" /><div className="table-scroll"><table><thead><tr><th>아이디</th><th>권한 · 담당 조</th><th>만료일</th><th>상태</th><th>관리</th></tr></thead><tbody>{state.invitations.map(i => <tr key={i.id}>
+    <section className="panel membership-history"><CardHeading title="초대 내역" subtitle="대기 중이거나 만료된 초대는 링크를 재발급할 수 있습니다. 기존 링크는 무효화되며 비밀번호와 담당 조는 유지됩니다." /><div className="table-scroll"><table><thead><tr><th>아이디</th><th>권한 · 담당 조</th><th>만료일</th><th>상태</th><th>관리</th></tr></thead><tbody>{state.invitations.map(i => <tr key={i.id}>
       <td>{i.username}</td><td>{roleLabel(i)}{teamsLabel(i) && <p>{teamsLabel(i)}</p>}</td><td>{new Date(i.expiresAt).toLocaleDateString('ko-KR')}</td><td>{i.acceptedAt ? '수락 완료' : i.revokedAt ? '취소됨' : i.expiresAt <= clock ? '만료됨' : '대기 중'}</td>
-      <td>{!i.acceptedAt && !i.revokedAt && i.expiresAt > clock && canManage(i.role) && <div className="flex gap-2"><button className="button secondary compact" disabled={busy} onClick={() => { setError(''); setEditing({ kind: 'invitation', value: { ...i } }) }}>초대 수정</button><button className="button secondary compact" disabled={busy} onClick={() => { setError(''); setRemoving({ kind: 'invitation', value: i }) }}>초대 취소</button></div>}</td>
+      <td>{!i.acceptedAt && !i.revokedAt && canManage(i.role) && <div className="invitation-history-actions"><button className="button secondary compact" disabled={busy || demoMode} onClick={() => void reissue(i)}><RefreshCw size={14} />초대 링크 재발급</button>{i.expiresAt > clock && <><button className="button secondary compact" disabled={busy} onClick={() => { setError(''); setEditing({ kind: 'invitation', value: { ...i } }) }}>초대 수정</button><button className="button secondary compact" disabled={busy} onClick={() => { setError(''); setRemoving({ kind: 'invitation', value: i }) }}>초대 취소</button></>}</div>}{i.acceptedAt && <span>참여 완료 · 기존 계정으로 로그인</span>}</td>
     </tr>)}</tbody></table></div>{!state.invitations.length && <p className="calendar-empty">발급한 초대가 없습니다.</p>}</section>
+    {reissued && <ModalShell title="초대 링크 재발급 완료" close={() => { setReissued(null); setError(''); setCopyNotice('') }}><div className="modal-form invitation-reissue">
+      <p><strong>{reissued.username}</strong> · {roleLabel(reissued)}{teamsLabel(reissued) && ` · ${teamsLabel(reissued)}`}</p>
+      <p>이전 링크는 사용할 수 없습니다. 비밀번호는 그대로이며 새 링크는 발급 시점부터 7일 동안 유효합니다.</p>
+      <label>재발급된 초대 링크<input readOnly value={newLink} onFocus={e => e.target.select()} /></label>
+      <button className="button secondary" onClick={() => void copyReissued(newLink)}><Copy size={16} />새 링크 복사</button>
+      <label>재발급 초대 안내문<textarea readOnly value={newMessage} rows={9} onFocus={e => e.target.select()} /></label>
+      {error && <p className="error-text" role="alert">{error}</p>}{copyNotice && <p role="status">{copyNotice}</p>}
+      <div className="modal-actions"><button className="button secondary" onClick={() => { setReissued(null); setError(''); setCopyNotice('') }}>확인</button><button className="button primary" onClick={() => void copyReissued(newMessage)}><Copy size={16} />안내문 복사</button></div>
+    </div></ModalShell>}
     {editing && <ModalShell title={editing.kind === 'member' ? '구성원 수정' : '초대 수정'} busy={busy} close={() => { if (!busy) setEditing(null) }}><form className="modal-form membership-form" onSubmit={save}>
       {error && <p role="alert" className="inline-note error-note">{error}</p>}
       <p>{editing.value.username}{editing.kind === 'member' ? ' · 이 워크스페이스에서 사용할 정보입니다.' : ' · 아이디를 바꾸려면 초대를 취소하고 새로 발급하세요.'}</p>

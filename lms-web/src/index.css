@@ -1206,6 +1206,10 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .workspace-after-create strong { font-size: 13px; color: #34533e; }
 .workspace-after-create p { margin-bottom: 0; }
 .member-invitation { margin-bottom: 22px; }
+.invitation-history-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.invitation-history-actions .button { min-height: 40px; }
+.invitation-reissue > p { font-size: 13px; color: #53634f; }
+.invitation-reissue > .button { min-height: 44px; margin-bottom: 20px; }
 .staff-invite-method { display: flex; gap: 10px; margin-bottom: 16px; }
 .staff-invite-method [aria-pressed="true"] { background: #315a43; color: white; border-color: #315a43; }
 .staff-import { margin-bottom: 22px; }
