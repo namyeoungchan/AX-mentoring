@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { workspaceRequest } from './api'
 
-export default function DiscordVerification({ workspaceId, channelUrl, onVerified }: { workspaceId: string; channelUrl: string; onVerified: () => void }) {
+export default function DiscordVerification({ workspaceId, channelUrl, onVerified, verificationPath = 'me/verification' }: { workspaceId: string; channelUrl: string; onVerified: () => void; verificationPath?: string }) {
   const [challenge, setChallenge] = useState<{ code: string; expiresAt: number } | null>(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [now, setNow] = useState(Date.now), [verified, setVerified] = useState(false)
@@ -24,7 +24,7 @@ export default function DiscordVerification({ workspaceId, channelUrl, onVerifie
   }, [workspaceId, challenge, verified])
   async function issue() {
     setBusy(true); setError(''); setNotice('')
-    try { setChallenge(await workspaceRequest(workspaceId, 'me/verification', { method: 'POST', body: '{}' })); setNow(Date.now()) }
+    try { setChallenge(await workspaceRequest(workspaceId, verificationPath, { method: 'POST', body: '{}' })); setNow(Date.now()) }
     catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }
   async function copy(value: string) {

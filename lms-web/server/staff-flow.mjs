@@ -114,9 +114,10 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
     async function invite(id, user) {
         await workspaces.requireRole(id, user, ['admin', 'instructor']);
         await active(id);
-        if (!(await read(id, user)).profile)
-            throw new ApiError(422, '기본 정보를 먼저 입력하세요.');
-        await admissions.staffInvite(id, user);
+        // Membership authorizes joining the server. Profile completion is still
+        // required for identity verification, not for preparing the invitation.
+        if (!(await read(id, user)).verified)
+            await admissions.staffInvite(id, user);
         return await read(id, user);
     }
     async function step(id, body, user) {

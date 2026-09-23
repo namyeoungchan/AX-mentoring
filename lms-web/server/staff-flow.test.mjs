@@ -171,8 +171,13 @@ test('mentor profile queues only their guild invite, verified identity registers
     await setup(2);
     await connect();
     const user = await signup('main.mentor');
-    await assert.rejects(async () => await staff.invite(workspace.id, user), { status: 422 });
+    const prepared = await staff.invite(workspace.id, user);
+    assert.equal(prepared.profile, null);
+    assert.equal(prepared.invitation.inviteState, 'queued');
+    const repeated = await staff.invite(workspace.id, user);
+    assert.equal(repeated.invitation.id, prepared.invitation.id);
     const result = await staff.profile(workspace.id, { name: '강사', expertise: 'AI', bio: '자기소개' }, user);
+    assert.equal(result.invitation.id, prepared.invitation.id);
     assert.equal(result.invitation.inviteState, 'queued');
     assert.equal((await admissions.reviewList(workspace.id, admin)).applications.length, 0);
     assert.equal((await admissions.poll({ guildIds: ['755456789012345678'] })).job, null);
@@ -180,6 +185,7 @@ test('mentor profile queues only their guild invite, verified identity registers
     assert.equal(job.guildId, guildId);
     await admissions.complete({ id: job.id, claim: job.claim, success: true, code: 'MentorTest' });
     assert.equal((await staff.read(workspace.id, user)).invitation.inviteUrl, 'https://discord.gg/MentorTest');
+    assert.equal((await staff.invite(workspace.id, user)).invitation.inviteUrl, 'https://discord.gg/MentorTest');
     await assert.rejects(async () => await staff.step(workspace.id, { step: 'assignments' }, user), { status: 409 });
     assert.equal((await staff.read(workspace.id, user)).completed, false);
     const verification = await auth.issueVerification(user, guildId);
@@ -194,6 +200,8 @@ test('mentor profile queues only their guild invite, verified identity registers
     assert.equal(updated.profile.bio, '자기소개');
     assert.equal((await onboarding.poll({ guildIds: [guildId] })).configs[0].participants[0].name, '변경된 활동명');
     assert.equal((await staff.read(workspace.id, user)).verified, true);
+    assert.equal((await staff.invite(workspace.id, user)).invitation.state, 'joined');
+    assert.equal((await admissions.poll({ guildIds: [guildId] })).job, null);
     await assert.rejects(async () => await staff.step(workspace.id, { step: 'mentoring' }, user), { status: 409 });
     for (const step of ['assignments', 'approval', 'mentoring', 'mentoring'])
         await staff.step(workspace.id, { step }, user);

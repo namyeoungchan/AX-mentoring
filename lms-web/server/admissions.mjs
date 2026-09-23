@@ -135,11 +135,12 @@ export async function createAdmissions(db, workspaces, { token = '', now = Date.
     }
     async function staffInvite(id, user) {
         await workspaces.requireRole(id, user, ['admin', 'instructor']);
+        await expire();
         const guilds = (await workspaces.metadata(id)).guildIds;
         if (guilds.length !== 1)
             throw new ApiError(409, '관리자가 Discord 서버를 먼저 연결해야 합니다.');
         const existing = await (db.prepare('SELECT * FROM lms_admissions WHERE workspace_id=? AND user_id=?')).get(id, user.id);
-        if (existing && (['queued', 'running'].includes(existing.invite_state) || (existing.state === 'approved' && existing.invite_code && existing.invite_expires > now())))
+        if (existing && existing.guild_id === guilds[0] && existing.state === 'approved' && (['queued', 'running'].includes(existing.invite_state) || (existing.invite_code && existing.invite_expires > now())))
             return;
         await (db.prepare(`INSERT INTO lms_admissions(id,workspace_id,user_id,state,created_at,reviewed_by,reviewed_at,guild_id,invite_state,purpose)
       VALUES(?,?,?,'approved',?,?,?,?, 'queued','staff') ON CONFLICT(workspace_id,user_id) DO UPDATE SET state='approved',purpose='staff',guild_id=excluded.guild_id,invite_state='queued',invite_code=NULL,invite_expires=NULL,claim_hash=NULL,lease_until=NULL`)).run(randomUUID(), id, user.id, now(), user.id, now(), guilds[0]);
