@@ -2,7 +2,7 @@ import { test, expect, type APIResponse } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 
 test('mentor sees an automatically prepared server invitation before completing profile and can then verify', async ({ page, request, context }) => {
-  test.setTimeout(60000)
+  test.setTimeout(90000)
   const json = async (response: APIResponse) => { expect(response.ok(), await response.text()).toBeTruthy(); return response.json() }
   const platform = await json(await request.post('/api/login', { data: { password: 'test-only-password-1234' } }))
   const headers = { Authorization: `Bearer ${platform.token}` }
@@ -30,17 +30,62 @@ test('mentor sees an automatically prepared server invitation before completing 
   await json(await request.post('/api/integrations/discord/admissions/complete', { headers: botHeaders, data: { id: retried.id, claim: retried.claim, success: true, code: 'MentorJoinReady' } }))
   await expect(page.getByRole('link', { name: 'Discord 서버 참여', exact: true })).toHaveAttribute('href', 'https://discord.gg/MentorJoinReady', { timeout: 10000 })
   await page.getByLabel('전문 분야').fill('AI 활용')
+  const steps = page.getByRole('navigation', { name: '온보딩 단계' })
+  await expect(steps.getByRole('button', { name: /업무 안내/ })).toBeDisabled()
+  await page.screenshot({ path: 'test-results/mentor-profile-desktop.png', fullPage: true, animations: 'disabled' })
+  let failProfile = true, releaseSave: () => void = () => {}, saves = 0
+  await page.route(`**${base}/staff/profile`, async route => {
+    saves++
+    if (failProfile) return route.fulfill({ status: 503, json: { error: '저장 서버에 잠시 연결하지 못했습니다.' } })
+    await new Promise<void>(resolve => { releaseSave = resolve })
+    await route.continue()
+  })
   await page.getByRole('button', { name: '기본 정보 저장', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('저장 서버에 잠시 연결하지 못했습니다')
+  await page.waitForResponse(response => response.url().endsWith('/staff/onboarding'))
+  await expect(page.getByRole('alert')).toBeVisible() // Polling must not erase an action failure.
+  await expect(page.getByLabel('전문 분야')).toHaveValue('AI 활용')
+  failProfile = false
+  await page.getByRole('button', { name: '기본 정보 저장', exact: true }).click()
+  await expect(page.getByRole('button', { name: '저장 중…', exact: true })).toBeDisabled()
+  await expect(steps.getByRole('button', { name: /Discord 연결/ })).toBeDisabled()
+  releaseSave()
+  await expect(steps.getByRole('button', { name: /Discord 연결/ })).toHaveAttribute('aria-current', 'step')
+  expect(saves).toBe(2)
+  await expect(page.getByRole('progressbar', { name: '멘토 온보딩 진행률' })).toHaveAttribute('value', '1')
   await page.getByRole('button', { name: 'LMS 인증 시작', exact: true }).click()
   const code = await page.getByLabel('인증 코드', { exact: true }).textContent()
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.getByRole('button', { name: '인증 코드 복사', exact: true }).click()
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(code)
+  await expect(page.getByRole('button', { name: '인증 코드 복사' })).toContainText('복사 완료')
+  await steps.getByRole('button', { name: /기본 정보/ }).click()
+  await expect(page.getByLabel('전문 분야')).toHaveValue('AI 활용')
+  await steps.getByRole('button', { name: /Discord 연결/ }).click()
+  await expect(page.getByLabel('인증 코드', { exact: true })).toHaveText(code!)
   await expect(page.getByRole('link', { name: 'Discord 서버 참여', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Discord에서 인증하기', exact: true })).toHaveAttribute('href', `https://discord.com/channels/${guildId}`)
   await page.setViewportSize({ width: 390, height: 1000 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: 'test-results/mentor-discord-join.png', fullPage: true, animations: 'disabled' })
   await json(await request.post('/api/integrations/discord/verify', { headers: { Authorization: 'Bearer test-only-auth-token-12345678901234567890' }, data: { code, discordId, guildId } }))
-  await expect(page.getByText('Discord 인증 완료', { exact: true })).toBeVisible({ timeout: 10000 })
+  await expect(page.getByRole('complementary', { name: '내 활동과 Discord 참여' }).getByText('Discord 인증 완료', { exact: true })).toBeVisible({ timeout: 10000 })
+  await expect(steps.getByRole('button', { name: /업무 안내/ })).toHaveAttribute('aria-current', 'step')
+  await expect(page.getByRole('progressbar', { name: '멘토 온보딩 진행률' })).toHaveAttribute('value', '2')
+  for (const title of ['과제 생성', '멘토링 예약 승인', '멘토링 진행']) {
+    await expect(page.getByRole('button', { name: new RegExp(title + '.*지금 확인') })).toHaveAttribute('aria-expanded', 'true')
+    await page.getByRole('button', { name: '안내 확인했어요', exact: true }).click()
+  }
+  await expect(page.getByRole('heading', { name: '멘토 온보딩을 완료했습니다', exact: true })).toBeVisible()
+  await expect(page.getByRole('progressbar', { name: '멘토 온보딩 진행률' })).toHaveAttribute('value', '3')
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.screenshot({ path: 'test-results/mentor-complete-desktop.png', fullPage: true, animations: 'disabled' })
+  await page.getByText('과제 만들기', { exact: true }).click()
+  await page.getByLabel('과제 제목', { exact: true }).fill('멘토 온보딩 실습')
+  await page.getByLabel('마감일', { exact: true }).fill('2026-12-01')
+  await page.getByRole('button', { name: '과제 생성', exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: '과제를 생성했습니다' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: '멘토 활동 준비를 마쳤어요' })).toBeVisible()
+  expect((await json(await page.request.get(`${base}/staff/onboarding`))).profile.steps).toHaveLength(3)
 })
