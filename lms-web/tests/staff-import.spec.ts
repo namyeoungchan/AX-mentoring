@@ -43,7 +43,8 @@ test('xlsx staff registration previews inherited roles, assigns a team and expor
   const saved = page.waitForEvent('download')
   await region.getByRole('button', { name: '발급 결과 CSV 다운로드' }).click()
   const download = await saved
-  const rows = staffCsv(await readFile((await download.path())!, 'utf8')) as string[][]
+  // Read the exported cells as a spreadsheet would, removing its formula-safety prefix.
+  const rows = (staffCsv(await readFile((await download.path())!, 'utf8')) as string[][]).map(row => row.map(value => value.startsWith("'") ? value.slice(1) : value))
   expect(rows).toHaveLength(6)
   expect(rows[3][0]).toBe('강의')
   expect(rows[4][6]).toBe('1조')
@@ -54,7 +55,9 @@ test('xlsx staff registration previews inherited roles, assigns a team and expor
     expect(preview.role).toBe(i === 4 ? 'admin' : 'instructor')
     expect(preview.mentorType).toBe(i === 3 ? 'group' : 'main')
     if (i === 3) expect(preview.teamIds).toEqual([groups.teams[0].id])
-    const login = await (await request.post('/api/auth/login', { data: { username: row[4], password: row[8] } })).json()
+    const loginResponse = await request.post('/api/auth/login', { data: { username: row[4], password: row[8] } })
+    expect(loginResponse.status()).toBe(200)
+    const login = await loginResponse.json()
     expect(login.user.mustChangePassword).toBe(true)
     const changed = await (await request.post('/api/auth/password', { headers: { Authorization: `Bearer ${login.token}` }, data: { currentPassword: row[8], newPassword: 'bulk-invite-local-password' } })).json()
     expect((await request.post('/api/invitations/accept', { headers: { Authorization: `Bearer ${changed.token}` }, data: { token } })).ok()).toBe(true)
