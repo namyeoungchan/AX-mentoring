@@ -42,7 +42,8 @@ export default function AttendanceCode({ workspaceId, courseId, date, period, ro
   const remaining = active ? Math.max(0, Math.ceil((active.expiresAt - time) / 1000)) : 0
   const session = status?.session
   return <section className="attendance-code" aria-label="강의 시작·종료 코드">
-    <div><h3>강의 시작·종료 코드</h3><p>시작 코드를 생성하면 강의가 시작됩니다. 수업을 마칠 때 종료 코드를 생성하세요. 학생은 Discord 패널 또는 웹에서 코드를 입력해 입실·퇴실합니다.</p></div>
+    <details open><summary>강의 시작·종료 코드 <small>펼치기 / 접기</small></summary>
+    <p>학생에게 코드를 안내하세요. Discord 또는 웹에서 입력하면 명단에 자동 반영됩니다.</p>
     <div className="attendance-code-times">
       {session ? <><div><small>강의 예정 시간 · 한국시간</small><strong>{date} · {session.startTime}–{session.endTime}</strong></div><div><small>실제 강의 진행</small><strong>시작 {timeLabel(session.startedAt)} · {session.endedAt ? `종료 ${timeLabel(session.endedAt)}` : '진행 중'}</strong></div></> : <><label>강의 시작 예정 시각<input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} disabled={busy || disabled || !status?.canManage} required /></label><label>강의 종료 예정 시각<input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} disabled={busy || disabled || !status?.canManage} required /></label><span>한국시간 · {date}</span></>}
     </div>
@@ -62,5 +63,6 @@ export default function AttendanceCode({ workspaceId, courseId, date, period, ro
     {issued && !active && <p>코드 입력 시간이 끝났거나 코드가 폐기됐습니다.</p>}
     {notice && <p role="status">{notice}</p>}{error && <p role="alert" className="error-text">{error}</p>}
     <small>{session?.endedAt ? '종료 코드 유효시간까지 퇴실을 받습니다. 누락·예외를 확인한 뒤 출결을 확정하세요.' : '시작 코드는 입실, 종료 코드는 퇴실에만 사용합니다. 코드 유효시간이 끝나도 강의 진행 상태는 유지됩니다.'} 이미 기록한 시각과 멘토 정정은 유지합니다.</small>
+    </details>
   </section>
 }
