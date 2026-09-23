@@ -15,7 +15,7 @@ import { assignmentCourseScenario } from './assignment-course-scenario.mjs';
 const guildId = '123456789012345678';
 async function fixture(t) {
     const dir = mkdtempSync(join(tmpdir(), 'bot-storage-')), dbPath = join(dir, 'web.db'), store = await createStore(dbPath);
-    await createAuth(store.db);
+    const auth = await createAuth(store.db);
     await createRenderSync(store.db);
     const provision = await createProvision(store.db);
     const workspaces = await createWorkspaces({ store, dbPath, provision });
@@ -26,7 +26,15 @@ async function fixture(t) {
     const data = { version: 1, guildId, tables: Object.fromEntries(Object.keys(BOT_TABLES).map(k => [k, []])), settings: { channels: {}, teams: [], qaUnansweredHours: 24 }, runtime: [] };
     function payload() { const archive = JSON.stringify(data); return { guildId, archive, checksum: createHash('sha256').update(archive).digest('hex') }; }
     const call = async (operation, args = [], extra = {}) => await storage.call({ guildId, operation, args, requestId: randomUUID(), ...extra });
-    return { storage, workspace, workspaces, onboarding, data, payload, call };
+    const authorizeGroup = async () => {
+        const { user } = await auth.signup({ username: 'storage.mentor', name: '멘토', password: 'test-storage-mentor-password' }, () => {});
+        await store.db.prepare('UPDATE lms_users SET discord_id=? WHERE id=?').run('555456789012345678', user.id);
+        await store.db.prepare('INSERT INTO lms_workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?)').run(workspace.id, user.id, 'instructor', Date.now());
+        await store.db.prepare('INSERT INTO lms_mentor_scopes VALUES(?,?,?,?)').run(workspace.id, user.id, 'group', '[]');
+        await store.db.prepare('INSERT INTO lms_workspace_verifications VALUES(?,?,?,?,?)').run(workspace.id, user.id, guildId, '555456789012345678', Date.now());
+        return user;
+    };
+    return { storage, workspace, workspaces, onboarding, data, payload, call, authorizeGroup, main: store.db };
 }
 test('assignment creation binds a course atomically and legacy repair only uses an unambiguous course', async t => {
     const f = await fixture(t);
@@ -61,7 +69,8 @@ test('migration conflicts roll back all inserts and retain the source for review
     await assert.rejects(async () => await storage.bootstrap({ ...input, checksum: '0'.repeat(64) }), { status: 422 });
 });
 test('web-owned legacy operations preserve transactions, retry receipts and revision conflicts', async (t) => {
-    const { storage, workspace, payload, call } = await fixture(t);
+    const { storage, workspace, payload, call, authorizeGroup } = await fixture(t);
+    await authorizeGroup();
     await storage.bootstrap(payload());
     const requestId = randomUUID();
     const first = await call('add_mentor', ['555456789012345678', '한글 멘토', '소개'], { requestId });
@@ -99,7 +108,8 @@ test('migration preserves shared bot metadata under each registered guild and ne
     assert.equal(await storage.runtime({ guildId: '0', kind: 'config', key: 'snapshot', operation: 'get' }), null);
 });
 test('nested schedule generation accepts bot date values and skips configured holidays', async (t) => {
-    const { storage, workspace, payload, call } = await fixture(t);
+    const { storage, workspace, payload, call, authorizeGroup } = await fixture(t);
+    await authorizeGroup();
     await storage.bootstrap(payload());
     const mentor = (await call('add_mentor', ['555456789012345678', '예약 멘토'])).result;
     await call('set_slot_template', [mentor, 10, 0, 11, 0, 30]);
@@ -107,6 +117,26 @@ test('nested schedule generation accepts bot date values and skips configured ho
     const result = await call('generate_slots_for_range', [mentor, { $lms: 'date', value: '2026-10-01' }, { $lms: 'date', value: '2026-10-02' }]);
     assert.deepEqual(result.result, { $lms: 'tuple', value: [2, 1] });
     assert.equal((await storage.table(workspace.id, 'slots')).total, 2);
+    assert.deepEqual((await call('generate_slots_for_range', [mentor, { $lms: 'date', value: '2026-10-01' }, { $lms: 'date', value: '2026-10-02' }])).result, { $lms: 'tuple', value: [0, 1] });
+});
+
+test('online reservation rechecks current group membership and scoped proof, including stale buttons', async t => {
+    const f = await fixture(t), user = await f.authorizeGroup();
+    const mentor = (await f.call('add_mentor', ['555456789012345678', '조 담당 멘토'])).result;
+    const other = (await f.call('add_mentor', ['666456789012345678', '미인증 멘토'])).result;
+    const slot = (await f.call('add_slot', [mentor, '2030-01-01T10:00:00', '2030-01-01T11:00:00', '예약'])).result;
+    assert.equal((await f.call('get_online_mentors')).result.length, 1);
+    assert.equal((await f.call('get_online_mentor_by_id', [other])).result, null);
+    await f.main.prepare("UPDATE lms_mentor_scopes SET kind='main' WHERE subject_id=?").run(user.id);
+    assert.equal((await f.workspaces.snapshot(f.workspace.id)).mentors.find(row => row.id === String(mentor)).onlineBookable, false);
+    await assert.rejects(f.workspaces.mutate(f.workspace.id, { changes: [{ kind: 'sessions', value: { id: 'new-session', mentorId: String(mentor) } }] }, 'admin'), /조 담당 멘토/);
+    assert.deepEqual((await f.call('get_online_mentors')).result, []);
+    assert.equal((await f.call('create_booking', [slot, '777456789012345678', '학생'])).result, false);
+    await assert.rejects(f.call('set_slot_template', [mentor, 10, 0, 11, 0, 30]), { status: 422 });
+    await f.main.prepare("UPDATE lms_mentor_scopes SET kind='group' WHERE subject_id=?").run(user.id);
+    await f.main.prepare('DELETE FROM lms_workspace_verifications WHERE user_id=?').run(user.id);
+    assert.deepEqual((await f.call('get_online_mentors')).result, []);
+    assert.equal((await f.call('create_booking', [slot, '777456789012345678', '학생'])).result, false);
 });
 test('registry discovers only joined and registered guilds with independent settings and databases', async (t) => {
     const { storage, workspaces, workspace } = await fixture(t);

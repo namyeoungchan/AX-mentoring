@@ -1,6 +1,46 @@
 import { test, expect, type APIResponse } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 
+test('group mentor registers Discord availability after verification and LMS advances automatically', async ({ page, request }) => {
+  test.setTimeout(60000)
+  const json = async (response: APIResponse) => { expect(response.ok(), await response.text()).toBeTruthy(); return response.json() }
+  const platform = await json(await request.post('/api/login', { data: { password: 'test-only-password-1234' } }))
+  const headers = { Authorization: `Bearer ${platform.token}` }
+  const guildId = '695456789012345680', discordId = '795456789012345680'
+  const workspace = await json(await request.post('/api/workspaces', { headers, data: { name: '조 담당 가능 시간', guildId } }))
+  const base = `/api/workspaces/${workspace.id}`
+  const groups = await json(await request.get(`${base}/discord/groups`, { headers }))
+  const setup = await json(await request.post(`${base}/discord/groups`, { headers, data: { revision: groups.revision, count: 1 } }))
+  const username = `group.${randomUUID().slice(0, 8)}`
+  const invitation = await json(await request.post(`${base}/invitations`, { headers, data: { username, role: 'instructor', mentorType: 'group', teamIds: [setup.teams[0].id] } }))
+  await json(await page.request.post('/api/auth/register', { data: { invitationToken: invitation.token, username, name: '조 담당 멘토', password: 'mentor-availability-password' } }))
+  await json(await page.request.post('/api/invitations/accept', { data: { token: invitation.token } }))
+  await json(await page.request.post(`${base}/staff/profile`, { data: { name: '조 담당 멘토', expertise: 'AI' } }))
+  const challenge = await json(await page.request.post(`${base}/staff/verification`, { data: {} }))
+  await json(await request.post('/api/integrations/discord/verify', { headers: { Authorization: 'Bearer test-only-auth-token-12345678901234567890' }, data: { code: challenge.code, discordId, guildId } }))
+  await page.goto(`/?workspace=${workspace.id}#onboarding`)
+  const steps = page.getByRole('navigation', { name: '온보딩 단계' })
+  await expect(page.getByRole('heading', { name: '온라인 멘토링 가능 시간을 입력해 주세요' })).toBeVisible()
+  await expect(steps.getByRole('button', { name: /업무 안내/ })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '업무 안내로 계속' })).toBeDisabled()
+  const botHeaders = { Authorization: 'Bearer test-only-provision-token-12345678901234567890' }
+  const invoke = async (operation: string, args: unknown[] = []) => json(await request.post('/api/integrations/discord/storage/call', { headers: botHeaders, data: { guildId, operation, args, requestId: randomUUID() } }))
+  const mentors = await invoke('get_online_mentors')
+  const mentorId = mentors.result[0].value.find(([key]: [string, unknown]) => key === 'id')[1]
+  await invoke('set_slot_template', [mentorId, 19, 0, 21, 0, 30])
+  expect((await json(await page.request.get(`${base}/staff/onboarding`))).availability.configured).toBe(false)
+  const { job } = await json(await request.post('/api/integrations/discord/outbox/poll', { headers: botHeaders, data: { guildIds: [guildId], capabilities: ['mentor_availability'] } }))
+  expect(job.kind).toBe('mentor_availability'); expect(job.payload.targetId).toBe(discordId)
+  await invoke('generate_slots_for_range', [mentorId, { $lms: 'date', value: '2030-01-01' }, { $lms: 'date', value: '2030-01-01' }])
+  await expect(steps.getByRole('button', { name: /업무 안내/ })).toHaveAttribute('aria-current', 'step', { timeout: 10000 })
+  await steps.getByRole('button', { name: /Discord 연결/ }).click()
+  await expect(page.getByRole('heading', { name: '온라인 멘토링 가능 시간 등록 완료' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '업무 안내로 계속' })).toBeEnabled()
+  await page.setViewportSize({ width: 390, height: 1000 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/mentor-availability-mobile.png', fullPage: true, animations: 'disabled' })
+})
+
 test('mentor sees an automatically prepared server invitation before completing profile and can then verify', async ({ page, request, context }) => {
   test.setTimeout(90000)
   const json = async (response: APIResponse) => { expect(response.ok(), await response.text()).toBeTruthy(); return response.json() }

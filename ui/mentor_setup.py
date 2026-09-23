@@ -3,7 +3,9 @@ from workspace_context import MentorWorkspaceView as WorkspaceView, MentorWorksp
 Mentor self-service setup panel.
 Accessible via /멘토 설정
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+
+KST = timezone(timedelta(hours=9))
 
 import discord
 from discord.ext import commands
@@ -54,6 +56,9 @@ class ScheduleSetModal(WorkspaceModal, title="멘토링 시간대 설정"):
             )
             return
 
+        if not (0 <= sh <= 23 and 0 <= eh <= 23 and 0 <= sm <= 59 and 0 <= em <= 59):
+            await interaction.response.send_message('시간은 00:00~23:59 사이로 입력하세요. (한국 시간)', ephemeral=True)
+            return
         if sh * 60 + sm >= eh * 60 + em:
             await interaction.response.send_message(
                 embed=embeds.error_embed("종료 시간이 시작 시간보다 앞에 있습니다."), ephemeral=True
@@ -65,6 +70,10 @@ class ScheduleSetModal(WorkspaceModal, title="멘토링 시간대 설정"):
             )
             return
 
+        if (eh * 60 + em - sh * 60 - sm) < ivl:
+            await interaction.response.send_message('시간 범위가 슬롯 간격보다 짧습니다. 최소 한 번 예약할 수 있도록 입력하세요.', ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
         await database.set_slot_template(self.mentor["id"], sh, sm, eh, em, ivl)
 
         slots_per_day = (eh * 60 + em - sh * 60 - sm) // ivl
@@ -78,7 +87,8 @@ class ScheduleSetModal(WorkspaceModal, title="멘토링 시간대 설정"):
             ),
             color=discord.Color.green(),
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        template = await database.get_slot_template(self.mentor['id'])
+        await interaction.followup.send(embed=embed, view=MentorSetupView(self.mentor, template, self.bot), ephemeral=True)
 
 
 class SlotGenerateModal(WorkspaceModal, title="슬롯 생성"):
@@ -98,7 +108,7 @@ class SlotGenerateModal(WorkspaceModal, title="슬롯 생성"):
         self.mentor = mentor
         self.bot = bot
         # pre-fill sensible defaults
-        today = date.today()
+        today = datetime.now(KST).date()
         self.date_from.default = today.isoformat()
         self.date_to.default = (today + timedelta(days=30)).isoformat()
 
@@ -113,6 +123,9 @@ class SlotGenerateModal(WorkspaceModal, title="슬롯 생성"):
             )
             return
 
+        if d_from < datetime.now(KST).date():
+            await interaction.response.send_message('오늘 이후의 날짜를 선택하세요. (한국 시간)', ephemeral=True)
+            return
         if d_to < d_from:
             await interaction.response.send_message(
                 embed=embeds.error_embed("종료 날짜가 시작 날짜보다 앞에 있습니다."), ephemeral=True
@@ -136,7 +149,7 @@ class SlotGenerateModal(WorkspaceModal, title="슬롯 생성"):
         await interaction.followup.send(
             embed=discord.Embed(
                 title="슬롯 생성 완료",
-                description="\n".join(desc),
+                description="\n".join(desc) + '\n한국 시간(KST) 기준으로 저장했습니다. LMS에서 등록 상태와 업무 안내를 확인하세요.',
                 color=discord.Color.green(),
             ),
             ephemeral=True,

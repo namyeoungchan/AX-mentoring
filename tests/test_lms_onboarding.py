@@ -364,6 +364,18 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('저장되어 있습니다', interaction.followup.send.call_args.args[0])
         self.cog.queue_member.assert_called_once_with(123, 7)
 
+    async def test_group_mentor_verification_prompts_availability_without_student_intro(self):
+        guild_id, user_id = 123456789012345678, 223456789012345678
+        self.cog.refresh = AsyncMock()
+        self.cog.queue_member = MagicMock()
+        self.cog.configs[str(guild_id)] = {'enabled': True, 'participants': [{'discordId': str(user_id), 'role': 'instructor', 'mentorType': 'group'}]}
+        interaction = SimpleNamespace(guild_id=guild_id, user=SimpleNamespace(id=user_id), followup=SimpleNamespace(send=AsyncMock()))
+        await self.cog.after_verification(interaction)
+        view = interaction.followup.send.call_args.kwargs['view']
+        self.assertTrue(any(item.custom_id == f'lms:availability:{guild_id}:{user_id}' for item in view.children))
+        self.assertFalse(any(getattr(item, 'label', '') == '2 · 자기소개 작성' for item in view.children))
+        self.cog.queue_member.assert_called_once_with(guild_id, user_id)
+
     async def test_verified_member_sync_does_not_wait_for_guild_resource_repair(self):
         guild = SimpleNamespace(fetch_member=AsyncMock(return_value=SimpleNamespace(id=7)))
         self.cog.bot.get_guild.return_value = guild

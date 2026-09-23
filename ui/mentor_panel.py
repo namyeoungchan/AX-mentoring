@@ -38,7 +38,7 @@ class MentorPanelView(WorkspaceView):
         async def callback(interaction: discord.Interaction) -> None:
             try:
                 # Re-fetch mentor in case data changed after bot restart
-                fresh_mentor = await database.get_mentor_by_id(mentor["id"])
+                fresh_mentor = await database.get_online_mentor_by_id(mentor["id"])
                 if not fresh_mentor:
                     await interaction.response.send_message(
                         embed=embeds.error_embed("멘토 정보를 찾을 수 없습니다. 관리자에게 문의하세요."),

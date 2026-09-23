@@ -89,12 +89,21 @@ async function fixture(t) {
 pgTest('PostgreSQL preserves bot receipts, duplicate booking semantics, worker reuse and submission outbox',async t=>{
   const f=await fixture(t),r=f.runtime,guildId='123456789012345678'
   const workspace=await r.workspaces.create({name:'PG 과정',guildId})
+  const {user}=await r.auth.signup({username:'pg.mentor',name:'멘토',password:'test-postgres-mentor-password'},()=>{})
+  await r.store.db.prepare('UPDATE lms_users SET discord_id=? WHERE id=?').run('223456789012345678',user.id)
+  await r.store.db.prepare('INSERT INTO lms_workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?)').run(workspace.id,user.id,'instructor',Date.now())
+  await r.store.db.prepare('INSERT INTO lms_mentor_scopes VALUES(?,?,?,?)').run(workspace.id,user.id,'group','[]')
+  await r.store.db.prepare('INSERT INTO lms_workspace_verifications VALUES(?,?,?,?,?)').run(workspace.id,user.id,guildId,'223456789012345678',Date.now())
   const call=(operation,args=[],requestId=randomUUID())=>r.botStorage.call({guildId,operation,args,requestId})
   const requestId=randomUUID(),mentor=await call('add_mentor',['223456789012345678','멘토',''],requestId)
   assert.deepEqual(await call('add_mentor',['223456789012345678','멘토',''],requestId),mentor)
   const slot=await call('add_slot',[mentor.result,'2026-10-01T10:00:00','2026-10-01T10:50:00','예약'])
   assert.equal((await call('create_booking',[slot.result,'323456789012345678','학생'])).result,true)
   assert.equal((await call('create_booking',[slot.result,'423456789012345678','중복'])).result,false)
+  await call('set_slot_template',[mentor.result,19,0,21,0,30])
+  const dates=[mentor.result,{$lms:'date',value:'2030-01-01'},{$lms:'date',value:'2030-01-01'}]
+  assert.deepEqual((await call('generate_slots_for_range',dates)).result,{$lms:'tuple',value:[4,0]})
+  assert.deepEqual((await call('generate_slots_for_range',dates)).result,{$lms:'tuple',value:[0,0]})
   await (await r.workspaces.open(workspace.id)).db.prepare('INSERT INTO lms_records(kind,id,data) VALUES(?,?,?)').run('courses','assignment-course',JSON.stringify({id:'assignment-course',title:'과제 과정'}))
   const assignment=await call('create_assignment',[1,'과제','설명','2026-10-01','individual'])
   assert.equal((await call('create_submission',[assignment.result,'323456789012345678','학생','','제출',''])).result,true)

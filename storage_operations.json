@@ -1,5 +1,6 @@
 {
   "readOnly": [
+    "get_online_mentors", "get_online_mentor_by_id", "get_online_mentor_by_discord_id",
     "get_mentors", "get_mentor_by_id", "get_mentor_by_discord_id",
     "get_slots_for_mentor", "get_slot", "get_booking_for_slot", "get_booking_by_user",
     "get_all_bookings", "get_bookings_by_slot_ids", "get_dates_with_available_slots",

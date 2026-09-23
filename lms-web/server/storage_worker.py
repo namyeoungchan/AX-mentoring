@@ -76,6 +76,9 @@ async def run(request, filename, schema=None):
     bound = inspect.signature(fn).bind(*args, **kwargs)
     bound.apply_defaults()
     validate(operation, bound.arguments, request["guildId"])
+    database.online_mentor_ids.set(frozenset(request.get('onlineMentorIds', [])))
+    if operation in ('set_slot_template', 'generate_slots_for_range') and bound.arguments['mentor_id'] not in database.online_mentor_ids.get():
+        raise ValueError('온라인 멘토링 가능 시간은 인증된 조 담당 멘토만 등록할 수 있습니다.')
     fingerprint = hashlib.sha256(json.dumps({"operation": operation, "args": request.get("args", []), "kwargs": request.get("kwargs", {})}, sort_keys=True).encode()).hexdigest()
     original_connect = aiosqlite.connect
     read_only = operation in READ_ONLY

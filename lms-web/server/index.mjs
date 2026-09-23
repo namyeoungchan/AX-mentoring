@@ -32,6 +32,7 @@ async function prepareAssignmentAlerts() {
     for (const row of await (store.db.prepare('SELECT id FROM lms_workspaces WHERE archived_at IS NULL')).all()) {
         try {
             await assignmentAlerts.prepare(row.id, outbox.channel);
+            await runtime.onlineMentoring.prepare(row.id);
         }
         catch {
             console.error('Assignment notification preparation failed for workspace', row.id);

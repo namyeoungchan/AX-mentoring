@@ -4,7 +4,7 @@ import type { useWorkspace } from './useWorkspace'
 import DiscordVerification from './DiscordVerification'
 import { ArrowRight, Check, CheckCircle2, ChevronDown, ExternalLink, LoaderCircle, RefreshCw, Users } from 'lucide-react'
 
-type State = { profile: { name: string; expertise: string; bio: string; steps: string[] } | null; guildId: string; verified: boolean; mentorType: string; teamIds: string[]; teams: { id: string; name: string }[]; invitation: { inviteUrl: string | null; inviteState: string; inviteExpires: number | null } | null; guides: { id: string; title: string; text: string }[] }
+type State = { availability?: { required: boolean; configured: boolean; futureSlots: number }; profile: { name: string; expertise: string; bio: string; steps: string[] } | null; guildId: string; verified: boolean; mentorType: string; teamIds: string[]; teams: { id: string; name: string }[]; invitation: { inviteUrl: string | null; inviteState: string; inviteExpires: number | null } | null; guides: { id: string; title: string; text: string }[] }
 const stages = ['기본 정보', 'Discord 연결', '업무 안내']
 
 function ProfileForm({ initial, name, busy, save }: { initial: State['profile']; name: string; busy: boolean; save: (body: object) => Promise<boolean> }) {
@@ -44,7 +44,7 @@ export default function MentorOnboarding({ workspace }: { workspace: ReturnType<
       if (signal?.aborted || version !== mutation.current || acting.current) return
       if (result.verified && verifiedPreviously.current === false) {
         setSelected(current => current === 1 ? null : current)
-        setNotice('Discord 인증을 완료했습니다. 이제 멘토 업무 안내를 확인하세요.')
+        setNotice(result.availability?.required && !result.availability.configured ? 'Discord 인증을 완료했습니다. 이제 Discord에서 온라인 멘토링 가능 시간을 입력하세요.' : 'Discord 인증을 완료했습니다. 이제 멘토 업무 안내를 확인하세요.')
       }
       verifiedPreviously.current = result.verified
       setState(result); setClock(Date.now()); setLoadError('')
@@ -73,9 +73,11 @@ export default function MentorOnboarding({ workspace }: { workspace: ReturnType<
 
   const profileReady = !!state?.profile, verified = !!state?.verified
   const reviewed = state?.profile?.steps || [], guides = state?.guides || []
-  const finished = profileReady && verified && guides.length > 0 && guides.every(g => reviewed.includes(g.id))
-  const complete = [profileReady, verified, finished], completed = complete.filter(Boolean).length
-  const stage = selected ?? (!profileReady ? 0 : !verified ? 1 : 2)
+  const availabilityReady = !state?.availability?.required || state.availability.configured
+  const discordReady = verified && availabilityReady
+  const finished = profileReady && discordReady && guides.length > 0 && guides.every(g => reviewed.includes(g.id))
+  const complete = [profileReady, discordReady, finished], completed = complete.filter(Boolean).length
+  const stage = selected ?? (!profileReady ? 0 : !discordReady ? 1 : 2)
   const nextGuide = guides.find(g => !reviewed.includes(g.id))?.id
   const expandedGuide = openGuide ?? nextGuide
   const usableInvite = !!state?.invitation?.inviteUrl && (!state.invitation.inviteExpires || state.invitation.inviteExpires > clock)
@@ -123,7 +125,7 @@ export default function MentorOnboarding({ workspace }: { workspace: ReturnType<
   }
   return <section className="mentor-onboarding" aria-label="멘토 온보딩">
     <header className="mentor-welcome"><div><span className="mentor-kicker">MENTOR SETUP</span><h2>{finished ? '멘토 활동 준비를 마쳤어요' : `${account?.name || '멘토'}님, 활동을 준비해 볼까요`}</h2><p>{finished ? '저장한 정보와 업무 안내는 이곳에서 다시 확인할 수 있습니다.' : '기본 정보와 Discord를 연결하고, 멘토 업무를 확인하세요.'}</p></div><div className="mentor-progress"><span><strong>{completed}</strong> / 3 단계 완료</span><progress value={completed} max={3} aria-label="멘토 온보딩 진행률" /></div></header>
-    <nav className="mentor-stage-nav" aria-label="온보딩 단계">{stages.map((title, index) => <button key={title} disabled={!!busy || !state || (index === 2 && (!profileReady || !verified))} aria-current={stage === index ? 'step' : undefined} onClick={() => { setSelected(index); setNotice(''); setError('') }}><span className={complete[index] ? 'is-complete' : ''}>{complete[index] ? <Check size={17} /> : `0${index + 1}`}</span><div><strong>{title}</strong><small>{complete[index] ? '완료 · 다시 보기' : stage === index ? '진행 중' : index === 2 && !verified ? '인증 후 진행' : '이어서 진행'}</small></div><ArrowRight size={17} /></button>)}</nav>
+    <nav className="mentor-stage-nav" aria-label="온보딩 단계">{stages.map((title, index) => <button key={title} disabled={!!busy || !state || (index === 2 && (!profileReady || !discordReady))} aria-current={stage === index ? 'step' : undefined} onClick={() => { setSelected(index); setNotice(''); setError('') }}><span className={complete[index] ? 'is-complete' : ''}>{complete[index] ? <Check size={17} /> : `0${index + 1}`}</span><div><strong>{title}</strong><small>{complete[index] ? '완료 · 다시 보기' : stage === index ? '진행 중' : index === 2 && !verified ? '인증 후 진행' : '이어서 진행'}</small></div><ArrowRight size={17} /></button>)}</nav>
     {!state ? <div className="mentor-loading" aria-busy={!loadError}>{loadError ? <><p role="alert">{loadError}</p><button className="button secondary" onClick={() => void refresh()}>다시 불러오기</button></> : <><div className="mentor-skeleton" /><div className="mentor-skeleton" /><p role="status">저장된 정보와 서버 연결 상태를 불러오고 있습니다.</p></>}</div> : <div className="mentor-setup-grid">
       <div className="mentor-stage-body" ref={panel} tabIndex={-1} aria-label={`${stages[stage]} 단계`}>
         {loadError && <p className="mentor-feedback is-error" role="alert">상태를 갱신하지 못했습니다. {loadError}</p>}
@@ -131,7 +133,8 @@ export default function MentorOnboarding({ workspace }: { workspace: ReturnType<
         {notice && <p className="mentor-feedback" role="status"><CheckCircle2 size={17} />{notice}</p>}
         <section hidden={stage !== 0} className="mentor-stage-section"><span className="mentor-kicker">STEP 01</span><h3>멘토로 사용할 정보를 알려주세요</h3><p className="mentor-stage-description">활동 이름과 전문 분야만 입력하면 됩니다. 멘토는 Discord 자기소개를 작성하지 않습니다.</p><ProfileForm initial={state.profile} name={account?.name || ''} busy={!!busy} save={body => action('profile', body)} /></section>
         <section hidden={stage !== 1} className="mentor-stage-section"><span className="mentor-kicker">STEP 02</span><h3>Discord와 내 계정을 연결하세요</h3><p className="mentor-stage-description">서버 참여 버튼으로 먼저 입장하세요. 이미 참여했다면 바로 인증을 진행하면 됩니다.</p>
-          {verified ? <div className="mentor-verified"><CheckCircle2 size={28} /><h4>Discord 인증 완료</h4><p>멘토 역할과 서버 별명은 봇이 자동으로 적용합니다.</p><button className="button primary" onClick={() => setSelected(2)}>업무 안내로 계속<ArrowRight size={16} /></button></div> : !state.guildId ? <p className="mentor-feedback">관리자가 Discord 서버를 연결하면 인증을 시작할 수 있습니다.</p> : !profileReady ? <div className="mentor-feedback"><p>서버에는 먼저 참여할 수 있습니다. 인증 코드를 받으려면 기본 정보를 저장해 주세요.</p><button className="button secondary" onClick={() => setSelected(0)}>기본 정보 입력하기</button></div> : <DiscordVerification workspaceId={activeId} verificationPath="staff/verification" channelUrl={`https://discord.com/channels/${state.guildId}`} onVerified={() => { void refresh(); setSelected(null) }} />}
+          {verified ? <div className="mentor-verified"><CheckCircle2 size={28} /><h4>Discord 인증 완료</h4><p>멘토 역할과 서버 별명은 봇이 자동으로 적용합니다.</p><button className="button primary" disabled={!availabilityReady} onClick={() => setSelected(2)}>업무 안내로 계속<ArrowRight size={16} /></button></div> : !state.guildId ? <p className="mentor-feedback">관리자가 Discord 서버를 연결하면 인증을 시작할 수 있습니다.</p> : !profileReady ? <div className="mentor-feedback"><p>서버에는 먼저 참여할 수 있습니다. 인증 코드를 받으려면 기본 정보를 저장해 주세요.</p><button className="button secondary" onClick={() => setSelected(0)}>기본 정보 입력하기</button></div> : <DiscordVerification workspaceId={activeId} verificationPath="staff/verification" channelUrl={`https://discord.com/channels/${state.guildId}`} onVerified={() => { void refresh(); setSelected(null) }} />}
+          {state.availability?.required && <div className="mentor-feedback" role="status"><h4>{state.availability.configured ? '온라인 멘토링 가능 시간 등록 완료' : '온라인 멘토링 가능 시간을 입력해 주세요'}</h4><p>{state.availability.configured ? `앞으로 진행할 예약 시간 ${state.availability.futureSlots}개가 등록되어 있습니다.` : '조 담당 멘토는 Discord 인증 후 가능 시간을 등록합니다. 봇 안내의 ‘온라인 멘토링 가능 시간 입력’을 누르고, 시간대와 예약 가능한 날짜를 차례로 선택하세요. 시간대만 저장하면 예약은 열리지 않습니다.'}</p><p>한국 시간(KST) 기준입니다. 등록 결과는 이 화면에 자동 반영됩니다.</p>{verified && <><a className="button secondary" href={`https://discord.com/channels/${state.guildId}`} target="_blank" rel="noreferrer">Discord에서 가능 시간 입력<ExternalLink size={15} /></a><small>봇의 개인 메시지 또는 시작하기 채널의 LMS 인증 버튼에서 안내를 다시 열 수 있습니다. /멘토 설정 명령어로도 입력할 수 있습니다.</small></>}</div>}
         </section>
         <section hidden={stage !== 2} className="mentor-stage-section"><span className="mentor-kicker">STEP 03 · {reviewed.length} / {guides.length}</span><h3>첫 활동 전에 확인해 주세요</h3><p className="mentor-stage-description">안내를 읽고 확인 버튼을 누르면 다음 안내가 열립니다.</p>
           <div className="mentor-guide-list">{guides.map((guide, index) => { const done = reviewed.includes(guide.id), expanded = expandedGuide === guide.id; return <article key={guide.id} className={done ? 'is-complete' : ''}><h4><button aria-expanded={expanded} aria-controls={`mentor-guide-${guide.id}`} onClick={() => setOpenGuide(expanded ? '' : guide.id)}><span>{done ? <CheckCircle2 size={19} /> : `0${index + 1}`}</span>{guide.title}<small>{done ? '확인 완료' : nextGuide === guide.id ? '지금 확인' : '대기'}</small><ChevronDown size={17} /></button></h4><div id={`mentor-guide-${guide.id}`} hidden={!expanded}><p>{guide.text}</p>{!done && <button className="button primary" disabled={!!busy || !verified || !profileReady || nextGuide !== guide.id || demoMode} aria-busy={busy === 'step'} onClick={() => void action('step', { step: guide.id })}>{busy === 'step' ? <LoaderCircle size={16} className="membership-spinner" /> : <Check size={16} />}{busy === 'step' ? '확인 내용 저장 중…' : '안내 확인했어요'}</button>}</div></article> })}</div>

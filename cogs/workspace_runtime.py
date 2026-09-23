@@ -38,7 +38,7 @@ class WorkspaceRuntime(commands.Cog):
                 continue
             with config.guild_scope(guild_id):
                 try:
-                    mentors = await database.get_mentors()
+                    mentors = await database.get_online_mentors()
                     for panel in await database.get_panels():
                         if int(panel['guild_id']) == guild_id:
                             self.bot.add_view(MentorPanelView(mentors), message_id=int(panel['message_id']))

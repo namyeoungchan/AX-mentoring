@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { ApiError } from './store.mjs';
 import { createOperationQueue } from './operation-queue.mjs';
 import { createPythonStorageExecutor } from './python-storage-executor.mjs';
+import { onlineMentors } from './online-mentoring.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const source = readFileSync(resolve(root, '../database.py'), 'utf8');
 const operations = new Set([...source.matchAll(/^async def (\w+)\(/gm)].map(m => m[1]).filter(n => n !== 'init_db' && !n.startsWith('_')));
@@ -271,7 +272,9 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
         const db = await open(id);
         const location = db.dialect === 'postgres' ? { schema: db.schema } : { filename: (await db.prepare('PRAGMA database_list').all()).find(r => r.name === 'main').file };
         // Reads use enforced read-only transactions; writes retain one writer per workspace.
-        return await queue.run(id, readOnly.has(input.operation), { ...location, request: { ...input, actor } });
+        const onlineMentorIds = ['get_online_mentors', 'get_online_mentor_by_id', 'get_online_mentor_by_discord_id', 'create_booking', 'set_slot_template', 'generate_slots_for_range'].includes(input.operation)
+            ? (await onlineMentors(main, workspaces, id)).map(mentor => mentor.id) : [];
+        return await queue.run(id, readOnly.has(input.operation), { ...location, request: { ...input, actor, onlineMentorIds } });
     }
     async function assignmentDeletion(id, assignmentId, body, user) {
         await workspaces.requireRole(id, user, ['admin']);

@@ -476,6 +476,13 @@ class LMSOnboarding(commands.Cog):
             text += "\n인증 코드가 만료돼도 완료된 LMS 인증은 유지됩니다. 안내 버튼이 만료되면 시작하기 채널의 공용 버튼을 다시 누르세요."
             view = StartView(self, interaction.guild_id, interaction.user.id, verified=True)
             view.children[1].disabled = bool(record.get("introDone")) or not participant or participant["role"] != "student" or not participant.get("teamId")
+            if participant and participant['role'] == 'instructor' and participant.get('mentorType') == 'group':
+                from ui.mentor_availability import AvailabilityButton
+                view.remove_item(view.children[1])
+                view.add_item(AvailabilityButton(interaction.guild_id, interaction.user.id))
+                text = ('LMS 인증 완료 · 다음으로 **온라인 멘토링 가능 시간 입력**을 눌러 주세요.\n'
+                        '시간대와 예약 가능한 날짜를 등록하면 수강생이 예약할 수 있습니다. 한국 시간(KST) 기준입니다.\n'
+                        '등록 후 LMS에서 업무 안내를 확인하세요. 이미 등록했다면 여기서 수정할 수 있습니다.')
             await interaction.followup.send(text, view=view, ephemeral=True)
             if participant and (participant["role"] != "student" or record.get("introDone")):
                 self.queue_member(interaction.guild_id, interaction.user.id)

@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { ApiError } from './store.mjs';
 import { workspaceVerified } from './workspace-verification.mjs';
+import { onlineAvailability } from './online-mentoring.mjs';
 export const mentorGuides = [
     { id: 'assignments', title: '과제 생성', text: '아래 과제 만들기에서 과정, 제목, 마감일을 입력하세요. 과제는 선택한 과정 전체에 공개됩니다. 생성한 과제는 Discord 과제제출 패널에도 반영되며 수강생이 제출할 수 있습니다.' },
-    { id: 'approval', title: '멘토링 예약 승인', text: 'Discord에서 /멘토 설정을 실행하고 시간대와 예약 슬롯을 만드세요. 수강생이 멘토링예약 채널에서 신청하면 봇의 개인 메시지로 승인·거절 요청을 받습니다. 서버 개인 메시지를 허용하고, 일정과 요청 내용을 확인한 뒤 승인하거나 사유를 적어 거절하세요.' },
+    { id: 'approval', title: '멘토링 예약 승인', text: '온라인 멘토링은 조 담당 멘토에게 예약할 수 있습니다. 조 담당 멘토는 Discord의 가능 시간 입력 버튼 또는 /멘토 설정에서 시간대와 예약 날짜를 등록하세요. 수강생이 신청하면 봇의 개인 메시지로 승인·거절 요청을 받습니다. 서버 개인 메시지를 허용하고 일정과 요청 내용을 확인하세요. 메인 강사는 가능 시간을 등록하지 않아도 됩니다.' },
     { id: 'mentoring', title: '멘토링 진행', text: '확정된 시간에 담당 조의 음성 채널에서 멘토링을 진행하세요. 시작 전에 질문과 과제 내용을 확인하고, 종료 시 피드백과 다음 할 일을 조별 대화 채널에 남기세요. 일정 변경이 필요하면 수강생과 조율하고 기존 예약을 취소한 뒤 다시 예약하도록 안내하세요.' },
 ];
 export async function createStaffFlow(db, workspaces, onboarding, admissions, { now = Date.now } = {}) {
@@ -96,8 +97,10 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
         const verified = Boolean(guildId && await workspaceVerified(db, id, user.id, guildId));
         const invitation = (await admissions.own(user)).find(a => a.workspaceId === id) || null;
         const steps = profile ? JSON.parse(profile.steps) : [];
+        const availability = await onlineAvailability(db, workspaces, id, user.id, now());
         return { profile: profile ? { ...profile, steps } : null, guildId, verified, invitation,
-            completed: Boolean(profile && verified && mentorGuides.every(guide => steps.includes(guide.id))),
+            availability,
+            completed: Boolean(profile && verified && (!availability.required || availability.configured) && mentorGuides.every(guide => steps.includes(guide.id))),
             ...await workspaces.mentorScope(id, user.id), teams: (await workspaces.snapshot(id)).teams.map(t => ({ id: t.id, name: t.name })), guides: mentorGuides };
     }
     async function profile(id, body, user) {

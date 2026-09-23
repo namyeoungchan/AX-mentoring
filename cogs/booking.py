@@ -15,7 +15,7 @@ class Booking(commands.Cog):
     async def _mentor_autocomplete(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        mentors = await database.get_mentors()
+        mentors = await database.get_online_mentors()
         return [
             app_commands.Choice(name=m["name"], value=str(m["id"]))
             for m in mentors
@@ -28,7 +28,7 @@ class Booking(commands.Cog):
 
     @mentor_group.command(name="list", description="등록된 멘토 목록을 확인합니다.")
     async def mentor_list(self, interaction: discord.Interaction) -> None:
-        mentors = await database.get_mentors()
+        mentors = await database.get_online_mentors()
         await interaction.response.send_message(
             embed=embeds.mentor_list_embed(mentors), ephemeral=True
         )
@@ -56,7 +56,7 @@ class Booking(commands.Cog):
             )
             return
 
-        mentor = await database.get_mentor_by_id(mentor_id)
+        mentor = await database.get_online_mentor_by_id(mentor_id)
         if not mentor:
             await interaction.response.send_message(
                 embed=embeds.error_embed("해당 멘토를 찾을 수 없습니다."), ephemeral=True

@@ -1,4 +1,5 @@
 import { asyncFilter } from './async-collections.mjs';
+import { onlineMentors } from './online-mentoring.mjs';
 import { basename, dirname, join } from 'node:path';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -163,12 +164,22 @@ export async function createWorkspaces({ store, dbPath, provision, syncToken = '
             throw error;
         }
     }
-    async function snapshot(id) { return { ...await (await open(id)).snapshot(), name: (await metadata(id)).name, authEnabled: true }; }
+    async function snapshot(id) {
+        const data = await (await open(id)).snapshot();
+        const allowed = new Set((await onlineMentors(db, { metadata, open }, id)).map(mentor => String(mentor.id)));
+        return { ...data, mentors: data.mentors.map(mentor => ({ ...mentor, onlineBookable: allowed.has(mentor.id) })), name: (await metadata(id)).name, authEnabled: true };
+    }
     async function mutate(id, body, actor) {
         const target = await open(id);
+        for (const change of Array.isArray(body?.changes) ? body.changes : []) {
+            if (change?.kind !== 'sessions' || !change.value || await target.db.prepare('SELECT id FROM bookings WHERE CAST(id AS TEXT)=?').get(change.value.id)) continue;
+            const allowed = await onlineMentors(db, { metadata, open }, id);
+            if (!allowed.some(mentor => String(mentor.id) === change.value.mentorId))
+                throw new ApiError(422, '온라인 멘토링은 Discord 인증을 마친 조 담당 멘토에게만 예약할 수 있습니다.');
+        }
         const result = await target.mutate(body, actor);
         await (db.prepare('UPDATE lms_workspaces SET name=? WHERE id=?')).run(result.name, id);
-        return { ...result, authEnabled: true };
+        return await snapshot(id);
     }
     async function remote(id) {
         if (!remotes.has(id))

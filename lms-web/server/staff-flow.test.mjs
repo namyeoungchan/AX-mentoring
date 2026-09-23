@@ -15,6 +15,7 @@ import { createWorkspaces } from './workspaces.mjs';
 import { createAdmissions } from './admissions.mjs';
 import { createOnboarding } from './onboarding.mjs';
 import { createStaffFlow } from './staff-flow.mjs';
+import { createOnlineMentoring } from './online-mentoring.mjs';
 const admin = { id: 'admin', username: 'admin', role: 'admin' };
 const guildId = '555456789012345678', discordId = '655456789012345678';
 const secret = 'test-only-token-12345678901234567890';
@@ -49,6 +50,38 @@ test('global account management switches workspace roles without granting platfo
     const f = await fixture(t);
     const administrator = await f.auth.createSuperAdmin({ username: 'role.owner', name: 'Owner', password: 'test-role-admin-password' });
     await accountRoleScenario(f, administrator);
+});
+
+test('verified group mentors need published future availability and receive only one durable input reminder', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    await f.setup(1); await f.connect();
+    const user = await f.signup('availability.mentor', 'instructor', { mentorType: 'group', teamIds: [(await f.staff.groups(id)).teams[0].id] });
+    await f.staff.profile(id, { name: '조 담당', expertise: 'AI' }, user);
+    const service = createOnlineMentoring(f.store.db, f.workspaces), db = (await f.workspaces.open(id)).db;
+    await service.prepare(id);
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_outbox WHERE kind='mentor_availability'").get()).n, 0);
+    await f.verify(user); await f.staff.syncDiscord(discordId, guildId);
+    for (const step of ['assignments', 'approval', 'mentoring']) await f.staff.step(id, { step }, user);
+    const state = await f.staff.read(id, user);
+    assert.deepEqual(state.availability, { required: true, configured: false, futureSlots: 0 });
+    assert.equal(state.completed, false);
+    await service.prepare(id); await service.prepare(id);
+    const jobs = await db.prepare("SELECT * FROM lms_outbox WHERE kind='mentor_availability'").all();
+    assert.equal(jobs.length, 1); assert.equal(jobs[0].channel_id, `dm:${discordId}`);
+    assert.equal(JSON.parse(jobs[0].payload).targetId, discordId);
+    const mentor = await db.prepare('SELECT id FROM mentors WHERE discord_id=?').get(discordId);
+    await db.prepare('INSERT INTO slot_templates(mentor_id,start_hour,start_minute,end_hour,end_minute,interval_minutes) VALUES(?,19,0,21,0,30)').run(mentor.id);
+    assert.equal((await f.staff.read(id, user)).availability.configured, false);
+    await db.prepare('INSERT INTO slots(mentor_id,start_time,end_time,label) VALUES(?,?,?,?)').run(mentor.id, '2099-01-01T19:00:00', '2099-01-01T19:30:00', '예약 시간');
+    assert.equal((await f.staff.read(id, user)).availability.configured, true);
+    assert.equal((await f.staff.read(id, user)).completed, true);
+    await service.prepare(id);
+    assert.equal((await db.prepare('SELECT state FROM lms_outbox WHERE id=?').get(jobs[0].id)).state, 'cancelled');
+    await f.store.db.prepare("UPDATE lms_mentor_scopes SET kind='main' WHERE workspace_id=? AND subject_id=?").run(id, user.id);
+    await db.prepare('DELETE FROM slots WHERE mentor_id=?').run(mentor.id);
+    assert.equal((await f.staff.read(id, user)).availability.required, false);
+    await service.prepare(id);
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_outbox WHERE kind='mentor_availability'").get()).n, 1);
 });
 
 test('reissuing an expired mentor invitation rotates only its token and preserves account and scope', async t => {

@@ -6,7 +6,7 @@ export type Server = { id: string; name: string; provider: string; region: strin
 export type Log = { id: string; time: string; text: string; before?: string; after?: string }
 export type RecordData = { id: string; [key: string]: string | number }
 export type Learner = { id: string; name: string; email: string; team: string; courseId: string; discordId: string; status: string; progress: number; color: string }
-export type Mentor = { id: string; name: string; discordId: string; bio: string }
+export type Mentor = { id: string; name: string; discordId: string; bio: string; onlineBookable?: boolean }
 export type Workspace = { removedLearners?: Learner[]; onboardingComplete?: boolean; workspaceId?: string; courses: Course[]; sessions: Session[]; assignments: Assignment[]; servers: Server[]; logs: Log[]; learners: Learner[]; mentors: Mentor[]; teams: RecordData[]; attendance: RecordData[]; scores: RecordData[]; notices: RecordData[]; files: RecordData[]; submissions: RecordData[]; name: string; reminders: boolean; onboarding: boolean; qa: boolean; revision?: string; mode?: 'api' | 'demo'; authEnabled?: boolean }
 export const initialData: Workspace = {
   name: 'AX 학습관리시스템', reminders: true, onboarding: true, qa: true,

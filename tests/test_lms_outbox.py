@@ -11,6 +11,23 @@ with patch.dict(os.environ, {'DISCORD_TOKEN': 'test-only', 'GUILD_ID': '12345678
 
 
 class OutboxTests(unittest.IsolatedAsyncioTestCase):
+    async def test_mentor_availability_dm_has_restart_safe_recipient_button(self):
+        bot, channel, job = self.fixture()
+        guild_id, user_id = '123456789012345678', '223456789012345678'
+        guild = SimpleNamespace(fetch_member=AsyncMock(return_value=SimpleNamespace(create_dm=AsyncMock(return_value=channel))))
+        bot.get_guild = lambda _: guild
+        result = await module.deliver(bot, {**job, 'guildId': guild_id, 'kind': 'mentor_availability', 'channelId': f'dm:{user_id}',
+                                          'payload': {**job['payload'], 'audience': 'individual', 'targetId': user_id}})
+        self.assertEqual(result['state'], 'sent')
+        view = channel.send.call_args.kwargs['view']
+        self.assertTrue(view.is_persistent())
+        button = view.children[0]
+        restored = await type(button).from_custom_id(None, button.item, button.template.fullmatch(button.custom_id))
+        self.assertEqual((restored.guild_id, restored.user_id), (int(guild_id), int(user_id)))
+        stranger = SimpleNamespace(user=SimpleNamespace(id=99), response=SimpleNamespace(send_message=AsyncMock()))
+        await restored.callback(stranger)
+        stranger.response.send_message.assert_awaited_once()
+
     async def test_submission_repairs_private_dashboard_and_individual_reminder_uses_dm(self):
         bot, channel, job = self.fixture()
         onboarding = SimpleNamespace(ensure_dashboard=AsyncMock(return_value=channel))

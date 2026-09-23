@@ -21,7 +21,7 @@ async def deliver(bot, job):
             result['error'] = 'channel_missing'
             return result
         payload = job['payload']
-        individual = job['kind'] in ('reminder', 'publication') and payload.get('audience') == 'individual'
+        individual = job['kind'] in ('reminder', 'publication', 'mentor_availability') and payload.get('audience') == 'individual'
         if individual:
             member = await guild.fetch_member(int(payload['targetId']))
             channel = await member.create_dm()
@@ -60,8 +60,12 @@ async def deliver(bot, job):
         if payload.get('course'):
             embed.add_field(name='과정', value=payload['course'][:1024], inline=False)
         embed.set_footer(text=marker)
+        components = {}
+        if job['kind'] == 'mentor_availability':
+            from ui.mentor_availability import availability_view
+            components['view'] = availability_view(job['guildId'], payload['targetId'])
         sending = True
-        message = await asyncio.wait_for(channel.send(embed=embed, nonce=job['nonce'], allowed_mentions=discord.AllowedMentions.none()), timeout=45)
+        message = await asyncio.wait_for(channel.send(embed=embed, nonce=job['nonce'], allowed_mentions=discord.AllowedMentions.none(), **components), timeout=45)
         result.update(state='sent', messageId=str(message.id))
     except discord.Forbidden:
         result['error'] = 'permissions'
@@ -94,10 +98,14 @@ class LMSOutbox(commands.Cog):
                 log.warning('Outbox disabled: invalid provision endpoint')
 
     async def cog_load(self):
+        from ui.mentor_availability import AvailabilityButton
+        self.bot.add_dynamic_items(AvailabilityButton)
         if self.url:
             self.worker.start()
 
     async def cog_unload(self):
+        from ui.mentor_availability import AvailabilityButton
+        self.bot.remove_dynamic_items(AvailabilityButton)
         self.worker.cancel()
 
     async def request(self, operation, body):
@@ -111,7 +119,7 @@ class LMSOutbox(commands.Cog):
         try:
             # Bounded drain keeps backlog moving without a burst of parallel sends.
             for _ in range(10):
-                job = (await self.request('poll', {'guildIds': [str(g.id) for g in self.bot.guilds]})).get('job')
+                job = (await self.request('poll', {'guildIds': [str(g.id) for g in self.bot.guilds], 'capabilities': ['mentor_availability']})).get('job')
                 if not job:
                     break
                 await self.request('complete', await deliver(self.bot, job))

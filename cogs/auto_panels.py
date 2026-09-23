@@ -90,7 +90,7 @@ class AutoPanels(commands.Cog):
             return [build_submit_embed()], SubmitPanelView(self.bot)
         if kind == "mentoring":
             from ui.mentor_panel import build_panel_embed, MentorPanelView
-            mentors = await database.get_mentors()
+            mentors = await database.get_online_mentors()
             return [await build_panel_embed(mentors)], MentorPanelView(mentors)
         if kind == "participation":
             from cogs.participation import collect_participation, build_participation_embed, ParticipationPanelView, DEFAULT_DAYS

@@ -11,6 +11,7 @@ import { createBotStorage } from './bot-storage.mjs';
 import { createStaffFlow } from './staff-flow.mjs';
 import { createOutbox } from './outbox.mjs';
 import { createAssignmentAlerts } from './assignment-alerts.mjs';
+import { createOnlineMentoring } from './online-mentoring.mjs';
 import { createTeamOperations } from './team-operations.mjs';
 import { createAttendance } from './attendance.mjs';
 import { createAttendanceCodes } from './attendance-codes.mjs';
@@ -36,11 +37,15 @@ export async function createRuntime(dbPath, env = process.env) {
         const teamOperations = createTeamOperations(workspaces, onboarding);
         const botStorage = await createBotStorage(store.db, workspaces, onboarding, { env });
         const assignmentAlerts = createAssignmentAlerts(store.db, workspaces);
-        const outbox = createOutbox(store.db, workspaces, { prepare: assignmentAlerts.prepare });
+        const onlineMentoring = createOnlineMentoring(store.db, workspaces);
+        const outbox = createOutbox(store.db, workspaces, { prepare: async (id, channel) => {
+            await assignmentAlerts.prepare(id, channel);
+            await onlineMentoring.prepare(id);
+        } });
         const attendance = createAttendance(workspaces, { outbox });
         const attendanceCodes = createAttendanceCodes(store.db, workspaces, attendance, { enabled: auth.enabled });
         const attendancePresence = attendanceCodes.presence;
-        return { store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, outbox, attendance, attendanceCodes, attendancePresence,
+        return { store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, onlineMentoring, outbox, attendance, attendanceCodes, attendancePresence,
             close() { botStorage.close(); workspaces.close(); store.db.close(); } };
     }
     catch (error) {
