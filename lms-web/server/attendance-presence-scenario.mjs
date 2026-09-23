@@ -47,7 +47,9 @@ export async function attendancePresenceScenario(runtime) {
     assert.equal(repeated.alreadyRecorded, true);
     const entryCode = code;
     await issue('out');
-    await assert.rejects(presence.mark(w.id, { code: entryCode }, student), { status: 410 });
+    const recoveredEntry = await presence.mark(w.id, { code: entryCode }, student);
+    assert.equal(recoveredEntry.alreadyRecorded, true);
+    assert.equal(recoveredEntry.checkInAt, entered.checkInAt);
     await assert.rejects(issue('in'), { status: 409 });
     const left = await presence.discord({ ...identity, code, action: 'out' }, true);
     assert.equal(left.checkOutAt, now);
@@ -60,7 +62,14 @@ export async function attendancePresenceScenario(runtime) {
     await save('save', [{ studentId: 'learner', status: '지각', reason: '멘토 확인' }]);
     await save('close');
     assert.equal((await presence.view(w.id, student)).history[0].status, '지각');
-    await assert.rejects(mark('out'), { status: 409 });
+    const closedRevision = (await roster()).revision;
+    now += 600000; // The response can be retried after expiry and round closure.
+    const recoveredExit = await mark('out');
+    assert.equal(recoveredExit.alreadyRecorded, true);
+    assert.equal(recoveredExit.checkOutAt, left.checkOutAt);
+    assert.equal(recoveredExit.status, '지각');
+    assert.equal((await roster()).revision, closedRevision);
+    await assert.rejects(presence.discord({ ...identity, discordId: '923456789012345672', code }, true), { status: 403 });
     selected.period = 2;
     await issue('in');
     await save('save', [{ studentId: 'learner', status: '공결', reason: '승인된 사유' }]);

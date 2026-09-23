@@ -39,7 +39,7 @@ class AuthCommandTests(unittest.IsolatedAsyncioTestCase):
         session.__aexit__ = AsyncMock(return_value=False)
         session.post.return_value = response
         interaction = self.interaction()
-        with patch.object(auth.aiohttp, "ClientSession", return_value=session), patch.object(cog, "verification_state", new=AsyncMock(return_value=(200, {"verified": False}))):
+        with patch.object(cog.transport, "session", return_value=session), patch.object(cog, "verification_state", new=AsyncMock(return_value=(200, {"verified": False}))):
             await auth.LMSAuth.verify_registration.callback(cog, interaction, "01234567-89abcdef")
         payload = session.post.call_args.kwargs["json"]
         self.assertEqual(payload, {"code": "0123456789ABCDEF", "discordId": str(interaction.user.id), "guildId": str(interaction.guild_id)})
@@ -98,6 +98,20 @@ class AuthCommandTests(unittest.IsolatedAsyncioTestCase):
         for value in ["http://example.com/api/integrations/discord/verify", "https://user:pass@example.com/api/integrations/discord/verify", "https://example.com/wrong", "https://example.com/api/integrations/discord/verify?key=x"]:
             with self.assertRaises(ValueError):
                 auth.validate_auth_endpoint(value)
+
+    async def test_lost_verification_response_recovers_only_with_this_members_proof(self):
+        onboarding = SimpleNamespace(after_verification=AsyncMock())
+        cog = SimpleNamespace(api_request=AsyncMock(return_value=(503, None)),
+                              verification_state=AsyncMock(), bot=SimpleNamespace(get_cog=lambda _: onboarding))
+        for proof, expected in [({'verified': True}, 200), ({'verified': False}, 503), ({}, 503)]:
+            cog.verification_state.return_value = (200, proof)
+            interaction = self.interaction()
+            interaction.response.edit_message = AsyncMock()
+            interaction.edit_original_response = AsyncMock()
+            await auth.VerificationView(cog, '0123456789ABCDEF', interaction.user.id, interaction.guild_id).confirm.callback(interaction)
+            cog.verification_state.assert_awaited_with(interaction.user.id, interaction.guild_id)
+            self.assertEqual(interaction.edit_original_response.call_args.kwargs['content'], auth.MESSAGES[expected])
+        onboarding.after_verification.assert_awaited_once()
 
 
 if __name__ == "__main__":

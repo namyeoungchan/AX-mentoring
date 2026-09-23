@@ -140,7 +140,8 @@ test('lecture codes require precise hours, separate entry/exit and retain actual
     const groupCode = await f.issue(f.mentor);
     await assert.rejects(f.issue(f.mentor, {phase:'out'}), {status:403});
     const end = await f.issue(f.admin, {phase:'out'}), endedAt = end.session.endedAt;
-    await assert.rejects(f.check(groupCode.code), {status:410});
+    assert.equal((await f.check(groupCode.code)).alreadyRecorded, true);
+    await assert.rejects(f.check(groupCode.code, f.other), {status:403});
     await assert.rejects(f.check(end.code,f.other), {status:409});
     await assert.rejects(f.codes.presence.mark('default', {code:end.code,action:'in'}, f.student), {status:422});
     assert.equal((await f.check(end.code)).status,'출석');
@@ -150,7 +151,8 @@ test('lecture codes require precise hours, separate entry/exit and retain actual
     await assert.rejects(f.issue(), {status:409});
     await assert.rejects(f.issue(f.admin,{phase:'out',endTime:'13:00'}), {status:409});
     f.advance(5*60000);
-    await assert.rejects(f.check(reissued.code), {status:410});
+    assert.equal((await f.check(reissued.code)).alreadyRecorded, true);
+    await assert.rejects(f.check(reissued.code, f.other), {status:410});
 });
 
 test('failed code generation rolls back the lecture start and scheduled hours', async t => {

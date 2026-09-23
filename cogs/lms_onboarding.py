@@ -1,5 +1,7 @@
 """Guild-scoped onboarding and team reconciliation driven by the LMS."""
 import asyncio
+import hashlib
+import json
 import logging
 import os
 import time
@@ -42,6 +44,12 @@ def desired_roles(participant, intro_done):
     if not intro_done or not participant.get("teamId"):
         return {"pending"}
     return {"student", "complete"} | ({f"team:{participant['teamId']}"} if participant.get("teamId") else set())
+
+
+def resource_revision(cfg):
+    # Membership proofs change frequently without changing channels or role definitions.
+    resources = {key: value for key, value in cfg.items() if key not in {"revision", "participants", "retryDiscordIds"}}
+    return hashlib.sha256(json.dumps(resources, sort_keys=True).encode()).hexdigest()
 
 
 class StartView(discord.ui.View):
@@ -123,6 +131,9 @@ class LMSOnboarding(commands.Cog):
         self.configs, self.locks, self.views, self.resources_checked = {}, {}, {}, {}
         self.member_locks = WeakValueDictionary()
         self.sync_locks = {}
+        self.refresh_lock = asyncio.Lock()
+        self.member_tasks = {}
+        self.member_slots = asyncio.Semaphore(3)
         self.transport = WebTransport(timeout=20, connections=4)
         self.token = os.getenv("LEARNINGOPS_PROVISION_TOKEN", "").strip()
         self.url = ""
@@ -148,6 +159,10 @@ class LMSOnboarding(commands.Cog):
 
     async def cog_unload(self):
         self.worker.cancel()
+        pending = list(self.member_tasks.values())
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
         await self.transport.close()
 
     def view(self, guild_id):
@@ -171,18 +186,21 @@ class LMSOnboarding(commands.Cog):
     async def request(self, operation, body):
         if not self.url:
             raise OnboardingError("api_error")
-        import aiohttp
-        try:
-            async with self.transport.session().post(f"{self.url}/{operation}", json=body, headers={"Authorization": f"Bearer {self.token}"}, allow_redirects=False) as response:
-                if response.status != 200:
-                    log.warning("LMS onboarding %s rejected (HTTP %s)", operation, response.status)
-                    raise OnboardingError("api_error")
-                return await response.json()
-        except aiohttp.ClientError as error:
-            raise OnboardingError("api_error") from error
+        status, data = await self.transport.post_json(f"{self.url}/{operation}", body=body, token=self.token, retry=True)
+        if status != 200:
+            log.warning("LMS onboarding %s rejected (HTTP %s)", operation, status)
+            raise OnboardingError("conflict" if status == 409 else "api_error")
+        return data
 
     async def refresh(self, guild_ids):
+        # A slow earlier poll must not overwrite a newer authentication snapshot.
+        async with self.refresh_lock:
+            await self._refresh(guild_ids)
+
+    async def _refresh(self, guild_ids):
         result = await self.request("poll", {"guildIds": [str(value) for value in guild_ids]})
+        if not isinstance(result.get("configs"), list) or any(not isinstance(value, dict) or not isinstance(value.get("guildId"), str) or not isinstance(value.get("enabled"), bool) for value in result["configs"]):
+            raise OnboardingError("api_error")
         received = {value["guildId"]: value for value in result["configs"]}
         for guild_id in guild_ids:
             key = str(guild_id)
@@ -307,7 +325,8 @@ class LMSOnboarding(commands.Cog):
         if not permissions or not all([permissions.manage_channels, permissions.manage_roles, permissions.view_channel, permissions.send_messages, permissions.read_message_history, permissions.embed_links, permissions.pin_messages]):
             raise OnboardingError("permissions")
         last = self.resources_checked.get(str(guild.id))
-        if last and last[0] == cfg["revision"] and time.monotonic() - last[1] < 300:
+        revision = resource_revision(cfg)
+        if last and last[0] == revision and time.monotonic() - last[1] < 300:
             return
         roles = await self.ensure_roles(guild)
         start = await self.channel(guild, "start", cfg["onboardingChannel"], "text", adopt=True)
@@ -329,7 +348,7 @@ class LMSOnboarding(commands.Cog):
             if len(matches) == 1 and matches[0].id not in {start.id, intro.id}:
                 await ensure_guide(matches[0], guide_text(item))
         await self.gate_channels(guild, cfg, roles, start.id, intro.id)
-        self.resources_checked[str(guild.id)] = (cfg["revision"], time.monotonic())
+        self.resources_checked[str(guild.id)] = (revision, time.monotonic())
 
     async def gate_channels(self, guild, cfg, roles, start_id, intro_id):
         """Deny access before a member is verified, including voice and unmanaged channels."""
@@ -367,15 +386,18 @@ class LMSOnboarding(commands.Cog):
         saved = await self.store.get(member.guild.id, "access-gate", key) or {}
         if not restricted and not saved:
             return
-        for channel in await member.guild.fetch_channels():
-            if channel.id == start["id"]:
-                continue
+        channels = [channel for channel in await member.guild.fetch_channels() if channel.id != start["id"]]
+        original = dict(saved)
+        if restricted:
+            for channel in channels:
+                saved.setdefault(str(channel.id), channel.overwrites_for(member).view_channel)
+            if saved != original:
+                # Save the full recovery snapshot before changing any Discord permission.
+                await self.store.put(member.guild.id, "access-gate", key, saved)
+        for channel in channels:
             cid = str(channel.id)
             overwrite = channel.overwrites_for(member)
             if restricted:
-                if cid not in saved:
-                    saved[cid] = overwrite.view_channel
-                    await self.store.put(member.guild.id, "access-gate", key, saved)
                 if overwrite.view_channel is not False:
                     overwrite.view_channel = False
                     await channel.set_permissions(member, overwrite=overwrite, reason="LMS onboarding incomplete")
@@ -384,7 +406,41 @@ class LMSOnboarding(commands.Cog):
                     overwrite.view_channel = saved[cid]
                     await channel.set_permissions(member, overwrite=None if overwrite.is_empty() else overwrite, reason="LMS onboarding complete")
                 del saved[cid]
-                await self.store.put(member.guild.id, "access-gate", key, saved)
+        if not restricted and saved != original:
+            # A partial failure retains the original snapshot for a safe retry.
+            await self.store.put(member.guild.id, "access-gate", key, saved)
+
+    def queue_member(self, guild_id, member_id):
+        key = (int(guild_id), int(member_id))
+        previous = self.member_tasks.get(key)
+        if previous and not previous.done():
+            return previous
+        task = asyncio.create_task(self.reconcile_verified_member(*key))
+        self.member_tasks[key] = task
+        def finished(done):
+            if self.member_tasks.get(key) is done:
+                self.member_tasks.pop(key, None)
+        task.add_done_callback(finished)
+        return task
+
+    async def reconcile_verified_member(self, guild_id, member_id):
+        """Apply existing managed roles promptly; full resource repair remains periodic."""
+        try:
+            async with self.member_slots:
+                async with asyncio.timeout(60):
+                    async with self.member_lock(guild_id, member_id):
+                        cfg = self.configs.get(str(guild_id))
+                        guild = self.bot.get_guild(guild_id)
+                        if not guild or not cfg or not cfg.get("enabled"):
+                            return
+                        # Interaction/cache roles may predate a just-completed transfer.
+                        member = await guild.fetch_member(member_id)
+                        await self.sync_member(member, cfg, welcome=False)
+        except (OnboardingError, discord.HTTPException, asyncio.TimeoutError) as error:
+            log.warning("LMS immediate role sync pending for guild %s (%s)", guild_id, failure_code(error))
+        except Exception as error:
+            # Keep the periodic repair alive without logging tokens or response bodies.
+            log.error("LMS immediate role sync failed for guild %s (%s)", guild_id, type(error).__name__)
 
     async def open_panel(self, interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -420,6 +476,8 @@ class LMSOnboarding(commands.Cog):
             view = StartView(self, interaction.guild_id, interaction.user.id, verified=True)
             view.children[1].disabled = bool(record.get("introDone")) or not participant or participant["role"] != "student" or not participant.get("teamId")
             await interaction.followup.send(text, view=view, ephemeral=True)
+            if participant and (participant["role"] != "student" or record.get("introDone")):
+                self.queue_member(interaction.guild_id, interaction.user.id)
         except (OnboardingError, discord.HTTPException, asyncio.TimeoutError) as error:
             await interaction.followup.send("계정 인증은 완료됐습니다. 재인증하지 말고 잠시 후 시작하기 채널의 공용 버튼을 다시 눌러 자기소개를 이어가세요.", ephemeral=True)
             log.warning("LMS verified onboarding pending for guild %s (%s)", interaction.guild_id, failure_code(error))
@@ -597,8 +655,12 @@ class LMSOnboarding(commands.Cog):
                         await self.sync_guild(guild, cfg)
                     except (OnboardingError, discord.HTTPException, asyncio.TimeoutError):
                         log.warning("LMS onboarding sync failed for guild %s", guild.id)
+                    except Exception as error:
+                        log.error("LMS onboarding sync failed for guild %s (%s)", guild.id, type(error).__name__)
         except (OnboardingError, asyncio.TimeoutError):
             log.warning("LMS onboarding API connection failed")
+        except Exception as error:
+            log.error("LMS onboarding poll failed (%s)", type(error).__name__)
 
     @worker.before_loop
     async def before_worker(self):

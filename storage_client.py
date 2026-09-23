@@ -53,7 +53,7 @@ class WebStorage:
                 return await response.json()
         except StorageUnavailable:
             raise
-        except (aiohttp.ClientError, asyncio.TimeoutError) as error:
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as error:
             raise StorageUnavailable('웹 데이터 저장소에 연결하지 못했습니다. 잠시 후 다시 시도하세요.') from error
 
     async def call(self, operation, args, kwargs):

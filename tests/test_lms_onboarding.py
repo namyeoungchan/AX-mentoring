@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import os
 import tempfile
@@ -69,6 +70,7 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         with patch.dict(os.environ, {"LEARNINGOPS_PROVISION_URL": "", "LEARNINGOPS_PROVISION_TOKEN": ""}):
             self.cog = module.LMSOnboarding(MagicMock())
         self.cog.store = self.store
+        self.addAsyncCleanup(self.cog.cog_unload)
 
     async def test_state_is_isolated_by_guild_and_persists_after_restart(self):
         await self.store.put(1, "member", 7, {"introDone": True})
@@ -338,9 +340,67 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         await private.start(interaction)
         self.assertIsInstance(interaction.response.send_modal.call_args.args[0], module.Introduction)
         await self.store.put(123, 'member', 7, {'introDone': True})
+        self.cog.queue_member = MagicMock()
         await self.cog.after_verification(interaction)
         self.assertTrue(interaction.followup.send.call_args.kwargs['view'].children[1].disabled)
         self.assertIn('저장되어 있습니다', interaction.followup.send.call_args.args[0])
+        self.cog.queue_member.assert_called_once_with(123, 7)
+
+    async def test_verified_member_sync_does_not_wait_for_guild_resource_repair(self):
+        guild = SimpleNamespace(fetch_member=AsyncMock(return_value=SimpleNamespace(id=7)))
+        self.cog.bot.get_guild.return_value = guild
+        cfg = {'enabled': True, 'revision': 'fresh'}
+        self.cog.configs['123'] = cfg
+        self.cog.ensure_resources = AsyncMock(side_effect=module.OnboardingError('permissions'))
+        self.cog.sync_member = AsyncMock()
+        first = self.cog.queue_member(123, 7)
+        self.assertIs(first, self.cog.queue_member(123, 7))
+        await first
+        guild.fetch_member.assert_awaited_once_with(7)
+        self.cog.sync_member.assert_awaited_once_with(guild.fetch_member.return_value, cfg, welcome=False)
+        self.cog.ensure_resources.assert_not_awaited()
+        self.cog.sync_member.side_effect = module.OnboardingError('conflict')
+        await self.cog.queue_member(123, 7)  # A failure must not poison future retries.
+        self.assertEqual(self.cog.sync_member.await_count, 2)
+
+    async def test_membership_change_reuses_channel_resources_but_team_changes_do_not(self):
+        cfg = {'revision': 'r1', 'teams': [{'id': 't1', 'name': 'one'}], 'participants': []}
+        other = {**cfg, 'revision': 'r2', 'participants': [{'discordId': '7'}], 'retryDiscordIds': ['7']}
+        self.assertEqual(module.resource_revision(cfg), module.resource_revision(other))
+        self.assertNotEqual(module.resource_revision(cfg), module.resource_revision({**other, 'teams': [{'id': 't1', 'name': 'renamed'}]}))
+        self.cog.resources_checked['123'] = (module.resource_revision(cfg), module.time.monotonic())
+        permissions = SimpleNamespace(**{key: True for key in ['manage_channels', 'manage_roles', 'view_channel', 'send_messages', 'read_message_history', 'embed_links', 'pin_messages']})
+        guild = SimpleNamespace(id=123, me=SimpleNamespace(guild_permissions=permissions))
+        self.cog.ensure_roles = AsyncMock()
+        await self.cog.ensure_resources(guild, other)
+        self.cog.ensure_roles.assert_not_awaited()
+
+    async def test_concurrent_refresh_cannot_restore_an_older_membership_snapshot(self):
+        started, release = asyncio.Event(), asyncio.Event()
+        async def poll(*_):
+            if not started.is_set():
+                started.set()
+                await release.wait()
+                return {'configs': [{'guildId': '123', 'enabled': True, 'revision': 'old'}]}
+            return {'configs': [{'guildId': '123', 'enabled': True, 'revision': 'new'}]}
+        self.cog.request = AsyncMock(side_effect=poll)
+        old = asyncio.create_task(self.cog.refresh([123]))
+        await started.wait()
+        new = asyncio.create_task(self.cog.refresh([123]))
+        await asyncio.sleep(0)
+        self.assertEqual(self.cog.request.await_count, 1)
+        release.set()
+        await asyncio.gather(old, new)
+        self.assertEqual(self.cog.configs['123']['revision'], 'new')
+
+    async def test_unexpected_worker_failure_does_not_skip_other_guilds_or_next_poll(self):
+        self.cog.bot.guilds = [SimpleNamespace(id=123), SimpleNamespace(id=456)]
+        self.cog.configs = {'123': {'enabled': True}, '456': {'enabled': True}}
+        self.cog.refresh = AsyncMock(side_effect=[ValueError('private payload'), None])
+        self.cog.sync_guild = AsyncMock(side_effect=[ValueError('private payload'), None])
+        await self.cog.worker()
+        await self.cog.worker()
+        self.assertEqual(self.cog.sync_guild.await_count, 2)
 
     async def test_status_outage_does_not_tell_member_to_reverify(self):
         self.cog.bot.get_cog.return_value = SimpleNamespace(verification_state=AsyncMock(return_value=(503, None)))
@@ -397,10 +457,17 @@ class OnboardingTests(unittest.IsolatedAsyncioTestCase):
         member = Role(7)
         member.guild = guild
         channels[2].overwrites[member] = discord.PermissionOverwrite(view_channel=True, send_messages=False)
-        await self.cog.gate_member(member, True)
+        with patch.object(self.store, 'put', wraps=self.store.put) as writes:
+            await self.cog.gate_member(member, True)
+            self.assertEqual(writes.await_count, 1)
         for channel in channels[1:]: self.assertFalse(channel.overwrites[member].view_channel)
         self.assertNotIn(member, channels[0].overwrites)
         await self.cog.gate_member(member, True)  # A retry must not replace the original saved permissions.
+        snapshot = await self.store.get(123, 'access-gate', 7)
+        with patch.object(channels[2], 'set_permissions', new=AsyncMock(side_effect=TimeoutError())):
+            with self.assertRaises(TimeoutError):
+                await self.cog.gate_member(member, False)
+        self.assertEqual(await self.store.get(123, 'access-gate', 7), snapshot)
         await self.cog.gate_member(member, False)
         self.assertTrue(channels[2].overwrites[member].view_channel)
         self.assertFalse(channels[2].overwrites[member].send_messages)
