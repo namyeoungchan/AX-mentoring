@@ -21,7 +21,7 @@ async def deliver(bot, job):
             result['error'] = 'channel_missing'
             return result
         payload = job['payload']
-        individual = job['kind'] in ('reminder', 'publication', 'mentor_availability') and payload.get('audience') == 'individual'
+        individual = job['kind'] in ('reminder', 'publication', 'mentor_availability', 'mentoring_feedback') and payload.get('audience') == 'individual'
         if individual:
             member = await guild.fetch_member(int(payload['targetId']))
             channel = await member.create_dm()
@@ -64,6 +64,9 @@ async def deliver(bot, job):
         if job['kind'] == 'mentor_availability':
             from ui.mentor_availability import availability_view
             components['view'] = availability_view(job['guildId'], payload['targetId'])
+        if job['kind'] == 'mentoring_feedback':
+            from cogs.lms_mentoring import feedback_view
+            components['view'] = feedback_view(job['guildId'], job['id'], payload['targetId'])
         sending = True
         message = await asyncio.wait_for(channel.send(embed=embed, nonce=job['nonce'], allowed_mentions=discord.AllowedMentions.none(), **components), timeout=45)
         result.update(state='sent', messageId=str(message.id))
@@ -119,7 +122,7 @@ class LMSOutbox(commands.Cog):
         try:
             # Bounded drain keeps backlog moving without a burst of parallel sends.
             for _ in range(10):
-                job = (await self.request('poll', {'guildIds': [str(g.id) for g in self.bot.guilds], 'capabilities': ['mentor_availability']})).get('job')
+                job = (await self.request('poll', {'guildIds': [str(g.id) for g in self.bot.guilds], 'capabilities': ['mentor_availability', 'mentoring_feedback']})).get('job')
                 if not job:
                     break
                 await self.request('complete', await deliver(self.bot, job))

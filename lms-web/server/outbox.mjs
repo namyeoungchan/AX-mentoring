@@ -80,7 +80,7 @@ export function createOutbox(main, workspaces, { now = Date.now, prepare = () =>
         if (['submission', 'reminder', 'publication'].includes(row.kind) && !await db.prepare('SELECT 1 FROM assignments WHERE CAST(id AS TEXT)=?').get(row.source_id))
             throw new ApiError(409, '삭제된 과제의 알림은 다시 발송할 수 없습니다.');
         // Uncertain sends retain their original channel and only search for the prior message.
-        const target = row.state === 'failed' && !['reminder', 'publication', 'mentor_availability'].includes(row.kind) ? await channel(id, row.kind) : { guildId: row.guild_id, channelId: row.channel_id };
+        const target = row.state === 'failed' && !['reminder', 'publication', 'mentor_availability', 'mentoring_feedback'].includes(row.kind) ? await channel(id, row.kind) : { guildId: row.guild_id, channelId: row.channel_id };
         await (db.prepare("UPDATE lms_outbox SET state=?,guild_id=?,channel_id=?,claim=NULL,error='' WHERE id=?")).run(row.state === 'failed' ? 'pending' : 'reconcile', target.guildId, target.channelId, jobId);
         await (db.prepare('INSERT INTO lms_audit(actor,action,target) VALUES(?,?,?)')).run(user.username || user.id, 'outbox.retry', jobId);
         return { ok: true };
@@ -116,7 +116,7 @@ export function createOutbox(main, workspaces, { now = Date.now, prepare = () =>
         return { ok: true };
     }
     async function poll(body) {
-        const { guildIds, capabilities } = z.object({ guildIds: z.array(snowflake).max(10000), capabilities: z.array(z.literal('mentor_availability')).max(1).default([]) }).strict().parse(body);
+        const { guildIds, capabilities } = z.object({ guildIds: z.array(snowflake).max(10000), capabilities: z.array(z.enum(['mentor_availability', 'mentoring_feedback'])).max(2).default([]) }).strict().parse(body);
         for (const guildId of new Set(guildIds)) {
             const id = (await (main.prepare('SELECT workspace_id FROM lms_workspace_guilds WHERE guild_id=?')).get(guildId))?.workspace_id;
             if (!id || (await workspaces.metadata(id)).archivedAt !== null)
@@ -127,7 +127,7 @@ export function createOutbox(main, workspaces, { now = Date.now, prepare = () =>
             try {
                 await expire(db);
                 await db.prepare("UPDATE lms_outbox SET state='cancelled',claim=NULL,error='assignment_removed' WHERE kind IN ('submission','reminder','publication') AND state IN ('pending','failed','held','reconcile','uncertain') AND NOT EXISTS (SELECT 1 FROM assignments WHERE CAST(assignments.id AS TEXT)=lms_outbox.source_id)").run();
-                const row = await (db.prepare("SELECT * FROM lms_outbox WHERE guild_id=? AND (kind<>'mentor_availability' OR ?=1) AND channel_id<>'' AND state IN ('pending','reconcile','uncertain') AND (state<>'uncertain' OR error='timeout') ORDER BY created_at,rowid LIMIT 1")).get(guildId, capabilities.includes('mentor_availability') ? 1 : 0);
+                const row = await (db.prepare("SELECT * FROM lms_outbox WHERE guild_id=? AND (kind<>'mentor_availability' OR ?=1) AND (kind<>'mentoring_feedback' OR ?=1) AND channel_id<>'' AND state IN ('pending','reconcile','uncertain') AND (state<>'uncertain' OR error='timeout') ORDER BY created_at,rowid LIMIT 1")).get(guildId, capabilities.includes('mentor_availability') ? 1 : 0, capabilities.includes('mentoring_feedback') ? 1 : 0);
                 if (!row) {
                     await db.exec('COMMIT');
                     continue;

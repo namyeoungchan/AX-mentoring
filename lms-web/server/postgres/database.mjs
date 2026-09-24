@@ -104,10 +104,14 @@ export async function openPostgres(connection, workspaceId = 'default') {
       await client.query('CREATE TABLE _ax_migrations(version INTEGER PRIMARY KEY); INSERT INTO _ax_migrations VALUES(1)')
     }
     const version=(await client.query('SELECT MAX(version) AS version FROM _ax_migrations')).rows[0].version
-    if(version!==1 && version!==2) throw new Error('Unsupported PostgreSQL schema version')
+    if(![1,2,3].includes(version)) throw new Error('Unsupported PostgreSQL schema version')
     if(version===1) {
       await client.query('ALTER TABLE lms_users ADD COLUMN IF NOT EXISTS is_super_admin BIGINT NOT NULL DEFAULT 0 CHECK(is_super_admin IN (0,1))')
       await client.query('INSERT INTO _ax_migrations VALUES(2)')
+    }
+    if(version<3) {
+      await client.query(readFileSync(new URL('./mentoring-feedback.sql', import.meta.url), 'utf8'))
+      await client.query('INSERT INTO _ax_migrations VALUES(3)')
     }
     await client.query('COMMIT')
   } catch (error) { await client.query('ROLLBACK'); throw error }

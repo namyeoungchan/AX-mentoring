@@ -1,3 +1,4 @@
+import { mentoringFeedbackScenario } from './mentoring-feedback-scenario.mjs';
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
 import { superAdminScenario } from './super-admin-scenario.mjs';
 import { accountRoleScenario } from './account-role-scenario.mjs';
@@ -14,7 +15,7 @@ import { BOT_TABLES } from './bot-storage.mjs'
 import { createRuntime } from './runtime.mjs'
 import { createDataMaintenance, decodeBackup } from './data-maintenance.mjs'
 import { createAttendanceCodes } from './attendance-codes.mjs'
-import { databaseContext, closePostgresConnections, identifier } from './postgres/database.mjs'
+import { databaseContext, closePostgresConnections, identifier, openPostgres } from './postgres/database.mjs'
 import { discard, importPostgres } from './postgres/backup.mjs'
 import { migrateBackup, verifyImportedData } from './postgres/migrate.mjs'
 import { schemas, exportPostgres } from './postgres/backup.mjs'
@@ -28,6 +29,24 @@ import { assignmentCourseScenario } from './assignment-course-scenario.mjs'
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL mentoring end-time DM requests, replies and backup restoration', async t => {
+  const f=await fixture(t), result=await mentoringFeedbackScenario(f.runtime)
+  const backup=decodeBackup(await exportPostgres(f.connection))
+  await importPostgres(f.connection,backup)
+  const db=(await f.runtime.workspaces.open(result.workspaceId)).db
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM lms_mentoring_feedback_responses').get()).n,result.responses)
+})
+pgTest('PostgreSQL pre-migration backup and upgrade preserve existing version 2 data', async t => {
+  const f=await fixture(t), db=f.runtime.store.db
+  await db.query('DROP TABLE lms_mentoring_feedback_responses,lms_mentoring_feedback_requests,lms_mentoring_feedback_control')
+  await db.query('DELETE FROM _ax_migrations WHERE version=3')
+  const before=decodeBackup(await exportPostgres(f.connection))
+  assert.ok(!before.databases.find(d=>d.id==='main').tables.some(table=>table.name==='lms_mentoring_feedback_requests'))
+  await openPostgres(f.connection)
+  assert.equal((await db.query('SELECT MAX(version) AS version FROM _ax_migrations')).rows[0].version,3)
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM lms_mentoring_feedback_responses').get()).n,0)
+  assert.ok(await db.prepare('SELECT 1 FROM lms_users WHERE id=?').get(f.login.user.id))
+})
 pgTest('PostgreSQL account role changes isolate workspaces, revoke sessions and preserve history', async t => {
   const f = await fixture(t)
   await accountRoleScenario(f.runtime, f.login.user)

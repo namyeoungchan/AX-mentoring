@@ -137,3 +137,27 @@
   .mentoring-more { padding: 14px 12px; }
   .mentoring-session-form :is(input, select) { font-size: 16px; }
 }
+.mentoring-report { grid-column: 2 / -1; min-width: 0; border-top: 1px solid #e4e9e6; }
+.mentoring-report summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; color: #315c48; font-size: 13px; font-weight: 600; list-style: none; }
+.mentoring-report summary::-webkit-details-marker { display: none; }
+.mentoring-report summary small { margin-left: auto; color: #5b6962; font-weight: 400; }
+.mentoring-report summary::after { content: '+'; font-size: 18px; }
+.mentoring-report[open] summary::after { content: '−'; }
+.mentoring-report-body { padding: 0 0 12px; font-size: 14px; }
+.mentoring-report-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.mentoring-report-heading p { margin: 0; color: #52625a; line-height: 1.6; }
+.mentoring-report-heading button { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; min-height: 44px; }
+.mentoring-report-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+.mentoring-report-grid > section { min-width: 0; padding: 14px; background: #f6f8f6; border-radius: 8px; }
+.mentoring-report-grid header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.mentoring-report-grid header span { color: #70552b; font-size: 12px; }
+.mentoring-report-grid header .has-response { color: #315c48; }
+.mentoring-report-grid article { border-top: 1px solid #dde5df; padding-top: 12px; margin-top: 12px; }
+.mentoring-report-grid time { font-size: 12px; color: #52625a; }
+.mentoring-report-grid article p { white-space: pre-wrap; overflow-wrap: anywhere; color: #24352b; line-height: 1.7; margin: 8px 0 0; }
+.mentoring-report-empty { color: #5b6962; line-height: 1.6; }
+@media (max-width: 700px) {
+  .mentoring-report { grid-column: 1 / -1; }
+  .mentoring-report-grid { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .mentoring-report-heading { align-items: flex-start; flex-direction: column; gap: 0; }
+}

@@ -3,6 +3,7 @@ import { CalendarDays, Check, ChevronLeft, ChevronRight, Search } from 'lucide-r
 import type { Session, Workspace } from './data'
 import type { Change } from './Management'
 import './MentoringManagement.css'
+import MentoringFeedback from './MentoringFeedback'
 
 const statuses = ['전체', '승인 대기', '예약 확정', '완료', '취소']
 const dateValue = (value: string) => new Date(value + 'T00:00:00Z')
@@ -77,11 +78,12 @@ export default function MentoringManagement({ data, query = '', setQuery, filter
       {notice && <p className="mentoring-feedback" role="status">{notice}</p>}
       {failed && <p className="mentoring-feedback mentoring-error" role="alert">{error || '변경하지 못했습니다. 잠시 후 다시 시도하세요.'}</p>}
       <div className="mentoring-agenda">{grouped.map(group => <section className="mentoring-day-group" key={group.date} aria-label={`${group.date} 예약`}><h3><time dateTime={group.date}>{(view === 'all' || group.date.slice(0, 4) !== today.slice(0, 4)) && `${group.date.slice(0, 4)}년 `}{dateLabel(group.date, true)}</time>{group.date === today && <span>오늘</span>}<small>{visible.filter(session => session.date === group.date).length}건</small></h3><ul>{group.sessions.map(session => <li key={session.id} data-session-id={session.id} className={session.status === '취소' ? 'mentoring-session is-cancelled' : 'mentoring-session'}>
-        <div className="mentoring-session-time"><time dateTime={`${session.date}T${session.time}:00+09:00`}>{session.time}</time><small>{session.date < today && !['완료', '취소'].includes(session.status) ? '지난 일정' : '시작'}</small></div>
+        <div className="mentoring-session-time"><time dateTime={`${session.date}T${session.time}:00+09:00`}>{session.time}</time><small>{session.date < today && !['완료', '취소'].includes(session.status) ? '지난 일정' : session.endTime ? `${session.endDate && session.endDate !== session.date ? '다음날 ' : ''}${session.endTime} 종료` : '시작'}</small></div>
         <div className="mentoring-session-details"><div><h4>{session.title}</h4><span className={`mentoring-status status-${statuses.indexOf(session.status)}`}>{session.status}</span></div><p>{studentName(session) || session.team || '참여자 미지정'}{studentName(session) && session.team && session.team !== studentName(session) ? ` · ${session.team}` : ''}</p></div>
         <div className="mentoring-session-mentor"><span>담당 멘토</span><strong>{session.mentor || '미지정'}</strong></div>
         <div className="mentoring-session-actions">{!['완료', '취소'].includes(session.status) ? <><button className={`button ${session.status === '승인 대기' ? 'primary' : 'secondary'}`} disabled={busy} onClick={() => void update(session, session.status === '승인 대기' ? '예약 확정' : '완료')}><Check size={15} />{pendingId === session.id ? '처리 중…' : session.status === '승인 대기' ? '승인' : '완료 처리'}</button><button className="mentoring-cancel" disabled={busy} aria-expanded={cancelId === session.id} onClick={() => setCancelId(cancelId === session.id ? '' : session.id)}>취소</button></> : <span className="mentoring-finished">{session.status === '완료' ? '진행 완료' : '취소된 예약'}</span>}</div>
         {cancelId === session.id && <div className="mentoring-cancel-confirm"><p>이 예약을 취소할까요?</p><div><button className="button secondary" disabled={busy} onClick={() => setCancelId('')}>돌아가기</button><button className="button secondary" disabled={busy} onClick={() => void update(session, '취소')}>예약 취소</button></div></div>}
+        {session.status !== '취소' && <MentoringFeedback workspaceId={data.workspaceId} session={session} demo={data.mode === 'demo'} />}
       </li>)}</ul></section>)}</div>
       {!visible.length && <div className="mentoring-empty"><CalendarDays size={28} /><h3>{hasFilters ? '조건에 맞는 일정이 없습니다.' : view === 'pending' ? '승인 대기 중인 예약이 없습니다.' : view === 'all' ? '등록된 멘토링이 없습니다.' : '선택한 주에 등록된 일정이 없습니다.'}</h3><p>{hasFilters ? '검색어나 필터를 변경해 다시 확인하세요.' : view === 'week' ? '다른 주를 선택하거나 전체 일정에서 예약을 찾아보세요.' : '새 예약이 등록되면 이곳에서 확인할 수 있습니다.'}</p>{!hasFilters && view !== 'all' && <button className="button secondary" onClick={() => changeView('all')}>전체 일정 보기</button>}</div>}
       {visible.length > shown.length && <div className="mentoring-more"><span>{visible.length}건 중 {shown.length}건 표시</span><button className="button secondary" onClick={() => setLimit(limit + 10)}>일정 더 보기</button></div>}
