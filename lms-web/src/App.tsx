@@ -1,4 +1,5 @@
 import CourseManagement from './CourseManagement'
+import { usePageNavigation } from './usePageNavigation'
 import LogoutButton from './LogoutButton'
 import AccountSettings from './AccountSettings'
 import AccountMenu from './AccountMenu'
@@ -81,7 +82,7 @@ function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspa
   const { data, update, saving, error, refresh, logout, leaveDemo, workspaces, activeId, selectWorkspace, createWorkspace } = workspace
   const accountRoleName = workspace.account?.role === 'admin' ? '총관리자' : '워크스페이스 관리자'
   const visibleNavigation = navigation.filter(n => !['accounts', 'data-admin'].includes(n.id) || (workspace.account?.role === 'admin' && workspace.account.id !== 'admin'))
-  const [page, setPage] = useState(readPage)
+  const [page, navigate] = usePageNavigation(readPage)
   const [sidebar, setSidebar] = useState(false)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('전체')
@@ -92,8 +93,7 @@ function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspa
   const [read, setRead] = useState(false)
   const searchInput = useRef<HTMLInputElement>(null)
   const pending = data.sessions.filter(s => s.status === '승인 대기').length
-  function go(next: string) { location.hash = next; setPage(next); setQuery(''); setFilter('전체'); setSidebar(false); setNotifications(false); window.scrollTo(0, 0) }
-  useEffect(() => { const handle = () => { setPage(readPage()); setQuery(''); setFilter('전체') }; window.addEventListener('hashchange', handle); return () => window.removeEventListener('hashchange', handle) }, [])
+  function go(next: string) { if (!navigate(next)) return; setQuery(''); setFilter('전체'); setSidebar(false); setNotifications(false); window.scrollTo(0, 0) }
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 4000); return () => clearTimeout(timer) }, [notice])
   useEffect(() => { const shortcut = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); searchInput.current?.focus() } if (e.key === 'Escape') { setSidebar(false); setNotifications(false) } }; window.addEventListener('keydown', shortcut); return () => window.removeEventListener('keydown', shortcut) }, [])
   async function change(updater: (current: Workspace) => Workspace, message: string) { const ok = await update(updater); if (ok) setNotice(message); return ok }
@@ -115,7 +115,7 @@ function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspa
   return <div className="app-shell">
     {sidebar && <button className="sidebar-overlay" aria-label="메뉴 닫기" onClick={() => setSidebar(false)} />}
     <aside className={`sidebar ${sidebar ? 'open' : ''}`}>
-      <a href="#dashboard" className="brand" onClick={() => go('dashboard')}><span className="brand-mark"><Command size={23} /></span><span><span className="brand-ax">AX</span><small>학습관리시스템</small></span></a>
+      <a href="#dashboard" className="brand" onClick={event => { event.preventDefault(); go('dashboard') }}><span className="brand-mark"><Command size={23} /></span><span><span className="brand-ax">AX</span><small>학습관리시스템</small></span></a>
       <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} createWorkspace={workspace.account?.role === 'admin' || data.mode === 'demo' ? createWorkspace : undefined} saving={saving} error={error} />
       <p className="nav-label">WORKSPACE</p>
       <nav aria-label="주 메뉴">{visibleNavigation.slice(0, -3).map(n => <button key={n.id} onClick={() => go(n.id)} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined}><n.icon size={19} /><span>{n.name}</span>{n.id === 'mentoring' && pending > 0 && <span className="nav-count">{pending}</span>}{page === n.id && <span className="active-dot" />}</button>)}<p className="nav-label system-label">MANAGEMENT</p>{visibleNavigation.slice(-3).map(n => <button key={n.id} onClick={() => go(n.id)} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined}><n.icon size={19} /><span>{n.name}</span>{n.id === 'bots' && <span className="online-dot" />}</button>)}</nav>

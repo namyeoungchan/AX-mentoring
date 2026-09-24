@@ -3,6 +3,8 @@ import type { Workspace } from './data'
 import { apiRequest as request, workspaceRequest, demoMode, setSessionToken } from './api'
 import { demoStorageKey, emptyWorkspace, readDemoWorkspaces, preferredWorkspace, rememberWorkspace, type WorkspaceMetadata, type WorkspaceInput } from './demoWorkspaces'
 import type { Account, Learning } from './StudentHome'
+import { confirmNavigation } from './navigationGuard'
+import { setAttendanceEditorOwner } from './attendanceEditor'
 
 const kinds = ['courses', 'learners', 'teams', 'mentors', 'attendance', 'scores', 'notices', 'servers', 'assignments', 'sessions'] as const
 export { demoMode } from './api'
@@ -23,6 +25,7 @@ export function useWorkspace() {
   const controller = useRef<AbortController | null>(null)
   const refresh = useCallback(async (requestedId?: string, quiet = false) => {
     if (locked.current || loggingOut.current) return
+    if (!quiet && !confirmNavigation()) return
     const version = ++generation.current
     controller.current?.abort()
     const nextController = new AbortController(); controller.current = nextController
@@ -31,6 +34,7 @@ export function useWorkspace() {
     try {
       const demo = demoMode ? readDemoWorkspaces() : null
       const user: Account | null = demo ? null : (await request('auth/me', { signal })).user
+      setAttendanceEditorOwner(user?.id || '')
       if (user?.mustChangePassword || user?.mustCompleteProfile) {
         if (version !== generation.current) return
         setAccount(user); setAuthRequired(false); setError(''); setWorkspaces([]); setData(emptyWorkspace); setLearning(null)
@@ -50,7 +54,7 @@ export function useWorkspace() {
       if (version !== generation.current || nextController.signal.aborted) return
       const failure = e as Error & { status?: number }
       setError(failure.status === 401 ? '' : failure.message)
-      if (failure.status === 401) { setSessionToken(''); setAccount(null); setWorkspaces([]); setAuthRequired(true) }
+      if (failure.status === 401) { setAttendanceEditorOwner(''); setSessionToken(''); setAccount(null); setWorkspaces([]); setAuthRequired(true) }
     } finally { if (version === generation.current) setLoading(false) }
   }, [])
   const cancelPending = useCallback(() => { controller.current?.abort(); generation.current++ }, [])
@@ -125,13 +129,14 @@ export function useWorkspace() {
     finally { locked.current = false; setSaving(false) }
   }
   async function logout() {
+    if (!confirmNavigation()) return
     if (loggingOut.current) return
     loggingOut.current = true
     cancelPending(); setLoading(false)
     try { await request('logout', { method: 'POST', body: '{}' }) }
     catch (e) { if ((e as Error & { status?: number }).status !== 401) { setError('로그아웃하지 못했습니다. 연결을 확인하고 다시 시도하세요.'); loggingOut.current = false; return } }
     controller.current?.abort(); generation.current++
-    setSessionToken(''); setData(emptyWorkspace); setLearning(null); setAccount(null); setWorkspaces([]); setError(''); setAuthRequired(true)
+    setAttendanceEditorOwner(''); setSessionToken(''); setData(emptyWorkspace); setLearning(null); setAccount(null); setWorkspaces([]); setError(''); setAuthRequired(true)
     active.current = ''; setActiveId(''); rememberWorkspace(''); setLoading(false)
     const url = new URL(location.href); url.hash = 'login'; history.replaceState(null, '', url)
     loggingOut.current = false

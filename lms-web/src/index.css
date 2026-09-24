@@ -916,13 +916,14 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .team-controls select { border: 1px solid #d8ded9; border-radius: 8px; padding: 8px; max-width: 100%; }
 .team-operations { margin-bottom: 20px; min-width: 0; }
 /* The roster can scroll horizontally while its controls remain usable on phones. */
-.attendance-panel { padding-bottom: 20px; min-width: 0; }
+.attendance-panel { padding-bottom: 20px; min-width: 0; overflow: visible; }
 .attendance-panel fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-.attendance-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px !important; }
+.attendance-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding: 12px 16px !important; }
+.attendance-controls input[type=number] { width: 64px; }
 .attendance-controls label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; max-width: 100%; }
 .attendance-controls input, .attendance-controls select, .attendance-panel td select { border: 1px solid #d8ded9; border-radius: 8px; padding: 9px; background: white; max-width: 100%; }
 .attendance-controls input[type=file] { width: 235px; }
-.attendance-summary { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 16px; }
+.attendance-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px; }
 .attendance-history { margin: 20px 16px 0; }
 .attendance-history summary { cursor: pointer; padding: 10px 0; }
 .attendance-count { border: 1px solid #d8ded9; border-radius: 12px; background: white; padding: 9px 12px; cursor: pointer; }
@@ -956,20 +957,38 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .attendance-person span, .attendance-pending { font-size: 12px; color: #647469; margin-top: 5px; }
 .attendance-row-dirty { background: #fffdf2; }
 .attendance-row-reason { max-width: 200px; white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
-.attendance-panel .attendance-savebar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; position: sticky; bottom: 10px; z-index: 2; padding: 16px; margin: 16px; border: 1px solid #c8d7cd; border-radius: 14px; background: #fff; box-shadow: 0 4px 20px #203d2612; }
+.attendance-panel .attendance-savebar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 16px; margin: 16px; border: 1px solid #c8d7cd; border-radius: 14px; background: #fff; box-shadow: 0 4px 20px #203d2612; }
 .attendance-savebar > div { flex: 1; min-width: 190px; }
 .attendance-savebar small { display: block; color: #647469; font-size: 11px; margin-top: 5px; }
 .attendance-savebar label { font-size: 12px; display: grid; gap: 5px; }
 .attendance-savebar input { border: 1px solid #d8ded9; border-radius: 8px; padding: 9px; max-width: 100%; }
+.attendance-savebar > .attendance-feedback, .attendance-savebar > .attendance-conflicts { flex: 1 0 100%; min-width: 0; }
+.attendance-feedback:empty { display: none; }
+.attendance-feedback p { margin: 0; font-size: 13px; }
+.attendance-conflicts { max-height: 280px; overflow-y: auto; padding: 12px; background: #fff8e9; border: 1px solid #e5cd9a; border-radius: 8px; }
+.attendance-conflicts > div { padding: 12px 0; border-bottom: 1px solid #e5cd9a; }
+.attendance-conflicts p { margin: 6px 0; font-size: 13px; overflow-wrap: anywhere; }
+.attendance-conflicts button { margin: 8px 8px 0 0; }
+.attendance-row-reason .text-button { display: block; margin-top: 6px; }
+.attendance-pagination { display: flex; gap: 12px; align-items: center; justify-content: flex-end; padding: 8px 16px; font-size: 13px; }
 .attendance-savebar > .attendance-finalize { flex: 1 0 100%; display: flex; align-items: center; gap: 12px; border-top: 1px solid #e6ebe5; padding-top: 12px; }
 .attendance-finalize p { flex: 1; margin: 0; font-size: 13px; color: #526359; }
 .attendance-summary strong { font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) {
+  .attendance-roster { max-height: none; overflow: visible; scrollbar-gutter: auto; }
+  .attendance-summary { flex-wrap: nowrap; overflow-x: auto; }
+  .attendance-summary > * { flex-shrink: 0; white-space: nowrap; }
+  .attendance-review { padding-top: 8px; gap: 8px; }
+  .attendance-review > small { display: none; }
+  .attendance-filters label:first-child { flex: 1; min-width: 110px; }
+  .attendance-filters input { width: 100%; }
+  .attendance-panel .attendance-bulk { padding: 10px; margin-bottom: 8px; gap: 8px; }
+  .attendance-bulk small { font-size: 11px; }
   .attendance-roster table, .attendance-roster tbody { display: block; min-width: 0; width: 100%; }
   .attendance-roster thead { display: block; }
   .attendance-roster thead tr { display: flex; }
   .attendance-roster thead th:not(:first-child) { display: none; }
-  .attendance-roster thead th:first-child::after { content: ' 표시된 명단 전체 선택'; font-size: 12px; }
+  .attendance-roster thead th:first-child::after { content: ' 검색 결과 전체 선택'; font-size: 12px; }
   .attendance-roster tbody tr { display: grid; grid-template-columns: 34px minmax(0, 1fr); margin: 8px 12px; border: 1px solid #d8ded9; border-radius: 12px; padding: 10px; }
   .attendance-roster td { border: 0; padding: 6px; }
   .attendance-roster td:nth-child(n+3) { grid-column: 1 / -1; }
@@ -1070,6 +1089,8 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .attendance-code-controls label { display: grid; gap: 6px; }
 .attendance-code-controls select { padding: 8px; border: 1px solid #ccd6ce; border-radius: 8px; background: white; }
 .attendance-code-display output { font-size: 32px; font-weight: 700; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
+.attendance-code-display { margin-bottom: 0; }
+.attendance-code > p { margin: 8px 0 0; font-size: 12px; }
 .role-content { display: grid; gap: 20px; min-width: 0; }
 .workspace-new-button { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 40px; margin-top: 8px; border: 1px solid #d9e3da; border-radius: 8px; color: #315c48; font-size: 12px; background: #f5f8f3; }
 .workspace-new-button:hover { background: #eaf1e7; }
