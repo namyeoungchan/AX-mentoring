@@ -141,15 +141,41 @@ test('compact roster supports pagination and bulk selection across matching page
   await page.getByRole('button', { name: '출결 일괄 저장' }).click()
   await expect(page.getByRole('status')).toHaveText('명단 출결을 저장했습니다.')
   expect((await (await page.request.get(f.path)).json()).counts).toMatchObject({ '출석': 12, '미처리': 12 })
-  for (const [width, height] of [[1440, 900], [390, 844], [360, 800]]) {
+  for (const [width, height] of [[1440, 900], [1280, 900], [768, 1024], [390, 844], [360, 800]]) {
     await page.setViewportSize({ width, height })
     await page.evaluate(() => window.scrollTo(0, 0))
     await expect(page.locator('.attendance-roster tbody tr')).toHaveCount(width < 640 ? 5 : 10)
     const layout = await page.locator('.attendance-roster').evaluate(element => ({ top: element.getBoundingClientRect().top + scrollY, overflow: getComputedStyle(element).overflowY, pageOverflow: document.documentElement.scrollWidth > innerWidth }))
+    await page.screenshot({ path: `test-results/attendance-editor-${width}.png`, fullPage: true, animations: 'disabled' })
     expect(layout.pageOverflow).toBe(false)
-    expect(layout.top).toBeLessThan(width < 640 ? 900 : 800)
+    const metrics = await page.locator('.attendance-metrics button').evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect()
+      return { width: rect.width, left: rect.left, right: rect.right }
+    }))
+    expect(metrics).toHaveLength(6)
+    expect(Math.max(...metrics.map(item => item.width)) - Math.min(...metrics.map(item => item.width))).toBeLessThan(1)
+    expect(metrics.every(item => item.left >= 0 && item.right <= width)).toBe(true)
+    if (width >= 1280) {
+      const positions = await page.locator('.attendance-workspace').evaluate(element => {
+        const roster = element.querySelector('.attendance-main')!.getBoundingClientRect()
+        const save = element.querySelector('.attendance-savebar')!.getBoundingClientRect()
+        const table = element.querySelector('.attendance-roster')!
+        return { beside: save.left >= roster.right, tableOverflow: table.scrollWidth > table.clientWidth }
+      })
+      expect(positions.beside).toBe(true)
+      expect(positions.tableOverflow).toBe(false)
+      const baselines = await page.locator('.attendance-context input, .attendance-context select, .attendance-context button').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().bottom))
+      expect(Math.max(...baselines) - Math.min(...baselines)).toBeLessThan(1)
+    }
+    expect(layout.top).toBeLessThan(width >= 1280 ? 700 : 900)
     if (width < 640) expect(layout.overflow).toBe('visible')
-    await page.screenshot({ path: `test-results/attendance-editor-${width}.png`, fullPage: true })
+  }
+  await page.getByRole('group', { name: '학생0 출결 상태', exact: true }).getByRole('button', { name: '지각', exact: true }).click()
+  await expect(page.getByRole('button', { name: '출결 일괄 저장' })).toBeEnabled()
+  for (const width of [1440, 360]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.screenshot({ path: `test-results/attendance-editor-pending-${width}.png`, fullPage: true, animations: 'disabled' })
   }
   await page.getByRole('button', { name: '다음 명단' }).click()
   await expect(page.getByRole('navigation', { name: '명단 페이지', exact: true })).toContainText('2 / 5쪽')

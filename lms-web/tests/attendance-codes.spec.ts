@@ -32,6 +32,13 @@ test('mentor code UI accepts verified check-ins and preserves recorded evidence 
   await request.post('/api/auth/login', { data: { username, password } })
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   await page.goto('/?workspace=' + workspace.id + '#attendance')
+  await expect(page.getByLabel('강의 시작 예정 시각')).toBeVisible()
+  for (const width of [1440, 360]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+    await page.screenshot({ path: `test-results/attendance-code-setup-${width}.png`, fullPage: true, animations: 'disabled' })
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 })
   await page.getByLabel('강의 시작 예정 시각').fill('10:00')
   await page.getByLabel('강의 종료 예정 시각').fill('12:00')
   await page.getByRole('button', { name: '시작 코드 생성 · 강의 시작', exact: true }).click()
