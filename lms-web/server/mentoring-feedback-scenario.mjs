@@ -1,0 +1,75 @@
+import assert from 'node:assert/strict';
+import { createMentoringFeedback } from './mentoring-feedback.mjs';
+import { createOutbox } from './outbox.mjs';
+
+export async function mentoringFeedbackScenario(runtime) {
+    const { store, workspaces, auth } = runtime;
+    const guildId = '173456789012345678', mentorId = '273456789012345678', menteeId = '373456789012345678';
+    const admin = { id: 'admin', username: 'operator', role: 'admin' };
+    const workspace = await workspaces.create({ name: '멘토링 기록 검증', guildId });
+    const db = (await workspaces.open(workspace.id)).db;
+    let clock = Date.parse('2026-09-24T05:49:59Z');
+    const feedback = createMentoringFeedback(store.db, workspaces, { now: () => clock });
+    const outbox = createOutbox(store.db, workspaces, { now: () => clock, prepare: feedback.prepare });
+    await db.prepare('UPDATE lms_mentoring_feedback_control SET activated_at=?').run(Date.parse('2026-09-24T00:00:00Z'));
+    await db.prepare("INSERT INTO mentors(id,discord_id,name) VALUES(1,?,'멘토')").run(mentorId);
+    for (const [id, end, status] of [[1, '2026-09-24T14:50:00', 'approved'], [2, '2026-09-24T14:50:00', 'pending'], [3, '2026-09-23T14:50:00', 'completed']]) {
+        await db.prepare('INSERT INTO slots(id,mentor_id,start_time,end_time,label) VALUES(?,1,?,?,?)').run(id, end.slice(0,10)+'T14:00:00', end, '프로젝트 리뷰 '+id);
+        await db.prepare('INSERT INTO bookings(id,slot_id,user_id,user_name,status) VALUES(?,?,?,?,?)').run(id,id,menteeId,'멘티',status);
+    }
+    await feedback.prepare(workspace.id);
+    assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM lms_outbox').get()).n, 0, 'never send before end time');
+    clock += 1000;
+    await feedback.prepare(workspace.id);
+    await createMentoringFeedback(store.db, workspaces, { now: () => clock }).prepare(workspace.id);
+    assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM lms_outbox').get()).n, 2, 'one DM per role, restart safe, no old or pending bookings');
+    assert.equal((await outbox.poll({ guildIds: [guildId] })).job, null, 'old bot cannot claim new message type');
+    const mentorJob = (await outbox.poll({ guildIds: [guildId], capabilities: ['mentoring_feedback'] })).job;
+    const menteeJob = (await outbox.poll({ guildIds: [guildId], capabilities: ['mentoring_feedback'] })).job;
+    assert.deepEqual(new Set([mentorJob.payload.targetId,menteeJob.payload.targetId]), new Set([mentorId,menteeId]));
+    await outbox.complete({ workspaceId: workspace.id, id: mentorJob.id, claim: mentorJob.claim, state: 'sent', messageId: '473456789012345678' });
+    await outbox.complete({ workspaceId: workspace.id, id: menteeJob.id, claim: menteeJob.claim, state: 'failed', error: 'permissions' });
+    const failed = (await feedback.read(workspace.id, '1', admin)).requests.find(row=>row.state==='failed');
+    assert.ok(failed);
+    await feedback.retry(workspace.id, '1', failed.id, admin);
+    const retry = (await outbox.poll({ guildIds: [guildId], capabilities: ['mentoring_feedback'] })).job;
+    assert.equal(retry.id, failed.id);
+    assert.equal(retry.channelId, menteeJob.channelId, 'retry must remain a DM');
+    await outbox.complete({ workspaceId: workspace.id, id: retry.id, claim: retry.claim, state: 'sent', messageId: '573456789012345678' });
+    const input = { guildId, requestId: mentorJob.id, discordId: mentorJob.payload.targetId, eventId: '673456789012345678', content: '고객 인터뷰 분석\n다음 주: 가설 검증' };
+    await assert.rejects(feedback.submit({ ...input, discordId: '999456789012345678' }), {status:403});
+    await assert.rejects(feedback.submit({ ...input, guildId: '999456789012345678' }), {status:404});
+    await assert.rejects(feedback.submit({ ...input, content: '  ' }));
+    assert.equal((await feedback.submit(input)).alreadyRecorded, false);
+    assert.equal((await feedback.submit(input)).alreadyRecorded, true, 'transport retries are idempotent');
+    await assert.rejects(feedback.submit({...input,content:'changed'}),{status:409});
+    await feedback.submit({...input,eventId:'773456789012345678',content:'추가 피드백'});
+    await feedback.submit({...input,requestId:menteeJob.id,discordId:menteeJob.payload.targetId,eventId:'873456789012345678',content:'가설 우선순위를 배웠습니다.'});
+    const reports = await feedback.read(workspace.id, '1', admin);
+    assert.equal(reports.endAt, '2026-09-24T14:50:00+09:00');
+    assert.equal(reports.requests.find(row=>row.id===mentorJob.id).responses.length,2);
+    assert.equal(reports.requests.find(row=>row.id===menteeJob.id).responses.length,1);
+    const mentor = (await auth.signup({username:'feedback.mentor',password:'test-password-12345',name:'멘토',discordId:mentorId},()=>{})).user;
+    await store.db.prepare("INSERT INTO lms_workspace_members VALUES(?,?,'instructor',1)").run(workspace.id,mentor.id);
+    await store.db.prepare("INSERT INTO lms_mentor_scopes VALUES(?,?,'group','[]')").run(workspace.id,mentor.id);
+    assert.equal((await feedback.read(workspace.id,'1',mentor)).requests.length,2);
+    const stranger = (await auth.signup({username:'feedback.stranger',password:'test-password-12345',name:'다른 멘토',discordId:'983456789012345678'},()=>{})).user;
+    await store.db.prepare("INSERT INTO lms_workspace_members VALUES(?,?,'instructor',1)").run(workspace.id,stranger.id);
+    await store.db.prepare("INSERT INTO lms_mentor_scopes VALUES(?,?,'group','[]')").run(workspace.id,stranger.id);
+    await assert.rejects(feedback.read(workspace.id,'1',stranger),{status:404});
+    await store.db.prepare("UPDATE lms_workspace_members SET role='student' WHERE user_id=?").run(stranger.id);
+    await assert.rejects(feedback.read(workspace.id,'1',stranger),{status:403});
+    // A completed appointment still requests both accounts when the scheduled end arrives.
+    await db.prepare("UPDATE bookings SET status='completed' WHERE id=2").run();
+    clock += 3600000;
+    await feedback.prepare(workspace.id);
+    assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM lms_outbox').get()).n,4);
+    await db.prepare('DELETE FROM bookings WHERE id=2').run();
+    await feedback.prepare(workspace.id);
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_outbox WHERE state='cancelled'").get()).n,2);
+    const cancelled=await db.prepare("SELECT * FROM lms_mentoring_feedback_requests WHERE booking_id='2' LIMIT 1").get();
+    await assert.rejects(feedback.submit({...input,requestId:cancelled.id,discordId:cancelled.discord_id,eventId:'993456789012345678'}),{status:409});
+    await workspaces.setArchived(workspace.id,true,admin);
+    await assert.rejects(feedback.submit({...input,eventId:'994456789012345678'}),{status:404});
+    return { workspaceId:workspace.id, responses:3 };
+}

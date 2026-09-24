@@ -613,6 +613,33 @@
         "data"
       ],
       "identity": false
+    },
+    "lms_mentoring_feedback_control": {
+      "columns": [
+        "id",
+        "activated_at"
+      ],
+      "identity": false
+    },
+    "lms_mentoring_feedback_requests": {
+      "columns": [
+        "id",
+        "booking_id",
+        "role",
+        "discord_id",
+        "name",
+        "created_at"
+      ],
+      "identity": false
+    },
+    "lms_mentoring_feedback_responses": {
+      "columns": [
+        "event_id",
+        "request_id",
+        "content",
+        "submitted_at"
+      ],
+      "identity": false
     }
   },
   "legacy": [
@@ -965,6 +992,26 @@
       "name": "lms_bot_settings",
       "type": "table",
       "sql": "CREATE TABLE lms_bot_settings(guild_id TEXT PRIMARY KEY,data TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_mentoring_feedback_control",
+      "type": "table",
+      "sql": "CREATE TABLE lms_mentoring_feedback_control(id INTEGER PRIMARY KEY CHECK(id=1),activated_at INTEGER NOT NULL)"
+    },
+    {
+      "name": "lms_mentoring_feedback_requests",
+      "type": "table",
+      "sql": "CREATE TABLE lms_mentoring_feedback_requests(\n      id TEXT PRIMARY KEY,booking_id TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('mentor','mentee')),\n      discord_id TEXT NOT NULL,name TEXT NOT NULL,created_at INTEGER NOT NULL,UNIQUE(booking_id,role))"
+    },
+    {
+      "name": "lms_mentoring_feedback_responses",
+      "type": "table",
+      "sql": "CREATE TABLE lms_mentoring_feedback_responses(\n      event_id TEXT PRIMARY KEY,request_id TEXT NOT NULL REFERENCES lms_mentoring_feedback_requests(id),\n      content TEXT NOT NULL,submitted_at INTEGER NOT NULL)"
+    },
+    {
+      "name": "lms_mentoring_feedback_response_request",
+      "type": "index",
+      "sql": "CREATE INDEX lms_mentoring_feedback_response_request ON lms_mentoring_feedback_responses(request_id,submitted_at)"
     }
   ]
 }

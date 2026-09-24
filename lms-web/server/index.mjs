@@ -33,6 +33,7 @@ async function prepareAssignmentAlerts() {
         try {
             await assignmentAlerts.prepare(row.id, outbox.channel);
             await runtime.onlineMentoring.prepare(row.id);
+            await runtime.mentoringFeedback.prepare(row.id);
         }
         catch {
             console.error('Assignment notification preparation failed for workspace', row.id);
@@ -220,6 +221,10 @@ app.post('/api/integrations/discord/onboarding/:operation', async (req, res) => 
         return res.json(await onboarding.progress(req.body));
     return res.status(404).json({ error: '지원하지 않는 작업입니다.' });
 });
+app.post('/api/integrations/discord/mentoring/response', async (req, res) => {
+    if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
+    res.json(await runtime.mentoringFeedback.submit(req.body));
+});
 app.post('/api/integrations/discord/outbox/:operation', async (req, res) => {
     if (!provision.authorized(req.get('authorization')))
         return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
@@ -352,6 +357,8 @@ app.use('/api/workspaces/:workspaceId', async (req, _res, next) => {
     next();
 });
 app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace));
+app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback', async (req, res) => res.json(await runtime.mentoringFeedback.read(req.workspaceId, req.params.bookingId, req.account)));
+app.post('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback/:requestId/retry', async (req, res) => res.json(await runtime.mentoringFeedback.retry(req.workspaceId, req.params.bookingId, req.params.requestId, req.account)));
 app.get('/api/workspaces/:workspaceId/videos', async (req, res) => res.json(await runtime.courseVideos.list(req.workspaceId, req.account)));
 app.post('/api/workspaces/:workspaceId/videos', async (req, res) => {
     await auth.limit('video-upload', req.account.id, 20, 3600000);

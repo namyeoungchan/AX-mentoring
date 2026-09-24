@@ -9,6 +9,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import branding from '../shared/branding.json' with { type: 'json' };
 import { installOutbox } from './outbox-schema.mjs';
+import { installMentoringFeedback } from './mentoring-feedback-schema.mjs';
 const text = z.string().trim().min(1).max(200);
 const id = text;
 const date = z.string().date();
@@ -24,7 +25,7 @@ const schemas = {
     servers: z.object({ id, name: text, provider: text, region: text, status: z.literal('미연결'), version: z.string().max(40) }),
     mentors: z.object({ id, name: text, discordId: discord, bio: z.string().max(1000) }),
     assignments: z.object({ id, type: z.enum(['team', 'individual']).optional(), title: text, course: text, courseId: z.string().optional(), due: date, submitted: z.number().int().nonnegative(), total: z.number().int().nonnegative(), status: z.enum(['진행 중', '마감']) }),
-    sessions: z.object({ id, title: text, mentor: text, mentorId: id.optional(), studentId: z.union([id, z.literal('')]).optional(), team: z.string(), date, time: z.string().regex(/^\d{2}:\d{2}$/).refine(v => +v.slice(0, 2) < 24 && +v.slice(3) < 60), status: z.enum(['승인 대기', '예약 확정', '완료', '취소']) }),
+    sessions: z.object({ id, title: text, mentor: text, mentorId: id.optional(), studentId: z.union([id, z.literal('')]).optional(), team: z.string(), date, time: z.string().regex(/^\d{2}:\d{2}$/).refine(v => +v.slice(0, 2) < 24 && +v.slice(3) < 60), endDate: date.optional(), endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(), status: z.enum(['승인 대기', '예약 확정', '완료', '취소']) }),
     settings: z.object({ name: text, reminders: z.boolean(), onboarding: z.boolean(), qa: z.boolean() }),
 };
 export class ApiError extends Error {
@@ -64,6 +65,7 @@ export async function createStore(dbPath, { workspaceId = 'default', defaultName
     CREATE UNIQUE INDEX IF NOT EXISTS lms_score_unique ON lms_records(json_extract(data,'$.studentId'),json_extract(data,'$.courseId'),json_extract(data,'$.item')) WHERE kind='scores';`);
     // Accounts approved through LMS do not collect email addresses. Keep real addresses unique.
     await installOutbox(db);
+    await installMentoringFeedback(db);
     const emailIndex = await db.prepare("SELECT sql FROM sqlite_master WHERE name='lms_learner_email'").get();
     if (emailIndex && !emailIndex.sql.includes("<> ''"))
         await db.exec('DROP INDEX lms_learner_email');
@@ -91,7 +93,7 @@ export async function createStore(dbPath, { workspaceId = 'default', defaultName
         }
         result.mentors = (await db.prepare('SELECT id,name,discord_id AS discordId,bio FROM mentors WHERE is_active=1 ORDER BY id').all()).map(m => ({ ...m, id: String(m.id) }));
         result.assignments = (await db.prepare(`SELECT a.*, (SELECT COUNT(*) FROM submissions WHERE assignment_id=a.id) AS submitted, ac.course_id FROM assignments a LEFT JOIN lms_assignment_courses ac ON ac.assignment_id=a.id ORDER BY a.id`).all()).map(a => ({ id: String(a.id), type: a.type, title: a.title, courseId: a.course_id || '', course: result.courses.find(c => c.id === a.course_id)?.title || '기존 봇 과제', due: a.due_date.slice(0, 10), submitted: a.submitted, total: a.type === 'team' ? result.teams.filter(t => t.courseId === a.course_id).length : result.learners.filter(l => l.courseId === a.course_id).length, status: a.is_active ? '진행 중' : '마감' }));
-        result.sessions = (await db.prepare(`SELECT b.*, s.label, s.start_time, m.id AS mentor_id, m.name AS mentor_name FROM bookings b JOIN slots s ON b.slot_id=s.id JOIN mentors m ON s.mentor_id=m.id ORDER BY b.id`).all()).map(b => ({ id: String(b.id), title: b.label, mentor: b.mentor_name, mentorId: String(b.mentor_id), studentId: result.learners.find(l => l.discordId === b.user_id)?.id || '', team: b.user_name, date: b.start_time.slice(0, 10), time: b.start_time.slice(11, 16), status: b.status === 'pending' ? '승인 대기' : b.status === 'completed' ? '완료' : '예약 확정' }));
+        result.sessions = (await db.prepare(`SELECT b.*, s.label, s.start_time, s.end_time, m.id AS mentor_id, m.name AS mentor_name FROM bookings b JOIN slots s ON b.slot_id=s.id JOIN mentors m ON s.mentor_id=m.id ORDER BY b.id`).all()).map(b => ({ id: String(b.id), title: b.label, mentor: b.mentor_name, mentorId: String(b.mentor_id), studentId: result.learners.find(l => l.discordId === b.user_id)?.id || '', team: b.user_name, date: b.start_time.slice(0, 10), time: b.start_time.slice(11, 16), endDate: b.end_time.slice(0, 10), endTime: b.end_time.slice(11, 16), status: b.status === 'pending' ? '승인 대기' : b.status === 'completed' ? '완료' : '예약 확정' }));
         result.sessions.push(...(await db.prepare('SELECT data FROM lms_booking_history ORDER BY rowid').all()).map(r => JSON.parse(r.data)));
         result.submissions = (await db.prepare('SELECT id,assignment_id AS assignmentId,user_name AS name,team,content,link,submitted_at AS submittedAt FROM submissions ORDER BY id DESC').all()).map(s => ({ ...s, id: String(s.id) }));
         result.logs = (await db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 200').all()).reverse().map(l => ({ id: String(l.id), time: l.created_at + ' UTC', text: `${l.actor} · ${l.action} · ${l.target}`, before: l.before_json, after: l.after_json }));
@@ -165,7 +167,7 @@ export async function createStore(dbPath, { workspaceId = 'default', defaultName
                     if (before) {
                         if (before.status === '완료' || before.status === '취소')
                             throw new ApiError(422, '종료된 예약은 변경할 수 없습니다.');
-                        if (value.title !== before.title || value.date !== before.date || value.time !== before.time || value.mentorId !== before.mentorId || value.studentId !== before.studentId)
+                        if (value.title !== before.title || value.date !== before.date || (value.endTime && value.endTime !== before.endTime) || (value.endDate && value.endDate !== before.endDate) || value.time !== before.time || value.mentorId !== before.mentorId || value.studentId !== before.studentId)
                             throw new ApiError(422, '기존 예약은 승인·완료·취소만 지원합니다.');
                         if (value.status === '취소') {
                             await db.prepare('INSERT INTO lms_booking_history(id,data) VALUES(?,?)').run('cancelled-' + randomUUID(), JSON.stringify({ ...before, id: 'cancelled-' + randomUUID(), status: '취소' }));
@@ -186,7 +188,8 @@ export async function createStore(dbPath, { workspaceId = 'default', defaultName
                         const start = `${value.date}T${value.time}:00`;
                         const endDate = new Date(`${start}Z`);
                         endDate.setUTCMinutes(endDate.getUTCMinutes() + 50);
-                        const end = endDate.toISOString().slice(0, 19);
+                        const end = value.endTime ? `${value.endDate || value.date}T${value.endTime}:00` : endDate.toISOString().slice(0, 19);
+                        if (end <= start) throw new ApiError(422, '종료 시간은 시작 시간 이후여야 합니다.');
                         const overlapping = await db.prepare('SELECT s.*, b.id AS booking_id FROM slots s LEFT JOIN bookings b ON b.slot_id=s.id WHERE s.mentor_id=? AND s.is_active=1 AND s.start_time < ? AND s.end_time > ?').all(mentor.id, end, start);
                         const available = overlapping.length === 1 && !overlapping[0].booking_id && overlapping[0].start_time === start && overlapping[0].end_time === end ? overlapping[0] : null;
                         if (overlapping.length && !available)

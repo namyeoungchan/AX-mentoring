@@ -11,6 +11,18 @@ with patch.dict(os.environ, {'DISCORD_TOKEN': 'test-only', 'GUILD_ID': '12345678
 
 
 class OutboxTests(unittest.IsolatedAsyncioTestCase):
+    async def test_mentoring_report_delivers_private_restart_safe_recipient_button(self):
+        bot, channel, job = self.fixture()
+        guild_id, user_id = '123456789012345678', '223456789012345678'
+        bot.get_guild = lambda _: SimpleNamespace(fetch_member=AsyncMock(return_value=SimpleNamespace(create_dm=AsyncMock(return_value=channel))))
+        result = await module.deliver(bot, {**job, 'id': 'd9b7a63d-5e4f-4a0c-b334-c51a56cefda1', 'guildId': guild_id,
+                                          'kind': 'mentoring_feedback', 'channelId': f'dm:{user_id}',
+                                          'payload': {**job['payload'], 'audience': 'individual', 'targetId': user_id}})
+        self.assertEqual(result['state'], 'sent')
+        view = channel.send.call_args.kwargs['view']
+        self.assertTrue(view.is_persistent())
+        self.assertEqual(view.children[0].user_id, int(user_id))
+
     async def test_mentor_availability_dm_has_restart_safe_recipient_button(self):
         bot, channel, job = self.fixture()
         guild_id, user_id = '123456789012345678', '223456789012345678'

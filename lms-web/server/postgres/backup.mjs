@@ -31,7 +31,10 @@ export async function exportPostgres(connection) {
       // Startup backs up the existing database before applying migrations.
       // Older schemas do not yet contain the super-account flag.
       const userColumns = (await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='lms_users'", [schema])).rows.map(row => row.column_name)
+      const existingTables = new Set((await client.query('SELECT table_name FROM information_schema.tables WHERE table_schema=$1', [schema])).rows.map(row => row.table_name))
       for (const [name, info] of Object.entries(metadata.tables)) {
+        // Pre-migration startup backups must also work on schema versions 1 and 2.
+        if (['lms_mentoring_feedback_control','lms_mentoring_feedback_requests','lms_mentoring_feedback_responses'].includes(name) && !existingTables.has(name)) continue
         const columns = name === 'lms_users' && !userColumns.includes('is_super_admin')
           ? info.columns.filter(column => column !== 'is_super_admin') : info.columns
         const result = await client.query({ text: `SELECT ${columns.map(identifier).join(',')} FROM ${identifier(name)} ORDER BY _ax_order`, rowMode: 'array' })
