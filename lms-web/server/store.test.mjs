@@ -90,6 +90,19 @@ test('stale revisions never overwrite newer data, including bot writes', async (
     await assert.rejects(async () => await s.mutate({ revision: stale, changes: [{ kind: 'courses', value: { ...course, title: 'stale' } }] }), /다른 작업/);
     assert.equal((await s.snapshot()).courses[0].title, course.title);
 });
+test('mentoring preserves explicit end times and rejects invalid or changed durations', async t => {
+    const s = await fixture(t);
+    await seed(s);
+    const session = { id: 'new', title: '멘토링', mentor: mentor.name, mentorId: '1', studentId: student.id, team: '', date: '2026-10-01', time: '14:00', endTime: '15:30', status: '승인 대기' };
+    await assert.rejects(write(s, 'sessions', { ...session, endTime: '13:50' }), /종료 시간/);
+    assert.equal((await s.snapshot()).sessions.length, 0);
+    await write(s, 'sessions', session);
+    assert.equal((await s.db.prepare('SELECT end_time FROM slots').get()).end_time, '2026-10-01T15:30:00');
+    const created = (await s.snapshot()).sessions[0];
+    assert.equal(created.endDate, '2026-10-01');
+    assert.equal(created.endTime, '15:30');
+    await assert.rejects(write(s, 'sessions', { ...created, endTime: '16:00', status: '예약 확정' }), /승인·완료·취소/);
+});
 test('remote process actions and unconnected module changes cannot report success', async (t) => {
     const s = await fixture(t);
     await assert.rejects(async () => await write(s, 'servers', { id: 'b1', name: 'remote', provider: 'Docker', region: 'Seoul', status: '실행 중', version: '1' }));
