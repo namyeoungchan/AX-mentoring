@@ -1,0 +1,139 @@
+.mentoring-workspace { min-width: 0; color: #293e32; font-size: 14px; line-height: 1.5; }
+.mentoring-workspace :is(button, input, select, [tabindex]):focus-visible { outline: 2px solid #315c48; outline-offset: 3px; }
+.mentoring-workspace button:disabled { opacity: 1; color: #738078; background: #f1f4f1; border-color: #dce3de; cursor: not-allowed; }
+.mentoring-workspace .button, .mentoring-page-heading .button { min-height: 42px; padding: 9px 13px; font-size: 13px; }
+.mentoring-workspace .button.secondary { color: #38513f; border-color: #cdd9d0; }
+.mentoring-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 16px; background: #fff; border: 1px solid #d7e1da; border-radius: 10px; overflow: hidden; }
+.mentoring-views button { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; color: #526658; text-align: left; border-right: 1px solid #dce4de; }
+.mentoring-views button:last-child { border: 0; }
+.mentoring-views button[aria-pressed=true] { background: #eaf2ec; color: #254f38; box-shadow: inset 0 -3px #315c48; }
+.mentoring-views button > span { font-weight: 600; }
+.mentoring-views strong { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mentoring-views strong small { margin-left: 4px; font-size: 12px; font-weight: 500; }
+.mentoring-views button:nth-child(2) strong { color: #895914; }
+.mentoring-planner { min-width: 0; background: #fff; border: 1px solid #dce3de; border-radius: 10px; overflow: hidden; }
+.mentoring-week { padding: 20px 20px 0; }
+.mentoring-week-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+.mentoring-workspace h2 { font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
+.mentoring-week-heading p { color: #617367; font-size: 12px; margin-top: 3px; }
+.mentoring-week-heading > div:first-child { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.mentoring-week-actions { display: flex; align-items: center; gap: 6px; }
+.mentoring-icon-button { display: grid; place-items: center; width: 42px; height: 42px; color: #315c48; border: 1px solid #ccd8cf; border-radius: 6px; background: white; }
+.mentoring-icon-button:hover { background: #edf3ee; }
+.mentoring-workspace label { display: grid; gap: 6px; min-width: 0; color: #4c6053; font-size: 12px; font-weight: 550; }
+.mentoring-workspace :is(input, select) { width: 100%; min-width: 0; min-height: 42px; border: 1px solid #cdd8d0; border-radius: 6px; background: white; padding: 8px 10px; color: #293e32; font-size: 14px; }
+.mentoring-workspace input::placeholder { color: #6a7b6e; }
+.mentoring-date-jump { margin-left: 8px; }
+.mentoring-date-jump > span { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+.mentoring-week-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.mentoring-week-days button { display: grid; justify-items: center; gap: 4px; padding: 9px 4px; border: 1px solid #dce5df; border-radius: 7px; color: #53665b; background: #fafcf9; font-variant-numeric: tabular-nums; }
+.mentoring-week-days button:hover { background: #edf3ee; border-color: #8caa96; }
+.mentoring-week-days button[aria-current=date] strong { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.mentoring-week-days button[aria-pressed=true] { border-color: #315c48; background: #315c48; color: white; }
+.mentoring-week-days button > span { font-size: 12px; }
+.mentoring-week-days strong { font-size: 20px; font-weight: 650; }
+.mentoring-week-days small { font-size: 11px; }
+.mentoring-toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) 160px 140px; gap: 12px; padding: 18px 20px; align-items: end; }
+.mentoring-toolbar:has(> label:nth-child(4)) { grid-template-columns: minmax(160px, 1fr) 150px 130px 160px; }
+.mentoring-search > div { display: flex; align-items: center; gap: 9px; min-width: 0; border: 1px solid #cdd8d0; border-radius: 6px; padding-left: 11px; color: #667b6c; }
+.mentoring-workspace .mentoring-search input { border: 0; background: transparent; padding-left: 0; }
+.mentoring-list-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-top: 1px solid #e1e7e2; }
+.mentoring-list-heading h2 { font-size: 16px; }
+.mentoring-list-heading h2 > span { margin-left: 6px; color: #315c48; font-size: 14px; font-weight: 600; }
+.mentoring-list-heading p { margin-top: 4px; color: #5f7064; font-size: 12px; }
+.mentoring-reset { flex-shrink: 0; min-height: 42px; font-size: 12px; color: #315c48; text-decoration: underline; text-underline-offset: 3px; }
+.mentoring-day-group > h3 { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-block: 1px solid #e0e7e1; background: #f1f5f1; color: #3e5847; font-size: 13px; font-weight: 650; }
+.mentoring-day-group h3 > span { color: #315c48; font-size: 11px; }
+.mentoring-day-group h3 > small { margin-left: auto; font-size: 12px; font-weight: 500; }
+.mentoring-day-group ul { list-style: none; padding: 0; margin: 0; }
+.mentoring-session { display: grid; grid-template-columns: 84px minmax(0, 1fr) 112px 155px; align-items: center; gap: 18px; padding: 20px; border-bottom: 1px solid #e5ebe6; }
+.mentoring-session:last-child { border-bottom: 0; }
+.mentoring-session-time time { display: block; font-size: 20px; font-weight: 650; color: #2b4634; font-variant-numeric: tabular-nums; }
+.mentoring-session-time small { display: block; margin-top: 4px; color: #65766a; font-size: 11px; }
+.mentoring-session-details { min-width: 0; }
+.mentoring-session-details > div { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.mentoring-session-details h4 { font-size: 15px; font-weight: 650; line-height: 1.65; overflow-wrap: anywhere; }
+.mentoring-session-details p { margin-top: 5px; font-size: 13px; color: #586d5e; overflow-wrap: anywhere; }
+.mentoring-status { display: inline-flex; flex-shrink: 0; align-items: center; min-height: 24px; padding: 2px 7px; border-radius: 4px; color: #52665a; background: #edf1ee; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.mentoring-status.status-1 { background: #fff1d8; color: #83550e; }
+.mentoring-status.status-2 { background: #e4f0e7; color: #275d3e; }
+.mentoring-session-mentor { display: grid; gap: 5px; min-width: 0; }
+.mentoring-session-mentor > span { font-size: 11px; color: #627568; }
+.mentoring-session-mentor > strong { font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
+.mentoring-session-actions { display: grid; grid-template-columns: 108px 42px; gap: 5px; align-items: center; }
+.mentoring-cancel { min-height: 42px; font-size: 12px; color: #68746d; border-radius: 6px; }
+.mentoring-cancel:hover { color: #953e32; background: #fff0ed; }
+.mentoring-finished { grid-column: 1 / -1; color: #607367; font-size: 12px; text-align: right; }
+.mentoring-session.is-cancelled { background: #fafbf9; }
+.mentoring-session.is-cancelled h4 { color: #637367; }
+.mentoring-cancel-confirm { grid-column: 2 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #e8cbbf; border-radius: 6px; background: #fff6f1; }
+.mentoring-cancel-confirm p { font-size: 13px; color: #823e2d; }
+.mentoring-cancel-confirm > div { display: flex; gap: 8px; }
+.mentoring-cancel-confirm .button:last-child { color: #943f2d; border-color: #cfa799; }
+.mentoring-feedback { margin: 0 20px 16px; padding: 12px 14px; color: #315c48; background: #eef5ef; border-radius: 6px; font-size: 13px; overflow-wrap: anywhere; }
+.mentoring-error { background: #fff0eb; color: #933f32; }
+.mentoring-empty { display: grid; justify-items: center; gap: 10px; padding: 42px 20px; text-align: center; border-top: 1px solid #e3e9e4; }
+.mentoring-empty > svg { color: #7a9381; }
+.mentoring-empty h3 { font-size: 15px; font-weight: 650; }
+.mentoring-empty p { color: #607568; font-size: 13px; max-width: 38em; }
+.mentoring-empty .button { margin-top: 6px; }
+.mentoring-more { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-top: 1px solid #e0e7e1; color: #617266; font-size: 12px; }
+.mentoring-session-form :is(fieldset, label, .form-row, input, select) { min-width: 0; }
+.mentoring-session-form .form-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mentoring-session-form label { color: #435d4c; font-size: 13px; }
+.mentoring-session-form :is(input, select) { min-height: 44px; font-size: 14px; color: #293e32; }
+.mentoring-session-form :is(input[type=date], input[type=time]) { padding-inline: 8px; }
+.mentoring-session-form .button { min-height: 44px; font-size: 13px; }
+@media (max-width: 1100px) and (min-width: 641px) {
+  .mentoring-toolbar, .mentoring-toolbar:has(> label:nth-child(4)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mentoring-search { grid-column: 1 / -1; }
+  .mentoring-session { grid-template-columns: 68px minmax(0, 1fr) 155px; gap: 12px; }
+  .mentoring-session-mentor { grid-column: 2; grid-row: 2; display: flex; align-items: center; gap: 6px; }
+  .mentoring-session-actions { grid-column: 3; grid-row: 1 / 3; }
+  .mentoring-session-details { grid-column: 2; }
+}
+@media (max-width: 640px) {
+  .page-heading.mentoring-page-heading { display: flex; flex-direction: row; align-items: center; gap: 12px; }
+  .mentoring-page-heading .page-actions { width: auto; flex-shrink: 0; }
+  .mentoring-views { margin-bottom: 12px; }
+  .mentoring-views button { display: grid; gap: 3px; padding: 11px 14px; font-size: 13px; }
+  .mentoring-views strong { font-size: 22px; }
+  .mentoring-workspace .button, .mentoring-page-heading .button { min-height: 44px; }
+  .mentoring-week { padding: 14px 12px 0; }
+  .mentoring-week-heading { display: grid; gap: 12px; margin-bottom: 12px; }
+  .mentoring-week-heading h2 { font-size: 17px; }
+  .mentoring-week-actions { display: grid; grid-template-columns: auto 40px 40px minmax(0, 1fr); gap: 5px; }
+  .mentoring-icon-button { width: 40px; height: 44px; }
+  .mentoring-date-jump { margin: 0; }
+  .mentoring-workspace :is(input, select) { min-height: 44px; font-size: 16px; padding-inline: 8px; }
+  .mentoring-workspace .mentoring-date-jump input { padding-inline: 4px; font-size: 13px; }
+  .mentoring-week-days { gap: 3px; }
+  .mentoring-week-days button { padding: 7px 2px; gap: 3px; }
+  .mentoring-week-days strong { font-size: 19px; }
+  .mentoring-toolbar, .mentoring-toolbar:has(> label:nth-child(4)) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px 12px; }
+  .mentoring-toolbar .mentoring-search { grid-column: 1 / -1; }
+  .mentoring-search > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .mentoring-toolbar label:has(select) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .mentoring-list-heading { align-items: start; padding: 14px 12px; gap: 8px; }
+  .mentoring-list-heading p { font-size: 11px; }
+  .mentoring-list-heading h2 { font-size: 15px; }
+  .mentoring-day-group > h3 { padding-inline: 12px; }
+  .mentoring-session { grid-template-columns: 60px minmax(0, 1fr); gap: 10px 12px; padding: 16px 12px; align-items: start; }
+  .mentoring-session-time { grid-column: 1; grid-row: 1; }
+  .mentoring-session-time time { font-size: 19px; }
+  .mentoring-session-details { grid-column: 2; }
+  .mentoring-session-details > div { gap: 5px; }
+  .mentoring-session-details h4 { width: 100%; font-size: 14px; }
+  .mentoring-session-details p { font-size: 12px; }
+  .mentoring-session-mentor { grid-column: 2; display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+  .mentoring-session-actions { grid-column: 2; grid-template-columns: minmax(0, 1fr) 52px; width: 100%; }
+  .mentoring-cancel { min-height: 44px; border: 1px solid #d7e1da; }
+  .mentoring-finished { text-align: left; }
+  .mentoring-cancel-confirm { grid-column: 1 / -1; padding: 12px; }
+  .mentoring-cancel-confirm > div { width: 100%; }
+  .mentoring-cancel-confirm .button { flex: 1; }
+  .mentoring-feedback { margin-inline: 12px; }
+  .mentoring-empty { padding: 28px 16px; }
+  .mentoring-more { padding: 14px 12px; }
+  .mentoring-session-form :is(input, select) { font-size: 16px; }
+}
