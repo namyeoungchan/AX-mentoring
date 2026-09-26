@@ -1,3 +1,4 @@
+import { createDiscordIdentities } from './discord-identities.mjs';
 import { createCourseManagement } from './course-management.mjs';
 import { createStore } from './store.mjs';
 import { postgresConnection } from './postgres/database.mjs';
@@ -48,7 +49,8 @@ export async function createRuntime(dbPath, env = process.env) {
         const attendance = createAttendance(workspaces, { outbox });
         const attendanceCodes = createAttendanceCodes(store.db, workspaces, attendance, { enabled: auth.enabled });
         const attendancePresence = attendanceCodes.presence;
-        return { store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, onlineMentoring, mentoringFeedback, outbox, attendance, attendanceCodes, attendancePresence,
+        const discordIdentities = createDiscordIdentities(store.db, auth);
+        return { discordIdentities, store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, onlineMentoring, mentoringFeedback, outbox, attendance, attendanceCodes, attendancePresence,
             close() { botStorage.close(); workspaces.close(); store.db.close(); } };
     }
     catch (error) {

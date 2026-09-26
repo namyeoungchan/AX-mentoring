@@ -1,3 +1,4 @@
+import { clearDiscordIdentity } from './discord-identities.mjs';
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { z } from 'zod';
@@ -572,6 +573,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
                 await db.prepare("DELETE FROM lms_runtime_state WHERE kind='student-profile' AND record_key=?").run(row.id);
             if (await tableExists(db, 'lms_workspace_invitations'))
                 await (db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE accepted_at IS NULL AND revoked_at IS NULL AND (username=? OR created_by=?)')).run(now(), row.username, row.id);
+            await clearDiscordIdentity(db, row.discord_id);
             await (db.prepare('DELETE FROM lms_users WHERE id=?')).run(row.id);
             await (db.prepare('INSERT INTO lms_account_audit(actor_id,target_id,username,action,created_at) VALUES(?,?,?,?,?)')).run(actor.id, row.id, row.username, 'account.delete', now());
             await db.exec('COMMIT');
