@@ -359,6 +359,8 @@ app.use('/api/workspaces/:workspaceId', async (req, _res, next) => {
     next();
 });
 app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace));
+app.get('/api/workspaces/:workspaceId/discord-identities', async (req, res) => res.json(await runtime.discordIdentities.list(req.account, req.workspaceId)));
+app.delete('/api/workspaces/:workspaceId/discord-identities/:discordId', async (req, res) => res.json(await runtime.discordIdentities.remove(req.account, req.params.discordId, req.body, req.workspaceId)));
 app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback', async (req, res) => res.json(await runtime.mentoringFeedback.read(req.workspaceId, req.params.bookingId, req.account)));
 app.post('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback/:requestId/retry', async (req, res) => res.json(await runtime.mentoringFeedback.retry(req.workspaceId, req.params.bookingId, req.params.requestId, req.account)));
 app.get('/api/workspaces/:workspaceId/videos', async (req, res) => res.json(await runtime.courseVideos.list(req.workspaceId, req.account)));
