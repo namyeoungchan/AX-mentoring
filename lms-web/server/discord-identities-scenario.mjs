@@ -67,5 +67,82 @@ export async function discordIdentitiesScenario(runtime, administrator) {
     const pending=(await list()).identities.find(row=>row.discordId===pendingId);
     assert.equal(pending.state,'pending');
     assert.equal(pending.orphanCount,0,'live legacy registration is not an orphan');
-    return { owner, discordId, guildId, first };
+    await workspaceDiscordIdentitiesScenario(runtime, owner);
+    return { owner, discordId, guildId, first, workspace };
+}
+
+async function workspaceDiscordIdentitiesScenario({ store: { db }, auth, workspaces, discordIdentities }, owner) {
+    const guildId='623456789012345678', otherGuild='723456789012345678', discordId='823456789012345678', orphanId='923456789012345678';
+    const workspace=await workspaces.create({name:'워크스페이스 인증 권한',guildId});
+    const other=await workspaces.create({name:'인증 비공개 서버',guildId:otherGuild});
+    const admin=await auth.signup({username:'scoped.admin',name:'워크스페이스 관리자',password:'scoped-password-1234'},()=>{});
+    const member=await auth.signup({username:'scoped.member',name:'로컬 계정',password:'scoped-password-1234'},()=>{});
+    const replacement=await auth.signup({username:'scoped.new',name:'재인증 계정',password:'scoped-password-1234'},()=>{});
+    for(const [user,role] of [[admin.user,'admin'],[member.user,'student'],[replacement.user,'student']])
+        await db.prepare('INSERT INTO lms_workspace_members VALUES(?,?,?,1)').run(workspace.id,user.id,role);
+    const list=()=>discordIdentities.list(admin.user,workspace.id);
+    const row=async id=>(await list()).identities.find(value=>value.discordId===id);
+    const clear=before=>discordIdentities.remove(admin.user,before.discordId,{discordId:before.discordId,revision:before.revision},workspace.id);
+    await assert.rejects(discordIdentities.list(admin.user),{status:403});
+    await assert.rejects(discordIdentities.list(admin.user,other.id),{status:403});
+    await assert.rejects(discordIdentities.list({...member.user,role:'admin'},workspace.id),{status:403});
+    await db.prepare("UPDATE lms_workspace_members SET role='instructor' WHERE user_id=?").run(member.user.id);
+    await assert.rejects(discordIdentities.list(member.user,workspace.id),{status:403});
+    await db.prepare("UPDATE lms_workspace_members SET role='student' WHERE user_id=?").run(member.user.id);
+    await auth.verify({code:(await auth.issueVerification(member.user,guildId)).code,discordId,guildId});
+    const local=await row(discordId); assert.equal(local.canUnlink,true);
+    // A second membership after preview must prevent the previously offered global unlink.
+    await db.prepare("INSERT INTO lms_workspace_members VALUES(?,?,'student',1)").run(other.id,member.user.id);
+    await assert.rejects(clear(local),{status:409});
+    await auth.verify({code:(await auth.issueVerification(member.user,otherGuild)).code,discordId,guildId:otherGuild});
+    for(const [ws,guild] of [[workspace,guildId],[other,otherGuild]]) {
+        await db.prepare('INSERT INTO lms_workspace_verifications VALUES(?,?,?,?,1)').run(ws.id,'deleted-scoped',guild,orphanId);
+        await db.prepare('INSERT INTO lms_onboarding_members VALUES(?,?,1,1)').run(guild,orphanId);
+        await db.prepare("INSERT INTO lms_member_sync VALUES(?,?,'v','ready','',1)").run(guild,orphanId);
+        await db.prepare('INSERT INTO lms_member_retry VALUES(?,?)').run(guild,orphanId);
+    }
+    const scoped=await list();
+    assert.ok(!JSON.stringify(scoped).includes(other.name));
+    assert.ok(!JSON.stringify(scoped).includes(otherGuild));
+    assert.ok(!JSON.stringify(scoped).includes(other.id));
+    assert.equal((await row(discordId)).canUnlink,false);
+    const globalOrphan=(await discordIdentities.list(owner)).identities.find(value=>value.discordId===orphanId);
+    await assert.rejects(discordIdentities.remove(admin.user,orphanId,{discordId:orphanId,revision:globalOrphan.revision}),{status:403});
+    await clear(await row(orphanId));
+    assert.equal(await row(orphanId),undefined);
+    assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM lms_workspace_verifications WHERE discord_id=? AND workspace_id=?').get(orphanId,other.id)).n,1);
+    for(const table of ['lms_onboarding_members','lms_member_sync','lms_member_retry']) {
+        assert.equal((await db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE discord_id=? AND guild_id=?`).get(orphanId,guildId)).n,0);
+        assert.equal((await db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE discord_id=? AND guild_id=?`).get(orphanId,otherGuild)).n,1);
+    }
+    // Scoped cleanup retains a shared account's login and other server proof.
+    await clear(await row(discordId));
+    assert.ok(await auth.session(member.token));
+    assert.equal((await auth.verificationState({guildId,discordId})).verified,false);
+    assert.equal((await auth.verificationState({guildId:otherGuild,discordId})).verified,true);
+    await assert.rejects(discordIdentities.remove(admin.user,orphanId,{discordId:orphanId,revision:globalOrphan.revision},workspace.id),{status:404});
+    // Once only this workspace owns the account, it can release the global ID.
+    await db.prepare('DELETE FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').run(other.id,member.user.id);
+    await db.prepare('DELETE FROM lms_workspace_verifications WHERE workspace_id=? AND user_id=?').run(other.id,member.user.id);
+    await db.prepare('DELETE FROM lms_registrations WHERE workspace_id=? AND user_id=?').run(other.id,member.user.id);
+    await auth.verify({code:(await auth.issueVerification(member.user,guildId)).code,discordId,guildId});
+    assert.equal((await row(discordId)).canUnlink,true);
+    await clear(await row(discordId));
+    assert.equal(await auth.session(member.token),null);
+    assert.ok(await db.prepare('SELECT 1 FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').get(workspace.id,member.user.id));
+    await auth.verify({code:(await auth.issueVerification(replacement.user,guildId)).code,discordId,guildId});
+    assert.equal((await auth.verificationState({guildId,discordId})).verified,true);
+    // A platform administrator cannot be disconnected by a workspace administrator.
+    await db.prepare("UPDATE lms_users SET platform_role='admin',is_super_admin=1 WHERE id=?").run(replacement.user.id);
+    assert.equal((await row(discordId)).canUnlink,false);
+    await clear(await row(discordId));
+    assert.ok(await auth.session(replacement.token));
+    assert.equal((await db.prepare('SELECT discord_id FROM lms_users WHERE id=?').get(replacement.user.id)).discord_id,discordId);
+    await db.prepare("UPDATE lms_users SET platform_role='student',is_super_admin=0 WHERE id=?").run(replacement.user.id);
+    const before=await row(discordId);
+    await db.prepare("UPDATE lms_workspace_members SET role='student' WHERE workspace_id=? AND user_id=?").run(workspace.id,admin.user.id);
+    await assert.rejects(clear(before),{status:403});
+    const audits=await db.prepare('SELECT * FROM lms_account_audit WHERE actor_id=?').all(admin.user.id);
+    assert.equal(audits.length,4);
+    assert.ok(audits.every(value=>value.action===`discord.identity.clear:${workspace.id}`));
 }
