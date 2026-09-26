@@ -278,6 +278,8 @@ app.use('/api', async (req, res, next) => {
 app.get('/api/auth/me', (req, res) => res.json({ user: req.account }));
 app.post('/api/auth/first-login', maintenance.track(async (req, res) => setLogin(res, await auth.completeFirstLogin(req.account, req.body))));
 app.post('/api/auth/password', maintenance.track(async (req, res) => setLogin(res, await auth.changePassword(req.account, req.body))));
+app.get('/api/admin/discord-identities', async (req, res) => res.json(await runtime.discordIdentities.list(req.account)));
+app.delete('/api/admin/discord-identities/:discordId', async (req, res) => res.json(await runtime.discordIdentities.remove(req.account, req.params.discordId, req.body)));
 app.get('/api/admin/accounts', async (req, res) => res.json(await auth.accounts(req.account)));
 app.get('/api/admin/performance', async (req, res) => {
     await auth.platformAdmin(req.account);

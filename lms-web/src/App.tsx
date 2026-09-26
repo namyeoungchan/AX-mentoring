@@ -7,6 +7,7 @@ import FirstLoginSetup from './FirstLoginSetup'
 import StudentAccounts from './StudentAccounts'
 import AccountAdministration from './AccountAdministration'
 import DataAdministration from './DataAdministration'
+import DiscordIdentities from './DiscordIdentities'
 import OnboardingSetup from './OnboardingSetup'
 import BotData from './BotData'
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react'
@@ -40,7 +41,7 @@ const navigation = [
 navigation.splice(1, 0, { id: 'connection', name: '봇 연결 현황', icon: Bot })
 navigation.push({ id: 'members', name: '구성원 · 초대', icon: Users })
 navigation.push({ id: 'student-accounts', name: '학생 계정 발급', icon: Users })
-navigation.push({ id: 'accounts', name: '전체 계정 관리', icon: Users }, { id: 'data-admin', name: '백업 · 데이터 관리', icon: Settings2 })
+navigation.push({ id: 'accounts', name: '전체 계정 관리', icon: Users }, { id: 'discord-identities', name: 'Discord 인증 관리', icon: CheckCheck }, { id: 'data-admin', name: '백업 · 데이터 관리', icon: Settings2 })
 navigation.push({ id: 'discord', name: 'Discord 채널 설정', icon: Settings2 })
 navigation.push({ id: 'onboarding', name: '온보딩 · 팀 연동', icon: Users })
 navigation.splice(2, 0, { id: 'bot-data', name: '봇 데이터 · 운영', icon: Bot })
@@ -50,6 +51,7 @@ type Modal = 'course' | 'session' | 'server' | 'assignment' | 'help' | null
 function readPage() { const hash = location.hash === '#mentors' ? 'members' : location.hash === '#asan' ? 'connection' : location.hash.slice(1); return navigation.some(n => n.id === hash) ? hash : 'dashboard' }
 const pageInfo: Record<string, [string, string]> = {
   videos: ['강의 영상', '과정별 영상 업로드 · 게시 및 시청'],
+  'discord-identities': ['Discord 인증 관리', '전체 인증 목록 · 연결 해제 및 고아 기록 정리'],
   'data-admin': ['백업 · 데이터 관리', '전체 서비스 백업 다운로드 · 복구 · 초기화'],
   'student-accounts': ['학생 계정 발급', '초기 계정 발급 · 과정과 조 배정 · 첫 로그인 상태'],
   accounts: ['전체 계정 관리', '총관리자 · 초기 비밀번호 재설정 및 계정 삭제'],
@@ -71,7 +73,7 @@ export default function App() {
   if (authRequired) return authScreen
   if (!activeId && (workspaces.length > 0 || account?.role === 'admin' || demoMode)) return <div className="student-page"><header className="student-header"><strong>AX 학습관리시스템</strong>{account && <LogoutButton logout={logout} />}</header><main className="student-main">
     <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} createWorkspace={account?.role === 'admin' || demoMode ? workspace.createWorkspace : undefined} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={workspace.saving} error={error} />
-    {account?.role === 'admin' && account.id !== 'admin' && <><AccountAdministration key={activeId} workspaceId={activeId} workspaceName="" currentId={account.id} logout={logout} /><DataAdministration /></>}
+    {account?.role === 'admin' && account.id !== 'admin' && <><AccountAdministration key={activeId} workspaceId={activeId} workspaceName="" currentId={account.id} logout={logout} /><DiscordIdentities logout={logout} /><DataAdministration /></>}
     <section className="panel student-empty"><h1>운영 중인 워크스페이스가 없습니다.</h1><p>워크스페이스 선택 메뉴의 보관함에서 기존 워크스페이스를 열 수 있습니다.</p></section>
   </main></div>
   if (workspace.activeRole === 'instructor') return <Suspense fallback={roleLoading}><InstructorHome key={activeId} workspace={workspace} /></Suspense>
@@ -81,7 +83,7 @@ export default function App() {
 function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {
   const { data, update, saving, error, refresh, logout, leaveDemo, workspaces, activeId, selectWorkspace, createWorkspace } = workspace
   const accountRoleName = workspace.account?.role === 'admin' ? '총관리자' : '워크스페이스 관리자'
-  const visibleNavigation = navigation.filter(n => !['accounts', 'data-admin'].includes(n.id) || (workspace.account?.role === 'admin' && workspace.account.id !== 'admin'))
+  const visibleNavigation = navigation.filter(n => !['accounts', 'discord-identities', 'data-admin'].includes(n.id) || (workspace.account?.role === 'admin' && workspace.account.id !== 'admin'))
   const [page, navigate] = usePageNavigation(readPage)
   const [sidebar, setSidebar] = useState(false)
   const [query, setQuery] = useState('')
@@ -129,7 +131,7 @@ function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspa
       <main><div className={`page-heading ${page === 'mentoring' ? 'mentoring-page-heading' : ''}`}><div><div className="eyebrow">LEARNING OPERATIONS</div><h1>{pageInfo[page][0]}</h1><p>{pageInfo[page][1]}</p></div><div className="page-actions">{page === 'dashboard' && <button className="button secondary" onClick={exportReport}><ArrowDownToLine size={16} /> 리포트 내보내기</button>}{['dashboard', 'courses', 'bots', 'mentoring', 'assignments'].includes(page) && <button className="button primary" onClick={() => setModal(page === 'bots' ? 'server' : page === 'mentoring' ? 'session' : page === 'assignments' ? 'assignment' : 'course')}><Plus size={17} />{page === 'bots' ? '서버 추가' : page === 'mentoring' ? '일정 등록' : page === 'assignments' ? '과제 만들기' : '새 과정 만들기'}</button>}</div></div>
       {error && <div role="alert" className="inline-note error-note">{error}<button onClick={() => void refresh()} className="text-button">다시 불러오기</button></div>}
       {page === 'dashboard' && <WorkspaceStart platformAdmin={workspace.account?.role === 'admin' || data.mode === 'demo'} go={go} />}
-      {page === 'videos' ? <Suspense fallback={roleLoading}><CourseVideos key={activeId} workspaceId={activeId} /></Suspense> : page === 'data-admin' ? (workspace.account?.role === 'admin' && workspace.account.id !== 'admin' ? <DataAdministration /> : <p role="alert">총관리자 계정으로 로그인하세요.</p>) : page === 'student-accounts' ? <StudentAccounts key={activeId} workspaceId={activeId} refreshWorkspace={workspace.refreshQuietly} /> : page === 'accounts' ? (workspace.account?.role === 'admin' && workspace.account.id !== 'admin' ? <AccountAdministration key={activeId} workspaceId={activeId} workspaceName={data.name} currentId={workspace.account.id} logout={logout} /> : <p role="alert">총관리자 계정으로 로그인하세요.</p>) : page === 'bot-data' ? <BotData workspaceId={activeId} /> : page === 'onboarding' ? <OnboardingSetup workspaceId={activeId} /> : page === 'members' ? <WorkspaceMembers key={activeId} workspaceId={activeId} workspaceName={data.name} openSetup={() => go('discord')} platformAdmin={workspace.account?.role === 'admin' || data.mode === 'demo'} /> : page === 'discord' ? <DiscordSetup workspaceId={activeId} /> : page === 'connection' ? <RenderMonitor query={query} workspaceId={activeId} workspaceName={data.name} /> : page === 'dashboard' ? <Dashboard data={data} query={query} go={go} selectCourse={setSelectedCourse} addSession={() => setModal('session')} /> : ['teams', 'attendance', 'scores', 'notices', 'files', 'submissions'].includes(page) ? <Operations refresh={workspace.refreshQuietly} key={page} page={page} data={data} query={query} change={change} saving={saving} error={error} /> : <Management sessionFocus={sessionFocus?.workspaceId === activeId ? sessionFocus : null} setQuery={setQuery} saving={saving} error={error} refresh={workspace.refreshQuietly} page={page} data={data} query={query} filter={filter} setFilter={setFilter} change={change} go={go} selectCourse={setSelectedCourse} help={() => setModal('help')} />}
+      {page === 'videos' ? <Suspense fallback={roleLoading}><CourseVideos key={activeId} workspaceId={activeId} /></Suspense> : page === 'discord-identities' ? (workspace.account?.role === 'admin' && workspace.account.id !== 'admin' ? <DiscordIdentities logout={logout} /> : <p role="alert">총관리자 계정으로 로그인하세요.</p>) : page === 'data-admin' ? (workspace.account?.role === 'admin' && workspace.account.id !== 'admin' ? <DataAdministration /> : <p role="alert">총관리자 계정으로 로그인하세요.</p>) : page === 'student-accounts' ? <StudentAccounts key={activeId} workspaceId={activeId} refreshWorkspace={workspace.refreshQuietly} /> : page === 'accounts' ? (workspace.account?.role === 'admin' && workspace.account.id !== 'admin' ? <AccountAdministration key={activeId} workspaceId={activeId} workspaceName={data.name} currentId={workspace.account.id} logout={logout} /> : <p role="alert">총관리자 계정으로 로그인하세요.</p>) : page === 'bot-data' ? <BotData workspaceId={activeId} /> : page === 'onboarding' ? <OnboardingSetup workspaceId={activeId} /> : page === 'members' ? <WorkspaceMembers key={activeId} workspaceId={activeId} workspaceName={data.name} openSetup={() => go('discord')} platformAdmin={workspace.account?.role === 'admin' || data.mode === 'demo'} /> : page === 'discord' ? <DiscordSetup workspaceId={activeId} /> : page === 'connection' ? <RenderMonitor query={query} workspaceId={activeId} workspaceName={data.name} /> : page === 'dashboard' ? <Dashboard data={data} query={query} go={go} selectCourse={setSelectedCourse} addSession={() => setModal('session')} /> : ['teams', 'attendance', 'scores', 'notices', 'files', 'submissions'].includes(page) ? <Operations refresh={workspace.refreshQuietly} key={page} page={page} data={data} query={query} change={change} saving={saving} error={error} /> : <Management sessionFocus={sessionFocus?.workspaceId === activeId ? sessionFocus : null} setQuery={setQuery} saving={saving} error={error} refresh={workspace.refreshQuietly} page={page} data={data} query={query} filter={filter} setFilter={setFilter} change={change} go={go} selectCourse={setSelectedCourse} help={() => setModal('help')} />}
       <footer><span>© 2026 {data.name}</span><span>AX 학습관리시스템 <Sparkles size={12} /></span><button onClick={() => setModal('help')}>도움말 <ExternalLink size={12} /></button></footer>
       </main>
     </div>
