@@ -1144,8 +1144,6 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .assignment-target-heading { display:flex; justify-content:space-between; flex-wrap:wrap; align-items:flex-start; gap:12px; }
 .assignment-target-heading h3 { margin:0; font-size:15px; color:#315c48; }
 .assignment-target-heading p { margin:4px 0 16px; color:#637267; }
-.assignment-target-roster { background:#fff; border:1px solid #e5eae4; padding:14px 16px; border-radius:10px; }
-.assignment-target-roster p { margin:0 0 8px; }.assignment-target-roster small { color:#637267; }
 .assignment-legacy-binding { display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px; padding-bottom:16px; }
 .assignment-legacy-binding p { width:100%; }.assignment-legacy-binding label { display:grid; gap:6px; }
 .assignment-legacy-binding select { min-height:40px; max-width:100%; }

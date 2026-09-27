@@ -340,7 +340,7 @@ app.get('/api/me/learning', async (req, res) => {
     const workspace = (await workspaces.list(req.account))[0];
     if (!workspace)
         return res.status(403).json({ error: '소속된 워크스페이스가 없습니다.' });
-    res.json(await studentLearning((await workspaces.open(workspace.id)).db, req.account, workspace.discordVerified));
+    res.json(await studentLearning((await workspaces.open(workspace.id)).db, req.account, workspace.discordVerified, workspace.guildIds[0]));
 });
 app.post('/api/logout', async (req, res) => {
     await auth.logout(await sessionToken(req));
@@ -386,7 +386,7 @@ app.post('/api/workspaces/:workspaceId/me/verification', async (req, res) => {
 });
 app.get('/api/workspaces/:workspaceId/me/learning', async (req, res) => {
     await workspaces.requireRole(req.workspaceId, req.account, ['student']);
-    res.json(await studentLearning((await workspaces.open(req.workspaceId)).db, req.account, req.workspace.discordVerified));
+    res.json(await studentLearning((await workspaces.open(req.workspaceId)).db, req.account, req.workspace.discordVerified, req.workspace.guildIds[0]));
 });
 app.get('/api/workspaces/:workspaceId/teaching', async (req, res) => {
     await workspaces.requireRole(req.workspaceId, req.account, ['instructor']);

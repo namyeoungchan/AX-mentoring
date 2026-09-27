@@ -21,7 +21,7 @@ export function createAssignmentAlerts(main, workspaces, { now = Date.now } = {}
             const completed = new Set(mapped.map(r => r.target_key));
             const targets = a.type === 'team'
                 ? data.teams.filter(t => t.courseId === a.course_id && learners.some(l => l.team === t.name)).map(t => ({ key: `team:${t.id}`, name: t.name, audience: 'team', targetId: t.id, completed: completed.has(`team:${t.id}`) }))
-                : learners.map(l => ({ key: l.discordId ? `user:${l.discordId}` : `learner:${l.id}`, name: l.name, learnerId: l.id, audience: 'individual', targetId: l.discordId, completed: !!l.discordId && completed.has(`user:${l.discordId}`) }));
+                : learners.map(l => ({ key: l.discordId ? `user:${l.discordId}` : `learner:${l.id}`, name: l.name, team: l.team || '', learnerId: l.id, audience: 'individual', targetId: l.discordId, completed: !!l.discordId && completed.has(`user:${l.discordId}`) }));
             const revision = createHash('sha256').update(JSON.stringify([a.title, a.due_date, a.type, a.course_id, a.is_active, (await workspaces.metadata(id)).guildIds, targets.map(t => [t.key, t.name, t.learnerId, t.targetId, t.audience])])).digest('hex');
             const publishedAt = (await (db.prepare('SELECT created_at FROM lms_assignment_publications WHERE assignment_id=?')).get(a.id))?.created_at ?? null;
             return { revision, publishedAt, id: String(a.id), title: a.title, dueDate: a.due_date.slice(0, 10), active: !!a.is_active, type: a.type, courseId: a.course_id || '', targets, submitted: targets.filter(t => t.completed).length, total: targets.length, unmatchedSubmissions: rows.filter(s => !mapped.some(m => m.submission_id === s.id)).length };
