@@ -11,6 +11,59 @@ with patch.dict(os.environ, {'DISCORD_TOKEN': 'test-only', 'GUILD_ID': '12345678
 
 
 class OutboxTests(unittest.IsolatedAsyncioTestCase):
+    async def test_wake_starts_delivery_immediately_and_does_not_overlap_periodic_poll(self):
+        cog = module.LMSOutbox(SimpleNamespace(remove_dynamic_items=MagicMock()))
+        cog.url = 'https://example.com/outbox'
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def pending_delivery():
+            started.set()
+            await release.wait()
+
+        cog._drain = AsyncMock(side_effect=pending_delivery)
+        cog.wake()
+        first = cog._wake_task
+        await asyncio.wait_for(started.wait(), 1)
+        cog.wake()
+        await cog.drain()
+        self.assertIs(cog._wake_task, first)
+        cog._drain.assert_awaited_once()
+        release.set()
+        await first
+        self.assertEqual(cog._drain.await_count, 2)
+        cog.wake()
+        await cog._wake_task
+        self.assertEqual(cog._drain.await_count, 3)
+
+    async def test_wake_during_periodic_poll_is_not_lost(self):
+        cog = module.LMSOutbox(SimpleNamespace())
+        cog.url = 'https://example.com/outbox'
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def pending_poll():
+            started.set()
+            await release.wait()
+
+        cog._drain = AsyncMock(side_effect=pending_poll)
+        periodic = asyncio.create_task(cog.drain())
+        await asyncio.wait_for(started.wait(), 1)
+        cog.wake()
+        release.set()
+        await periodic
+        await cog._wake_task
+        self.assertEqual(cog._drain.await_count, 2)
+
+    async def test_unload_cancels_immediate_delivery(self):
+        cog = module.LMSOutbox(SimpleNamespace(remove_dynamic_items=MagicMock()))
+        cog.url = 'https://example.com/outbox'
+        cog._drain = AsyncMock(side_effect=asyncio.Event().wait)
+        cog.wake()
+        await asyncio.sleep(0)
+        await cog.cog_unload()
+        with self.assertRaises(asyncio.CancelledError):
+            await cog._wake_task
+        self.assertFalse(cog._drain_lock.locked())
+
     async def test_mentoring_report_delivers_private_restart_safe_recipient_button(self):
         bot, channel, job = self.fixture()
         guild_id, user_id = '123456789012345678', '223456789012345678'

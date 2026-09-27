@@ -160,8 +160,10 @@ class WorkspaceRuntimeTests(unittest.IsolatedAsyncioTestCase):
         value['assignmentCourses'] = [{'id': 'course-a', 'title': 'Course A'}]
         config.install_workspace(GUILD_A, value)
         interaction = SimpleNamespace(response=SimpleNamespace(send_modal=AsyncMock(), defer=AsyncMock()), followup=SimpleNamespace(send=AsyncMock()))
+        outbox = SimpleNamespace(wake=MagicMock())
+        bot = SimpleNamespace(get_cog=MagicMock(return_value=outbox))
         with config.guild_scope(GUILD_A):
-            await assignment.start_assignment_creation(SimpleNamespace(), interaction, 'individual')
+            await assignment.start_assignment_creation(bot, interaction, 'individual')
             modal = interaction.response.send_modal.call_args.args[0]
             self.assertEqual(modal.course['id'], 'course-a')
             modal.week_input._value = '1'
@@ -173,6 +175,14 @@ class WorkspaceRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(create.call_args.kwargs['type_'], 'individual')
                 interaction.response.defer.assert_awaited_once_with(ephemeral=True)
                 self.assertIn('대상 자동 연결', interaction.followup.send.call_args.kwargs['embed'].description)
+                self.assertIn('DM을 자동 발송', interaction.followup.send.call_args.kwargs['embed'].description)
+                bot.get_cog.assert_called_once_with('LMSOutbox')
+                outbox.wake.assert_called_once_with()
+            outbox.wake.reset_mock()
+            with patch.object(database, 'create_assignment', new=AsyncMock(side_effect=storage.StorageUnavailable('offline'))), patch.object(assignment, 'refresh_dashboard', new=AsyncMock()) as dashboard:
+                await modal.on_submit(interaction)
+                outbox.wake.assert_not_called()
+                dashboard.assert_not_awaited()
 
     async def test_assignment_creation_selects_multiple_courses_and_never_defaults_to_another_course(self):
         from cogs import assignment
