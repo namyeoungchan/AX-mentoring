@@ -1,4 +1,5 @@
 import StudentAttendance from './StudentAttendance'
+import StudentAssignments, { type StudentAssignment } from './StudentAssignments'
 import CourseVideos from './CourseVideos'
 import { AdmissionStatus } from './Admissions'
 import RoleWorkspace, { type RolePage } from './RoleWorkspace'
@@ -11,7 +12,7 @@ const pages: RolePage[] = [
   { id: 'learning', name: '나의 학습', description: '내 과정과 팀을 확인하고 필요한 학습 메뉴로 이동하세요.', icon: GraduationCap },
   { id: 'attendance', name: '나의 출결', description: '시작·종료 코드 · 나의 출석 내역', icon: CheckCheck },
   { id: 'scores', name: '나의 성적', description: '본인의 평가항목별 점수와 배점을 확인하세요.', icon: ClipboardList },
-  { id: 'assignments', name: '과제', description: '등록된 과정의 과제와 마감일을 확인하세요.', icon: BookOpen },
+  { id: 'assignments', name: '과제', description: '해야 할 과제부터 확인하고, 제출 결과를 살펴보세요.', icon: BookOpen },
   { id: 'videos', name: '강의 영상', description: '내 과정의 강의 영상을 시청하세요.', icon: BookOpen },
   { id: 'participation', name: '워크스페이스 참여', description: '계정 배정 · Discord 서버 참여와 인증 상태', icon: Users },
 ]
@@ -22,7 +23,8 @@ export type Learning = {
   courses: { id: string; title: string; description: string; status: string; startDate: string; endDate: string }[];
   attendance: { id: string; date: string; period: number; status: string }[];
   scores: { id: string; item: string; score: number; maximum: number }[];
-  assignments: { id: number; title: string; dueDate: string; active: number }[];
+  assignments: StudentAssignment[];
+  assignmentDiscordUrl?: string;
 }
 export default function StudentHome({ user, learning, error, refresh, logout, workspaces, activeId, selectWorkspace, setWorkspaceArchived, saving }: { setWorkspaceArchived?: (id: string, archived: boolean) => Promise<boolean>; saving?: boolean; workspaces: WorkspaceMetadata[]; activeId: string; selectWorkspace: (id: string) => Promise<void>; user: Account; learning: Learning | null; error: string; refresh: () => Promise<void>; logout: () => Promise<void> }) {
   const activeWorkspace = workspaces.find(w => w.id === activeId)
@@ -40,6 +42,6 @@ export default function StudentHome({ user, learning, error, refresh, logout, wo
     {page === 'videos' && <CourseVideos key={activeId} workspaceId={activeId} />}
     {page === 'attendance' && <StudentAttendance key={activeId} workspaceId={activeId} verified={!!activeWorkspace?.discordVerified} attendance={learning?.attendance || []} />}
     {page === 'scores' && <section className="panel"><CardHeading title="성적 기록" subtitle="기록 정정은 과정·평가항목과 함께 담당 멘토에게 요청하세요." /><div className="table-scroll"><table><thead><tr><th>평가항목</th><th>점수</th><th>배점</th></tr></thead><tbody>{learning?.scores.map(row => <tr key={row.id}><td>{row.item}</td><td>{row.score}</td><td>{row.maximum}</td></tr>)}</tbody></table></div>{!learning?.scores.length && <p className="calendar-empty">등록된 성적 기록이 없습니다.</p>}</section>}
-    {page === 'assignments' && <section className="panel"><CardHeading title="과제 목록" subtitle="제출은 수업 Discord 서버의 과제 제출 패널에서 진행하세요." /><div className="table-scroll"><table><thead><tr><th>과제명</th><th>마감일</th><th>상태</th></tr></thead><tbody>{learning?.assignments.map(row => <tr key={row.id}><td>{row.title}</td><td>{row.dueDate}</td><td><Badge>{row.active ? '진행 중' : '마감'}</Badge></td></tr>)}</tbody></table></div>{!learning?.assignments.length && <p className="calendar-empty">등록된 과제가 없습니다.</p>}</section>}
+    {page === 'assignments' && <StudentAssignments key={activeId} learning={learning} verified={!!activeWorkspace?.discordVerified} readOnly={activeWorkspace?.archivedAt != null} error={error} refresh={refresh} participate={() => go('participation')} />}
   </RoleWorkspace>
 }

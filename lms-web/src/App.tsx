@@ -77,7 +77,7 @@ export default function App() {
     <section className="panel student-empty"><h1>운영 중인 워크스페이스가 없습니다.</h1><p>워크스페이스 선택 메뉴의 보관함에서 기존 워크스페이스를 열 수 있습니다.</p></section>
   </main></div>
   if (workspace.activeRole === 'instructor') return <Suspense fallback={roleLoading}><InstructorHome key={activeId} workspace={workspace} /></Suspense>
-  if (account && workspace.activeRole !== 'admin') return <Suspense fallback={roleLoading}><StudentHome key={activeId || account.id} user={account} learning={learning} error={error} refresh={refresh} logout={logout} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={workspace.saving} /></Suspense>
+  if (account && workspace.activeRole !== 'admin') return <Suspense fallback={roleLoading}><StudentHome key={activeId || account.id} user={account} learning={learning} error={error} refresh={workspace.refreshQuietly} logout={logout} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={workspace.saving} /></Suspense>
   return <AdminWorkspace key={activeId} workspace={workspace} />
 }
 function AdminWorkspace({ workspace }: { workspace: ReturnType<typeof useWorkspace> }) {

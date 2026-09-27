@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react'
 import AssignmentAlerts from './AssignmentAlerts'
 import AssignmentDelete from './AssignmentDelete'
+import AssignmentRoster from './AssignmentRoster'
 import { useAssignmentAlerts } from './useAssignmentAlerts'
 import { ArrowDownToLine, ChevronRight, ExternalLink, FileText } from 'lucide-react'
 import { Badge, CardHeading, Empty } from './components'
@@ -95,6 +96,7 @@ export default function AssignmentManagement({ data, query, change, refresh }: {
           <td data-label="제출 현황">{target?.courseId || a.courseId ? <><strong>{submitted} / {total}</strong><small>{a.type === 'individual' ? '명' : '팀'} 제출 완료</small></> : <><strong>{submissions.length}건 접수</strong><small>대상 과정 확인 필요</small></>}</td>
           <td data-label="상태"><Badge tone={a.status === '마감' ? 'neutral' : 'green'}>{a.status}</Badge></td><td data-label="관리"><button className="button secondary compact" disabled={busy || alerts.busy} aria-label={`${a.title} ${a.status === '마감' ? '다시 열기' : '마감하기'}`} onClick={() => void changeStatus(a)}>{a.status === '마감' ? '다시 열기' : '마감하기'}</button>{data.mode === 'api' && <button className="text-button assignment-delete-button" disabled={busy || alerts.busy} aria-label={`${a.title} 삭제`} onClick={() => setDeleting(a.id)}>삭제</button>}</td>
         </tr><tr className="assignment-detail-row" hidden={!open}><td colSpan={6}><div id={detailsId} className="assignment-details" role="region" aria-label={`${a.title} 제출 내역`}>
+          {open && target && <AssignmentRoster key={a.id} assignment={target} />}
           <div className="assignment-details-heading"><span><FileText size={16} />제출 내역 <strong>{submissions.length}건</strong></span><button className="button secondary compact" disabled={!submissions.length} onClick={() => downloadSubmissions(data, a)}><ArrowDownToLine size={14} />이 과제 다운로드</button></div>
           {submissions.length ? <div className="table-scroll"><table><thead><tr><th>제출자 / 팀</th><th>제출 내용</th><th>제출 링크</th><th>제출 시각 (한국시간)</th></tr></thead><tbody>{submissions.map(s => <tr key={s.id}><td><strong>{s.name}</strong><small>{s.team || '개인'}</small></td><td className="submission-content">{submissionText(s.content) || '—'}</td><td>{/^https?:\/\//i.test(String(s.link)) ? <a className="text-button" href={String(s.link)} target="_blank" rel="noreferrer">제출물 열기 <ExternalLink size={13} /></a> : '—'}</td><td>{submittedAt(s.submittedAt)}</td></tr>)}</tbody></table></div> : <p className="assignment-no-submissions">아직 제출된 내역이 없습니다.</p>}
           {data.mode === 'api' && open && <AssignmentAlerts state={alerts} assignmentId={a.id} />}
