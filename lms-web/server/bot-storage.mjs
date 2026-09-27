@@ -264,7 +264,7 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
             throw new ApiError(422, '최신 화면에서 작업을 요청하세요.');
         if (!operations.has(input.operation))
             throw new ApiError(422, '지원하지 않는 작업입니다.');
-        return { result: await execute(id, input, actor) };
+        return { result: await execute(id, { ...input, autoPublishAssignment: workspaceId === null }, actor) };
     }
     async function execute(id, input, actor) {
         if (!readOnly.has(input.operation) && (await workspaces.metadata(id)).archivedAt !== null)

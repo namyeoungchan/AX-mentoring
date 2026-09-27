@@ -92,6 +92,9 @@ async def deliver(bot, job):
 class LMSOutbox(commands.Cog):
     def __init__(self, bot):
         self.bot, self.url = bot, ''
+        self._drain_lock = asyncio.Lock()
+        self._wake_task = None
+        self._wake_requested = False
         self.token = os.getenv('LEARNINGOPS_PROVISION_TOKEN', '').strip()
         candidate = os.getenv('LEARNINGOPS_PROVISION_URL', '').strip()
         if candidate and len(self.token) >= 32:
@@ -110,6 +113,22 @@ class LMSOutbox(commands.Cog):
         from ui.mentor_availability import AvailabilityButton
         self.bot.remove_dynamic_items(AvailabilityButton)
         self.worker.cancel()
+        if self._wake_task:
+            self._wake_task.cancel()
+
+    def wake(self):
+        """Start delivery after a committed event without waiting for the next poll."""
+        if self.url:
+            self._wake_requested = True
+            if self._wake_task is None or self._wake_task.done():
+                self._wake_task = asyncio.create_task(self._drain_on_wake())
+
+    async def _drain_on_wake(self):
+        while self._wake_requested:
+            self._wake_requested = False
+            # A creation during an in-flight empty poll must trigger another poll.
+            async with self._drain_lock:
+                await self._drain()
 
     async def request(self, operation, body):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
@@ -119,6 +138,15 @@ class LMSOutbox(commands.Cog):
 
     @tasks.loop(seconds=10)
     async def worker(self):
+        await self.drain()
+
+    async def drain(self):
+        if self._drain_lock.locked():
+            return
+        async with self._drain_lock:
+            await self._drain()
+
+    async def _drain(self):
         try:
             # Bounded drain keeps backlog moving without a burst of parallel sends.
             for _ in range(10):
@@ -128,6 +156,8 @@ class LMSOutbox(commands.Cog):
                 await self.request('complete', await deliver(self.bot, job))
         except (aiohttp.ClientError, asyncio.TimeoutError):
             log.warning('Outbox API unavailable; durable job will be reconciled after lease expiry')
+        except Exception:
+            log.exception('Outbox processing failed; durable jobs remain available for recovery')
 
     @worker.before_loop
     async def before_worker(self):

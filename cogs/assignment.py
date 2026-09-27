@@ -194,6 +194,9 @@ class CreateAssignmentModal(WorkspaceModal):
             await interaction.followup.send('과제 생성 결과를 확인하지 못했습니다. 웹 과제 목록과 학습 과정을 확인한 뒤 다시 시도하세요.', ephemeral=True)
             return
 
+        outbox = self.bot.get_cog('LMSOutbox')
+        if outbox:
+            outbox.wake()
         type_label = "팀별" if self.assignment_type == "team" else "개인별"
         await interaction.followup.send(
             embed=discord.Embed(
@@ -203,7 +206,10 @@ class CreateAssignmentModal(WorkspaceModal):
                     f"마감일: {self.due_date_input.value.strip()} | {type_label}\n"
                     f"제출 항목: {', '.join(field_names)}\n"
                     + (f"대상 과정: {self.course['title']} · 제출 대상 자동 연결\n" if self.course else '') +
-                    f"ID: `{assignment_id}`"
+                    f"ID: `{assignment_id}`\n\n"
+                    + ('새 과제 알림: 정상 수강생이 있는 각 조의 채널로 자동 발송합니다.' if self.assignment_type == 'team'
+                       else '새 과제 알림: 정상 수강생의 인증된 Discord 계정으로 DM을 자동 발송합니다.')
+                    + '\n대상이 없으면 명단을 등록한 뒤 LMS에서 과제 배포를 눌러 주세요. 발송 상태·실패 내역은 LMS 과제 관리에서 확인할 수 있습니다.'
                 ),
                 color=discord.Color.green(),
             ),

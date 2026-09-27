@@ -8,6 +8,8 @@ import os
 import sqlite3
 from pathlib import Path
 import sys
+import time
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 os.environ.update(DISCORD_TOKEN="storage-process", GUILD_ID="0", ADMIN_ROLE_ID="0", ONBOARDING_CHANNEL_ID="0", INTRO_CHANNEL_ID="0", DB_PATH=":memory:")
@@ -16,6 +18,41 @@ import database
 from storage_codec import encode, decode
 
 READ_ONLY = frozenset(json.loads((Path(__file__).resolve().parents[2] / "storage_operations.json").read_text())["readOnly"])
+
+
+async def enqueue_assignment_publication(connection, assignment_id, course_id, values, request):
+    """Freeze the creation-time audience in the same transaction as the assignment."""
+    async with connection.execute("SELECT kind,id,data FROM lms_records WHERE kind IN ('learners','teams') ORDER BY id") as rows:
+        records = [(row[0], row[1], json.loads(row[2])) for row in await rows.fetchall()]
+    learners = [(id_, value) for kind, id_, value in records
+                if kind == 'learners' and value.get('courseId') == course_id and value.get('status') == '정상']
+    if values['type_'] == 'team':
+        targets = [{'key': f'team:{id_}', 'name': value['name'], 'audience': 'team', 'targetId': id_, 'learnerId': ''}
+                   for kind, id_, value in records if kind == 'teams' and value.get('courseId') == course_id
+                   and any(learner.get('team') == value['name'] for _, learner in learners)]
+    else:
+        targets = [{'key': f'learner:{id_}', 'name': value['name'], 'audience': 'individual',
+                    'targetId': value.get('discordId') or '', 'learnerId': id_} for id_, value in learners]
+    # An empty roster must not mark the assignment as published. The operator can
+    # add the intended audience and explicitly publish it later from the LMS.
+    if not targets:
+        return
+    created_at = int(time.time() * 1000)
+    actor, guild_id = request.get('actor', 'discord-bot'), request['guildId']
+    for target in targets:
+        payload = {'title': '새 과제가 배포되었습니다',
+                   'description': f"{values['week']}주차 — {values['title']}\n대상: {target['name']}\n마감: {values['due_date']}\n"
+                                  + (f"{values['description']}\n" if values['description'] else '')
+                                  + 'Discord 과제 제출 패널에서 제출하고, LMS에서 과제를 확인하세요.',
+                   'assignmentId': str(assignment_id), 'dueDate': values['due_date'], 'audience': target['audience'],
+                   'targetId': target['targetId'], 'learnerId': target['learnerId'], 'targetKey': target['key'],
+                   'publicationGuildId': guild_id}
+        await connection.execute('INSERT INTO lms_outbox(id,event_key,kind,source_id,guild_id,payload,actor,created_at) VALUES(?,?,?,?,?,?,?,?)',
+                                 (str(uuid.uuid4()), f"publication:{assignment_id}:{target['key']}", 'publication', str(assignment_id),
+                                  guild_id, json.dumps(payload, ensure_ascii=False), actor, created_at))
+    await connection.execute('INSERT INTO lms_assignment_publications(assignment_id,created_at,actor) VALUES(?,?,?)', (assignment_id, created_at, actor))
+    await connection.execute('INSERT INTO lms_audit(actor,action,target,after_json) VALUES(?,?,?,?)',
+                             (actor, 'assignment.publish', str(assignment_id), json.dumps({'type': values['type_'], 'targets': len(targets), 'source': 'discord-create'})))
 
 
 class ConnectionScope:
@@ -116,6 +153,8 @@ async def run(request, filename, schema=None):
             result = encode(await fn(*bound.args, **bound.kwargs))
             if operation == 'create_assignment':
                 await connection.execute('INSERT INTO lms_assignment_courses(assignment_id,course_id) VALUES(?,?)', (result, course_id))
+                if request.get('autoPublishAssignment'):
+                    await enqueue_assignment_publication(connection, result, course_id, bound.arguments, request)
             aiosqlite.connect = original_connect
             # Query methods have no write receipt; retries of changes reuse the same result.
             if not read_only:
