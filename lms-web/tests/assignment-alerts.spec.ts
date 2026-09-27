@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
-test('new submission remains saved while notification waits and Web shows team completion', async ({ page, request }) => {
+test('Discord creation publishes automatically and submission remains saved while notifications wait', async ({ page, request }) => {
   await page.request.post('/api/login', { data: { password: 'test-only-password-1234' } })
   const guildId = '653456789012345678', botHeaders = { Authorization: 'Bearer test-only-provision-token-12345678901234567890' }
   const w = await (await page.request.post('/api/workspaces', { data: { name: '과제 알림 E2E', guildId } })).json(), base = `/api/workspaces/${w.id}`
@@ -12,12 +12,15 @@ test('new submission remains saved while notification waits and Web shows team c
     const response = await request.post('/api/integrations/discord/storage/call', { headers: botHeaders, data: { guildId, requestId: randomUUID(), operation, args } })
     expect(response.status()).toBe(200); return (await response.json()).result
   }
-  const assignmentId = await call('create_assignment', [1, '발표 과제', '', '2026-09-30', 'team'])
+  const assignmentId = await call('create_assignment', [1, '발표 과제', '', '2099-09-30', 'team'])
+  const created = await (await page.request.get(`${base}/assignment-alerts`)).json()
+  expect(created.deliveries.filter((d: { kind: string }) => d.kind === 'publication')).toHaveLength(2)
   await page.goto(`/?workspace=${w.id}#assignments`)
   await expect(page.locator('.assignment-item').filter({hasText:'발표 과제'})).toContainText('0 / 2')
   await page.getByRole('button', {name:'발표 과제 제출 현황',exact:true}).click()
   await expect(page.getByText('대상 연결 완료', {exact:true})).toBeVisible()
   await expect(page.getByRole('button', {name:'기존 과제 과정 지정'})).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '배포 요청 완료', exact: true })).toBeDisabled()
   expect(await call('create_submission', [assignmentId, '753456789012345678', '학생0', setup.teams[0].name, '비공개 답변', 'https://private.example/answer'])).toBe(true)
   await page.getByRole('button', { name: '과제 새로고침' }).click()
   await expect(page.locator('.assignment-item').filter({hasText:'발표 과제'})).toContainText('1 / 2')
@@ -31,8 +34,8 @@ test('new submission remains saved while notification waits and Web shows team c
   await expect(page.locator('.assignment-item').filter({hasText:'발표 과제'})).toContainText('1 / 2')
   await page.getByRole('button', {name:'발표 과제 제출 현황',exact:true}).click()
   await expect(page.getByText('팀 채팅 2곳에 배포', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '과제 배포', exact: true }).click()
   await expect(page.getByRole('button', { name: '배포 요청 완료', exact: true })).toBeDisabled()
+  expect((await page.request.post(`${base}/assignment-alerts/${assignmentId}/publish`, { data: { revision: created.assignments[0].revision } })).status()).toBe(200)
   const notifications = await (await page.request.get(`${base}/assignment-alerts`)).json()
   expect(notifications.deliveries.filter((d: { kind: string }) => d.kind === 'publication')).toHaveLength(2)
   await page.reload()
