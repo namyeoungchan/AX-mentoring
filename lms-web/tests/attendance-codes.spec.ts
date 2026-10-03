@@ -88,6 +88,20 @@ test('mentor code UI accepts verified check-ins and preserves recorded evidence 
   await page.getByRole('button', { name: '확인 필요 1명' }).click()
   await expect(page.getByRole('region', { name: '출결 명단' })).toContainText('퇴실 미등록')
   expect((await check(endCode)).status()).toBe(200)
+  // The same round can restart repeatedly without losing committed attendance.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.locator('.attendance-code summary').click()
+    await page.getByRole('button', { name: '시작 코드 생성 · 강의 재시작', exact: true }).click()
+    await expect(codeOutput).toHaveText(/^\d{6}$/)
+    await expect(page.getByRole('status').filter({ hasText: '강의를 다시 시작했습니다.' })).toBeVisible()
+    const restartedCode = (await codeOutput.textContent())!
+    expect(await (await check(restartedCode)).json()).toMatchObject({ alreadyRecorded: true, checkInAt: recorded[0].checkInAt })
+    await page.locator('.attendance-code summary').click()
+    page.once('dialog', dialog => dialog.accept())
+    await page.getByRole('button', { name: '종료 코드 생성 · 강의 종료', exact: true }).click()
+    await expect(codeOutput).not.toHaveText(restartedCode)
+    expect(await (await check((await codeOutput.textContent())!)).json()).toMatchObject({ alreadyRecorded: true, checkInAt: recorded[0].checkInAt })
+  }
   await page.getByRole('button', {name:'명단 새로고침'}).click()
   await expect(page.getByRole('button', { name: '확인 필요 0명' })).toBeVisible()
   await page.getByRole('button', { name: '전체 명단', exact: true }).click()
