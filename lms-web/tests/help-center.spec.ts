@@ -51,6 +51,7 @@ for (const [role, label] of Object.entries(roles)) {
     await page.getByRole('button', { name: 'PDF 보기', exact: true }).click()
     await expect(page.getByRole('dialog').locator('iframe')).toHaveAttribute('src', /^blob:/)
     await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: 'PDF 보기', exact: true })).toBeFocused()
     const downloaded = page.waitForEvent('download')
     await page.getByRole('button', { name: '다운로드', exact: true }).click()
     expect((await downloaded).suggestedFilename()).toContain(label)
@@ -61,6 +62,7 @@ for (const [role, label] of Object.entries(roles)) {
       await page.getByRole('button', { name: /화면 확대$/ }).click()
       await expect(page.getByRole('dialog').locator('img')).toBeVisible()
       await page.keyboard.press('Escape')
+      await expect(page.getByRole('button', { name: /화면 확대$/ })).toBeFocused()
     }
     await page.screenshot({ path: `test-results/help-${role}-mobile.png`, fullPage: true })
     if (role === 'admin') {

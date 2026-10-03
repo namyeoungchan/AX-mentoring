@@ -48,6 +48,9 @@ function GuideDetail({ workspaceId, guide, roleLabel, go, onDenied }: { workspac
   const [image, setImage] = useState(''), [imageError, setImageError] = useState(''), [error, setError] = useState('')
   const [zoom, setZoom] = useState(false), [pdf, setPdf] = useState(''), [busy, setBusy] = useState(false)
   const live = useRef(true), locked = useRef(false), urls = useRef<string[]>([])
+  const imageButton = useRef<HTMLButtonElement>(null), pdfButton = useRef<HTMLButtonElement>(null)
+  function closeZoom() { setZoom(false); requestAnimationFrame(() => imageButton.current?.focus()) }
+  function closePdf() { setPdf(''); requestAnimationFrame(() => pdfButton.current?.focus()) }
   const denied = useRef(onDenied)
   useEffect(() => { denied.current = onDenied }, [onDenied])
   const path = `workspaces/${encodeURIComponent(workspaceId)}/help/${encodeURIComponent(guide.id)}`
@@ -73,13 +76,13 @@ function GuideDetail({ workspaceId, guide, roleLabel, go, onDenied }: { workspac
     finally { locked.current = false; if (live.current) setBusy(false) }
   }
   return <article className="panel help-detail" aria-label={guide.title}>
-    <div className="help-detail-heading"><span>{guide.category}</span><h2>{guide.title}</h2><p>{guide.summary}</p><div className="help-actions"><button className="button primary" disabled={busy} onClick={() => void openPdf(false)}><FileText size={16} />PDF 보기</button><button className="button secondary" disabled={busy} onClick={() => void openPdf(true)}><Download size={16} />다운로드</button><button className="text-button" onClick={() => go(guide.route)}>기능 화면 열기<ArrowUpRight size={15} /></button></div>{error && <p role="alert" className="error-text">{error}</p>}</div>
-    <figure className="help-screen">{image ? <button onClick={() => setZoom(true)} aria-label={`${guide.title} 화면 확대`}><img src={image} alt={`${roleLabel} 계정으로 촬영한 ${guide.title} 실제 LMS 화면`} /><span><ZoomIn size={16} />화면 확대</span></button> : <p role={imageError ? 'alert' : 'status'}>{imageError || '화면 불러오는 중…'}</p>}<figcaption>실제 LMS 화면 · 가이드용 예시 데이터 · {guide.capturedAt}</figcaption></figure>
+    <div className="help-detail-heading"><span>{guide.category}</span><h2>{guide.title}</h2><p>{guide.summary}</p><div className="help-actions"><button ref={pdfButton} className="button primary" disabled={busy} onClick={() => void openPdf(false)}><FileText size={16} />PDF 보기</button><button className="button secondary" disabled={busy} onClick={() => void openPdf(true)}><Download size={16} />다운로드</button><button className="text-button" onClick={() => go(guide.route)}>기능 화면 열기<ArrowUpRight size={15} /></button></div>{error && <p role="alert" className="error-text">{error}</p>}</div>
+    <figure className="help-screen">{image ? <button ref={imageButton} onClick={() => setZoom(true)} aria-label={`${guide.title} 화면 확대`}><img src={image} alt={`${roleLabel} 계정으로 촬영한 ${guide.title} 실제 LMS 화면`} /><span><ZoomIn size={16} />화면 확대</span></button> : <p role={imageError ? 'alert' : 'status'}>{imageError || '화면 불러오는 중…'}</p>}<figcaption>실제 LMS 화면 · 가이드용 예시 데이터 · {guide.capturedAt}</figcaption></figure>
     <ol className="help-steps">{guide.steps.map((s, i) => <li key={s.title}><span>{String(i + 1).padStart(2, '0')}</span><div><h3>{s.title}</h3><p>{s.body}</p></div></li>)}</ol>
     {guide.note && <aside className="help-note">{guide.note}</aside>}
     <p className="help-document-info">{guide.document.revision ? `워크스페이스에서 등록한 PDF · ${new Date(guide.document.updatedAt!).toLocaleDateString('ko-KR')}` : '화면 설명과 같은 내용의 기본 PDF를 제공합니다.'}</p>
-    {zoom && <ModalShell title={`${guide.title} 화면 확대`} close={() => setZoom(false)} className="help-image-modal"><img src={image} alt={`${guide.title} 실제 화면 확대`} /></ModalShell>}
-    {pdf && <ModalShell title={`${guide.title} PDF`} close={() => setPdf('')} className="help-pdf-modal"><p>PDF가 표시되지 않으면 다운로드해 확인하세요.</p><button className="button secondary" disabled={busy} onClick={() => void openPdf(true)}><Download size={16} />PDF 다운로드</button><iframe src={pdf} title={`${roleLabel} ${guide.title} PDF`} /></ModalShell>}
+    {zoom && <ModalShell title={`${guide.title} 화면 확대`} close={closeZoom} className="help-image-modal"><p>확대된 화면을 좌우·위아래로 움직여 확인하세요.</p><div className="help-image-scroll" tabIndex={0} role="region" aria-label="확대 화면 스크롤"><img src={image} alt={`${guide.title} 실제 화면 확대`} /></div></ModalShell>}
+    {pdf && <ModalShell title={`${guide.title} PDF`} close={closePdf} className="help-pdf-modal"><p>PDF가 표시되지 않으면 다운로드해 확인하세요.</p><button className="button secondary" disabled={busy} onClick={() => void openPdf(true)}><Download size={16} />PDF 다운로드</button><iframe src={pdf} title={`${roleLabel} ${guide.title} PDF`} /></ModalShell>}
   </article>
 }
 
