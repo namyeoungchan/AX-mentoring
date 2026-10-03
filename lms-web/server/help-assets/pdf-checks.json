@@ -368,7 +368,7 @@
     "pages": 4,
     "embeddedFonts": 2,
     "textCharacters": 940,
-    "bytes": 187046
+    "bytes": 191992
   },
   {
     "id": "student-discord-attendance",
@@ -381,8 +381,8 @@
     "id": "student-discord-booking",
     "pages": 5,
     "embeddedFonts": 2,
-    "textCharacters": 1172,
-    "bytes": 185899
+    "textCharacters": 1106,
+    "bytes": 187818
   },
   {
     "id": "student-discord-report",
@@ -395,8 +395,8 @@
     "id": "student-discord-assignments",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 980,
-    "bytes": 242320
+    "textCharacters": 940,
+    "bytes": 252873
   },
   {
     "id": "admin-discord-identities",

@@ -2626,16 +2626,16 @@
         "imageAvailable": true,
         "title": "시작하기 → LMS 인증",
         "source": "Discord web client",
-        "capturedAt": "2026-10-03",
+        "capturedAt": "2026-10-04",
         "size": {
-          "width": 550,
-          "height": 218
+          "width": 480,
+          "height": 310
         },
         "bounds": {
-          "x": 3,
-          "y": 173,
-          "width": 110,
-          "height": 44
+          "x": 19,
+          "y": 151,
+          "width": 442,
+          "height": 77
         }
       },
       {
@@ -2644,16 +2644,16 @@
         "imageAvailable": true,
         "title": "자기소개 작성",
         "source": "Discord web client",
-        "capturedAt": "2026-10-03",
+        "capturedAt": "2026-10-04",
         "size": {
-          "width": 550,
-          "height": 218
+          "width": 480,
+          "height": 452
         },
         "bounds": {
-          "x": 115,
-          "y": 173,
-          "width": 140,
-          "height": 44
+          "x": 19,
+          "y": 151,
+          "width": 442,
+          "height": 218
         }
       },
       {
@@ -2820,8 +2820,20 @@
       {
         "step": 5,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "승인 결과와 내 예약 확인"
+        "imageAvailable": true,
+        "title": "승인 결과와 내 예약 확인",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-04",
+        "size": {
+          "width": 290,
+          "height": 155
+        },
+        "bounds": {
+          "x": 51,
+          "y": 2,
+          "width": 225,
+          "height": 146
+        }
       }
     ],
     "viewport": "1440×1000",
@@ -2884,23 +2896,35 @@
         "imageAvailable": true,
         "title": "과제제출 → 과제 제출하기",
         "source": "Discord web client",
-        "capturedAt": "2026-10-03",
+        "capturedAt": "2026-10-04",
         "size": {
-          "width": 490,
-          "height": 337
+          "width": 430,
+          "height": 215
         },
         "bounds": {
-          "x": 3,
-          "y": 281,
-          "width": 147,
-          "height": 45
+          "x": 5,
+          "y": 36,
+          "width": 408,
+          "height": 122
         }
       },
       {
         "step": 3,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "요구 항목과 링크 제출"
+        "imageAvailable": true,
+        "title": "요구 항목과 링크 제출",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-04",
+        "size": {
+          "width": 480,
+          "height": 800
+        },
+        "bounds": {
+          "x": 19,
+          "y": 159,
+          "width": 442,
+          "height": 547
+        }
       },
       {
         "step": 4,
