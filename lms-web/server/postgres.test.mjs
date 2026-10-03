@@ -127,7 +127,9 @@ pgTest('PostgreSQL preserves bot receipts, duplicate booking semantics, worker r
   assert.equal((await call('create_booking',[slot.result,'323456789012345678','학생'])).result,true)
   assert.equal((await call('create_booking',[slot.result,'423456789012345678','중복'])).result,false)
   await call('set_slot_template',[mentor.result,19,0,21,0,30])
-  const dates=[mentor.result,{$lms:'date',value:'2030-01-01'},{$lms:'date',value:'2030-01-01'}]
+  const dayMs=24*60*60*1000
+  const futureDate=new Date(Date.now()+30*dayMs).toISOString().slice(0,10)
+  const dates=[mentor.result,{$lms:'date',value:futureDate},{$lms:'date',value:futureDate}]
   assert.deepEqual((await call('generate_slots_for_range',dates)).result,{$lms:'tuple',value:[4,0]})
   assert.deepEqual((await call('generate_slots_for_range',dates)).result,{$lms:'tuple',value:[0,0]})
   await (await r.workspaces.open(workspace.id)).db.prepare('INSERT INTO lms_records(kind,id,data) VALUES(?,?,?)').run('courses','assignment-course',JSON.stringify({id:'assignment-course',title:'과제 과정'}))
@@ -138,8 +140,10 @@ pgTest('PostgreSQL preserves bot receipts, duplicate booking semantics, worker r
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM bookings').get()).n,1)
   assert.equal(r.botStorage.diagnostics().workerStarts,1)
   await call('set_slot_template',[mentor.result,10,0,11,0,30])
-  await call('block_date',[mentor.result,'2026-10-03'])
-  const schedule=await call('generate_slots_for_range',[mentor.result,{$lms:'date',value:'2026-10-02'},{$lms:'date',value:'2026-10-03'}])
+  const start=new Date(Date.parse(futureDate)+dayMs).toISOString().slice(0,10)
+  const end=new Date(Date.parse(futureDate)+2*dayMs).toISOString().slice(0,10)
+  await call('block_date',[mentor.result,end])
+  const schedule=await call('generate_slots_for_range',[mentor.result,{$lms:'date',value:start},{$lms:'date',value:end}])
   assert.deepEqual(schedule.result,{$lms:'tuple',value:[2,1]})
   const round=await call('create_peer_round',['평가'])
   await call('save_peer_evaluation',[round.result,'1조','323456789012345678','423456789012345678','학생',[4,5,3,4],'의견'])
