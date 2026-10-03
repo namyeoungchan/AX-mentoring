@@ -148,11 +148,62 @@ test('lecture codes require precise hours, separate entry/exit and retain actual
     f.advance(1000);
     const reissued = await f.issue(f.admin, {phase:'out'});
     assert.equal(reissued.session.endedAt,endedAt);
-    await assert.rejects(f.issue(), {status:409});
+    await assert.rejects(f.issue(f.mentor), {status:403});
     await assert.rejects(f.issue(f.admin,{phase:'out',endTime:'13:00'}), {status:409});
     f.advance(5*60000);
     assert.equal((await f.check(reissued.code)).alreadyRecorded, true);
     await assert.rejects(f.check(reissued.code, f.other), {status:410});
+});
+
+test('lecture restart rotates old codes, allows repeated phases and preserves attendance evidence', async t => {
+    const f = await fixture(t);
+    const first = await f.issue(), entered = await f.check(first.code);
+    await f.save('save', [{ studentId: 'student', status: '지각', reason: '멘토 확인' }]);
+    f.advance(1000);
+    const end = await f.issue(f.admin, { phase: 'out' });
+    await assert.rejects(f.issue(f.mentor), { status: 403 });
+    await f.workspaces.assignMentor('default', f.mentor.id, { mentorType: 'main', teamIds: [] }, f.admin);
+    f.advance(1000);
+    const restarted = await f.issue(f.mentor);
+    assert.equal(restarted.session.endedAt, null);
+    assert.equal(restarted.session.startedAt, first.session.startedAt);
+    assert.equal(restarted.active.phase, 'in');
+    assert.equal((await f.codes.status('default', selected, f.admin)).active, null);
+    await assert.rejects(f.check(end.code), { status: 410 });
+    await assert.rejects(f.check(first.code, f.other), { status: 410 });
+    assert.equal((await f.check(restarted.code)).checkInAt, entered.checkInAt);
+    assert.equal((await f.check(restarted.code)).status, '지각');
+    assert.equal((await f.check(restarted.code, f.other)).alreadyRecorded, false);
+    f.advance(1000);
+    const secondEnd = await f.issue(f.admin, { phase: 'out' });
+    assert.ok(secondEnd.session.endedAt > end.session.endedAt);
+    const left = await f.check(secondEnd.code);
+    assert.equal(left.status, '지각');
+    for (let i = 0; i < 2; i++) {
+        f.advance(1000);
+        const start = await f.issue();
+        assert.equal(start.session.endedAt, null);
+        assert.equal((await f.check(start.code)).checkInAt, entered.checkInAt);
+        const out = await f.issue(f.admin, { phase: 'out' });
+        const retry = await f.check(out.code);
+        assert.equal(retry.checkOutAt, left.checkOutAt);
+        assert.equal(retry.status, '지각');
+    }
+    await f.save('save', [{ studentId: 'other', status: '결석' }]);
+    await f.save('close');
+    for (const phase of ['in', 'out']) await assert.rejects(f.issue(f.admin, { phase }), { status: 409 });
+});
+
+test('failed restart preserves the ended session and its usable exit code', async t => {
+    const f = await fixture(t);
+    await f.check((await f.issue()).code);
+    const end = await f.issue(f.admin, { phase: 'out' }), before = await f.view();
+    f.db.exec("CREATE TRIGGER fail_restart BEFORE INSERT ON lms_audit WHEN NEW.action='attendance.code.issue' BEGIN SELECT RAISE(ABORT,'disk failure'); END");
+    await assert.rejects(f.issue(), /disk failure/);
+    assert.equal((await f.view()).session.endedAt, end.session.endedAt);
+    assert.equal((await f.view()).revision, before.revision);
+    assert.equal((await f.codes.status('default', selected, f.admin)).active.id, end.active.id);
+    assert.equal((await f.check(end.code)).alreadyRecorded, false);
 });
 
 test('failed code generation rolls back the lecture start and scheduled hours', async t => {

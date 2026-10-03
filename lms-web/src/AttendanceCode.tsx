@@ -29,13 +29,13 @@ export default function AttendanceCode({ workspaceId, courseId, date, period, ro
   }, [workspaceId, courseId, date, period, roundState])
   async function act(phase: 'in' | 'out' | 'revoke') {
     if (locked.current) return
-    if (phase === 'out' && !status?.session?.endedAt && !window.confirm('종료 코드를 생성하고 강의를 종료할까요? 이후 시작 코드는 사용할 수 없습니다.')) return
+    if (phase === 'out' && !status?.session?.endedAt && !window.confirm('종료 코드를 생성하고 강의를 종료할까요? 기존 시작 코드는 폐기되며, 필요하면 새 시작 코드로 강의를 다시 시작할 수 있습니다.')) return
     const revoke = phase === 'revoke'
     locked.current = true; mutation.current++; setBusy(true); setError(''); setNotice('')
     try {
       const value = await workspaceRequest(workspaceId, `attendance/code${revoke ? '/revoke' : ''}`, { method: 'POST', body: JSON.stringify(revoke ? selected : { ...selected, minutes, phase, ...(!status?.session ? { startTime, endTime } : {}) }) })
       setStatus(value); setIssued(revoke ? null : value); setTime(Date.now()); if (!revoke) setExpanded(false)
-      setNotice(revoke ? '코드를 폐기했습니다.' : phase === 'in' ? '시작 코드를 생성했습니다. 학생이 이 코드로 입실합니다.' : '강의가 종료됐습니다. 학생이 종료 코드로 퇴실하도록 안내하세요.'); await onUpdated()
+      setNotice(revoke ? '코드를 폐기했습니다.' : phase === 'in' ? (status?.session?.endedAt ? '강의를 다시 시작했습니다. 새 시작 코드를 안내하세요. 기존 출결 기록은 유지됩니다.' : '시작 코드를 생성했습니다. 학생이 이 코드로 입실합니다.') : '강의가 종료됐습니다. 학생이 종료 코드로 퇴실하도록 안내하세요.'); await onUpdated()
     } catch (e) { setError((e as Error).message) } finally { locked.current = false; setBusy(false) }
   }
   const active = roundState === '진행 중' && status?.active && status.active.expiresAt > time ? status.active : null
@@ -53,11 +53,11 @@ export default function AttendanceCode({ workspaceId, courseId, date, period, ro
     {!session && status && !status.canManage && <p>관리자 또는 메인 강사가 강의 시간대를 입력하고 시작 코드를 생성해야 합니다.</p>}
     <div className="attendance-code-controls">
       <label>코드 입력 유효시간<select value={minutes} disabled={busy || disabled} onChange={e => setMinutes(Number(e.target.value))}>{[1, 3, 5, 10].map(n => <option key={n} value={n}>{n}분</option>)}</select></label>
-      {!session?.endedAt && <button className="button primary" disabled={busy || disabled || !status?.enabled || (!session && (!status?.canManage || !startTime || !endTime || startTime >= endTime))} onClick={() => void act('in')}>{session ? '시작 코드 재발급' : '시작 코드 생성 · 강의 시작'}</button>}
+      <button className="button primary" disabled={busy || disabled || !status?.enabled || (!!session?.endedAt && !status?.canManage) || (!session && (!status?.canManage || !startTime || !endTime || startTime >= endTime))} onClick={() => void act('in')}>{session?.endedAt ? '시작 코드 생성 · 강의 재시작' : session ? '시작 코드 재발급' : '시작 코드 생성 · 강의 시작'}</button>
       {session && status?.canManage && <button className="button primary" disabled={busy || disabled || !status?.enabled} onClick={() => void act('out')}>{session.endedAt ? '종료 코드 재발급' : '종료 코드 생성 · 강의 종료'}</button>}
       {active && <button className="button secondary" disabled={busy || disabled} onClick={() => void act('revoke')}>현재 코드 폐기</button>}
     </div>
-    <small>{session?.endedAt ? '종료 코드 유효시간까지 퇴실을 받습니다. 누락·예외를 확인한 뒤 출결을 확정하세요.' : '시작 코드는 입실, 종료 코드는 퇴실에만 사용합니다. 코드 유효시간이 끝나도 강의 진행 상태는 유지됩니다.'} 이미 기록한 시각과 멘토 정정은 유지합니다.</small>
+    <small>{session?.endedAt ? '종료 코드 유효시간까지 퇴실을 받습니다. 관리자·메인 강사는 새 시작 코드로 강의를 다시 시작할 수 있습니다. 재시작하면 이전 종료 코드는 폐기됩니다.' : '시작 코드는 입실, 종료 코드는 퇴실에만 사용합니다. 코드 유효시간이 끝나도 강의 진행 상태는 유지됩니다.'} 이미 기록한 입퇴실 시각과 멘토 정정은 유지합니다.</small>
     </details>
     {active && <div className="attendance-code-display"><strong>{active.phase === 'in' ? '입실용 시작 코드' : '퇴실용 종료 코드'}</strong>
       {code ? <><output aria-label="발급된 출석 코드">{code}</output><button className="button secondary" onClick={() => { navigator.clipboard.writeText(code).then(() => setNotice('코드를 복사했습니다.')).catch(() => setError('코드를 직접 선택해 복사하세요.')) }}>코드 복사</button></> : <span>발급된 코드가 있습니다. 코드를 잊었다면 재발급하세요.</span>}

@@ -50,7 +50,15 @@ export async function attendancePresenceScenario(runtime) {
     const recoveredEntry = await presence.mark(w.id, { code: entryCode }, student);
     assert.equal(recoveredEntry.alreadyRecorded, true);
     assert.equal(recoveredEntry.checkInAt, entered.checkInAt);
-    await assert.rejects(issue('in'), { status: 409 });
+    const oldExitCode = code, firstStartedAt = (await roster()).session.startedAt;
+    now += 1000;
+    await issue('in');
+    assert.equal((await roster()).session.endedAt, null);
+    assert.equal((await roster()).session.startedAt, firstStartedAt);
+    assert.equal((await mark('in')).checkInAt, entered.checkInAt);
+    await assert.rejects(presence.mark(w.id, { code: oldExitCode }, student), { status: 410 });
+    now += 1000;
+    await issue('out');
     const left = await presence.discord({ ...identity, code, action: 'out' }, true);
     assert.equal(left.checkOutAt, now);
     assert.equal(left.checkOutSource, 'discord');
