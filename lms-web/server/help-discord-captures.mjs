@@ -31,30 +31,30 @@ export const DISCORD_CAPTURES = {
   },
   "student-discord-auth-step-2": {
     "source": "Discord web client",
-    "capturedAt": "2026-10-03",
+    "capturedAt": "2026-10-04",
     "size": {
-      "width": 550,
-      "height": 218
+      "width": 480,
+      "height": 310
     },
     "bounds": {
-      "x": 3,
-      "y": 173,
-      "width": 110,
-      "height": 44
+      "x": 19,
+      "y": 151,
+      "width": 442,
+      "height": 77
     }
   },
   "student-discord-auth-step-3": {
     "source": "Discord web client",
-    "capturedAt": "2026-10-03",
+    "capturedAt": "2026-10-04",
     "size": {
-      "width": 550,
-      "height": 218
+      "width": 480,
+      "height": 452
     },
     "bounds": {
-      "x": 115,
-      "y": 173,
-      "width": 140,
-      "height": 44
+      "x": 19,
+      "y": 151,
+      "width": 442,
+      "height": 218
     }
   },
   "admin-discord-identity-help-step-2": {
@@ -185,16 +185,16 @@ export const DISCORD_CAPTURES = {
   },
   "student-discord-assignments-step-2": {
     "source": "Discord web client",
-    "capturedAt": "2026-10-03",
+    "capturedAt": "2026-10-04",
     "size": {
-      "width": 490,
-      "height": 337
+      "width": 430,
+      "height": 215
     },
     "bounds": {
-      "x": 3,
-      "y": 281,
-      "width": 147,
-      "height": 45
+      "x": 5,
+      "y": 36,
+      "width": 408,
+      "height": 122
     }
   },
   "student-discord-booking-step-2": {
@@ -363,6 +363,34 @@ export const DISCORD_CAPTURES = {
       "y": 206,
       "width": 133,
       "height": 44
+    }
+  },
+  "student-discord-assignments-step-3": {
+    "source": "Discord web client",
+    "capturedAt": "2026-10-04",
+    "size": {
+      "width": 480,
+      "height": 800
+    },
+    "bounds": {
+      "x": 19,
+      "y": 159,
+      "width": 442,
+      "height": 547
+    }
+  },
+  "student-discord-booking-step-5": {
+    "source": "Discord web client",
+    "capturedAt": "2026-10-04",
+    "size": {
+      "width": 290,
+      "height": 155
+    },
+    "bounds": {
+      "x": 51,
+      "y": 2,
+      "width": 225,
+      "height": 146
     }
   }
 };
