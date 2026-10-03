@@ -848,6 +848,19 @@ class AdminDashboardView(WorkspaceView):
         await open_admin_panel(interaction, self.bot)
 
 
+    @discord.ui.button(
+        label="⏰ 멘토 시간 설정",
+        style=discord.ButtonStyle.primary,
+        custom_id="assignment:mentor_setup",
+        row=2,
+    )
+    async def mentor_setup(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        from ui.mentor_availability import AvailabilityButton
+        await AvailabilityButton(interaction.guild_id, interaction.user.id).callback(interaction)
+
+
 # ── Student: Dynamic submit modal ─────────────────────────────────────────────
 
 class DynamicSubmitModal(WorkspaceModal):

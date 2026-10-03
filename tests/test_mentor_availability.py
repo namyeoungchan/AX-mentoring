@@ -8,9 +8,38 @@ with patch.dict(os.environ, {'DISCORD_TOKEN': 'test-only'}):
     from ui.mentor_setup import ScheduleSetModal
     from ui.mentor_availability import AvailabilityButton
     from workspace_context import MentorWorkspaceView
+    from cogs.assignment import AdminDashboardView
+    from ui.mentor_setup import MentorSetupView
 
 
 class AvailabilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_dashboard_entry_opens_only_current_mentors_private_setup(self):
+        guild_id = 123456789012345678
+        interaction = self.interaction()
+        interaction.guild_id = guild_id
+        member_lookup = AsyncMock()
+        interaction.client = SimpleNamespace(get_guild=lambda _: SimpleNamespace(fetch_member=member_lookup))
+        view = AdminDashboardView(interaction.client)
+        self.assertTrue(view.is_persistent())
+        button = next(child for child in view.children if child.custom_id == 'assignment:mentor_setup')
+        mentor = {'id': 7, 'discord_id': str(interaction.user.id)}
+        with patch('ui.mentor_availability.enter_interaction', new=AsyncMock(return_value=True)) as enter, \
+             patch.object(database, 'get_online_mentor_by_discord_id', new=AsyncMock(return_value=mentor)) as lookup, \
+             patch.object(database, 'get_slot_template', new=AsyncMock(return_value=None)), \
+             patch('ui.mentor_setup.build_setup_embed', new=AsyncMock(return_value=None)):
+            await button.callback(interaction)
+            enter.assert_awaited_once_with(interaction, guild_id)
+            lookup.assert_awaited_once_with(str(interaction.user.id))
+            member_lookup.assert_awaited_once_with(interaction.user.id)
+            result = interaction.followup.send.call_args.kwargs
+            self.assertTrue(result['ephemeral'])
+            self.assertIsInstance(result['view'], MentorSetupView)
+            self.assertEqual(result['view'].mentor, mentor)
+            lookup.return_value = None
+            interaction.followup.send.reset_mock()
+            await button.callback(interaction)
+            self.assertNotIn('view', interaction.followup.send.call_args.kwargs)
+
     def interaction(self, user_id=223456789012345678):
         return SimpleNamespace(user=SimpleNamespace(id=user_id),
                                response=SimpleNamespace(send_message=AsyncMock(), defer=AsyncMock()),
