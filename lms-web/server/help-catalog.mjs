@@ -1,4 +1,5 @@
 // Content stays on the server. Clients receive only their current workspace role.
+import { DISCORD_HELP_GUIDES } from './help-discord-catalog.mjs';
 export const HELP_ROLES = { admin: '워크스페이스 관리자', main: '메인 강사', group: '조 담당 멘토', student: '수강생' };
 const step = (title, body) => ({ title, body });
 const guide = (role, feature, title, category, summary, steps, note = '') => ({ id: `${role}-${feature}`, role, feature, title, category, summary, route: feature, steps, note, capturedAt: '2026-10-03' });
@@ -53,4 +54,5 @@ export const HELP_GUIDES = [
   guide('student', 'assignments', '과제 확인·제출·완료 확인', '학습 참여', '해야 할 과제를 확인하고 제출 결과를 점검합니다.', [step('과제 찾기', '과제 메뉴에서 진행 중인 과제와 마감일을 확인합니다.'), step('제출 방식 확인', '팀 과제와 개인 과제의 요구 항목·제출 대상을 확인합니다.'), step('제출하기', '과제 제목을 눌러 내용을 펼칩니다. Discord로 이동 버튼이 있으면 누르고, 없으면 수업 서버의 과제 제출 패널을 엽니다. 해당 과제를 선택해 요구 항목을 작성합니다.'), step('완료 확인', 'LMS로 돌아와 제출 상태 새로고침을 누르고 제출 완료 탭을 확인합니다. 팀 과제는 팀 기준, 개인 과제는 본인 기준으로 확인합니다.')]),
   guide('student', 'scores', '내 성적 확인과 정정 요청', '기록 확인', '본인의 평가항목별 점수와 배점을 확인합니다.', [step('나의 성적 열기', '왼쪽 나의 성적 메뉴를 선택합니다.'), step('평가항목 확인', '항목별 점수와 배점을 확인합니다. 다른 수강생의 점수는 표시되지 않습니다.'), step('정정 요청', '오류가 있으면 과정·평가항목과 확인할 내용을 담당 멘토에게 전달합니다. 수강생이 직접 점수를 수정할 수는 없습니다.')]),
   guide('student', 'videos', '내 과정의 강의 영상 시청', '학습 참여', '게시된 강의 영상을 선택해 시청합니다.', [step('강의 영상 열기', '왼쪽 강의 영상 메뉴에서 본인 과정을 확인합니다.'), step('영상 선택', '게시된 영상 목록에서 제목과 정보를 확인하고 재생합니다.'), step('재생 문제 확인', '영상이 없으면 게시 여부와 수강 등록 상태를 운영자에게 문의합니다. 수강생은 영상 업로드·게시 기능을 사용하지 않습니다.')]),
+  ...DISCORD_HELP_GUIDES,
 ];

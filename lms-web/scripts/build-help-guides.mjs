@@ -1,5 +1,7 @@
 // Capture the running application with isolated, fictitious data and real role sessions.
 // Requires `npm run build`; never connects to a production database or Discord bot.
+import { captureGuideSteps } from './help-guide-capture.mjs';
+import { renderGuidePdf } from './render-help-pdf.mjs';
 import { chromium } from '@playwright/test';
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -70,46 +72,53 @@ try {
     await new Promise(resolve => setTimeout(resolve, 200));
   }
   browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || 'chrome' });
-  const checks = [];
+  const selected = (process.env.HELP_GUIDE_IDS || '').split(',').filter(Boolean);
+  const previous = JSON.parse(await readFile(join(output, 'capture-manifest.json'), 'utf8').catch(() => '[]'));
+  const checks = selected.length ? previous.filter(g => !selected.includes(g.id)) : [];
+  const failures = [];
   for (const [role, login] of Object.entries(users)) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'ko-KR', timezoneId: 'Asia/Seoul', deviceScaleFactor: 1 });
     await context.addCookies([{ name: 'learningops_session', value: login.token, url: origin + '/api', httpOnly: true, sameSite: 'Lax' }]);
     const page = await context.newPage();
+    page.setDefaultTimeout(5000);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    for (const guide of HELP_GUIDES.filter(g => g.role === role)) {
-      await page.goto(`${origin}/?workspace=default#${guide.route}`);
-      await page.locator('main h1').waitFor();
-      await page.waitForLoadState('networkidle');
-      await page.evaluate(() => document.fonts.ready);
-      if (guide.feature === 'attendance' && role !== 'student') {
-        const course = page.getByLabel('학습 과정', { exact: true });
-        if (await course.count()) await course.selectOption('course-1');
-        await page.locator('summary').filter({ hasText: '강의 시작·종료 코드' }).click();
-      }
-      if (guide.id === 'student-assignments') await page.locator('.sa-title button').first().click();
+    for (const guide of HELP_GUIDES.filter(g => g.role === role && (!selected.length || selected.includes(g.id)))) {
+      try {
+      let captureVisit = 0;
+      const navigate = async () => {
+        await page.goto(`${origin}/?workspace=default&capture=${guide.id}-${captureVisit++}#${guide.route}`);
+        await page.locator('main h1').waitFor();
+        await page.waitForLoadState('networkidle');
+        await page.evaluate(() => document.fonts.ready);
+        if (guide.role === 'student' && guide.route === 'assignments') await page.locator('.sa-title button').first().click();
+      };
+      await navigate();
+      const heading = await page.locator('main h1').innerText();
       await page.screenshot({ path: join(output, `${guide.id}.jpg`), type: 'jpeg', quality: 85, animations: 'disabled' });
+      const images = [];
+      const steps = await captureGuideSteps(page, guide, { navigate, save: async (number, available = true) => {
+        if (!available) { images.push(null); return; }
+        const file = join(output, `${guide.id}-step-${number}.jpg`);
+        await page.screenshot({ path: file, type: 'jpeg', quality: 85, animations: 'disabled' });
+        images.push((await readFile(file)).toString('base64'));
+      } });
       if (errors.length) throw new Error(`${guide.id}: ${errors.join(', ')}`);
-      const image = (await readFile(join(output, `${guide.id}.jpg`))).toString('base64');
       const pdf = await context.newPage();
-      await pdf.setContent(render(guide, image));
+      await pdf.setContent(renderGuidePdf(guide, images));
       await pdf.evaluate(() => document.fonts.ready);
       const overflow = await pdf.locator('.sheet').evaluateAll(nodes => nodes.some(n => n.scrollHeight > n.clientHeight + 2));
       if (overflow) throw new Error(`PDF page overflow: ${guide.id}`);
       await pdf.pdf({ path: join(output, `${guide.id}.pdf`), format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
-      checks.push({ id: guide.id, role, route: guide.route, heading: await page.locator('main h1').innerText(), viewport: '1440×1000', capturedAt: guide.capturedAt });
+      checks.push({ id: guide.id, role, route: guide.route, heading, steps, viewport: '1440×1000', capturedAt: guide.capturedAt });
       await pdf.close();
-      console.log(`Captured ${guide.id}`);
+      console.log(`Captured ${guide.id}: ${steps.length} highlighted steps`);
+      } catch (error) { failures.push({ id: guide.id, error: error.message }); console.error(`FAILED ${guide.id}: ${error.message.slice(0, 160)}`); }
     }
     await context.close();
   }
   await writeFile(join(output, 'capture-manifest.json'), JSON.stringify(checks, null, 2));
-  console.log(`Created ${checks.length} protected screenshot/PDF pairs.`);
+  await writeFile(resolve('../.venv/help-capture-errors.json'), JSON.stringify(failures, null, 2));
+  console.log(`Captured ${checks.length} guides; ${failures.length} failures.`);
+  if (failures.length) process.exitCode = 1;
 } finally { await browser?.close(); server.kill(); }
-
-function escape(value) { return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;'); }
-function render(guide, image) {
-  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${escape(HELP_ROLES[guide.role])} · ${escape(guide.title)}</title><style>
-  @page{size:A4 landscape;margin:0}*{box-sizing:border-box}body{margin:0;color:#1b342c;background:white;font-family:'Malgun Gothic','Noto Sans CJK KR',sans-serif}.sheet{width:297mm;height:210mm;padding:11mm 14mm;position:relative;overflow:hidden;break-after:page}.sheet:last-child{break-after:auto}.eyebrow{font-size:10pt;font-weight:700;color:#356d52;margin:0 0 2mm}h1{font-size:22pt;margin:0 0 2mm;letter-spacing:-.7px}.summary{font-size:10pt;color:#59665e;margin:0 0 4mm}.screen{display:block;height:158mm;max-width:269mm;object-fit:contain;object-position:left top;border:1px solid #d8e3dc}footer{position:absolute;bottom:6mm;left:14mm;right:14mm;display:flex;justify-content:space-between;font-size:8pt;color:#61766a}.steps{padding:0;list-style:none;margin:7mm 0 0;display:grid;grid-template-columns:1fr 1fr;gap:7mm 10mm}.step{display:flex;gap:4mm}.number{font-size:21pt;font-weight:700;color:#458367}.step h2{font-size:14pt;margin:0 0 3mm}.step p{font-size:12pt;line-height:1.8;margin:0;color:#374d42;word-break:keep-all}.note{margin-top:8mm;border-left:3px solid #438362;padding:4mm 6mm;background:#eef5ef;font-size:11pt;line-height:1.75}.path{font-size:11pt;margin-top:5mm;color:#356d52}.brand{font-size:10pt;font-weight:bold}
-  </style></head><body><section class="sheet"><p class="eyebrow">${escape(HELP_ROLES[guide.role])} 전용 · ${escape(guide.category)}</p><h1>${escape(guide.title)}</h1><p class="summary">${escape(guide.summary)}</p><img class="screen" src="data:image/jpeg;base64,${image}" alt="${escape(guide.title)} 실제 화면"><footer><span>실제 LMS 화면 · 가이드용 예시 데이터 · ${guide.capturedAt}</span><span>화면 확인 01 / 02</span></footer></section><section class="sheet"><p class="eyebrow">${escape(HELP_ROLES[guide.role])} 전용 · 사용 순서</p><h1>${escape(guide.title)}</h1><p class="path">LMS 로그인 → 워크스페이스 선택 → 해당 기능 메뉴</p><ol class="steps">${guide.steps.map((s, i) => `<li class="step"><span class="number">0${i + 1}</span><div><h2>${escape(s.title)}</h2><p>${escape(s.body)}</p></div></li>`).join('')}</ol>${guide.note ? `<aside class="note">${escape(guide.note)}</aside>` : ''}<footer><span class="brand">AX 학습관리시스템 · 역할별 기능 도움말</span><span>사용 순서 02 / 02</span></footer></section></body></html>`;
-}

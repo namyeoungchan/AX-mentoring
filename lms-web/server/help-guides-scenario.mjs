@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { HELP_GUIDES } from './help-catalog.mjs';
 
 export async function helpGuidesScenario({ store: { db }, workspaces, helpGuides: help }) {
+  assert.equal(new Set(HELP_GUIDES.map(g => g.id)).size, HELP_GUIDES.length, 'Guide IDs must be unique across LMS and Discord categories');
   const root = { id: 'admin', username: 'root', role: 'admin' };
   const users = {};
   const time = Date.now();
@@ -21,9 +22,18 @@ export async function helpGuidesScenario({ store: { db }, workspaces, helpGuides
     const g = own.guides[0];
     assert.equal((await help.asset('default', g.id, 'pdf', user)).bytes.subarray(0, 5).toString(), '%PDF-');
     assert.equal((await help.asset('default', g.id, 'image', user)).bytes.subarray(0, 2).toString('hex'), 'ffd8');
+    for (const ownGuide of own.guides) {
+      assert.equal((await help.asset('default', ownGuide.id, 'pdf', user)).bytes.subarray(0, 5).toString(), '%PDF-');
+      for (const [index, step] of ownGuide.steps.entries()) {
+        if (step.imageAvailable === false) await assert.rejects(help.asset('default', ownGuide.id, `step-${index + 1}`, user), { status: 404 });
+        else assert.equal((await help.asset('default', ownGuide.id, `step-${index + 1}`, user)).bytes.subarray(0, 2).toString('hex'), 'ffd8');
+      }
+    }
+    for (const type of ['step-0', 'step-01', 'step-999', 'step-1.jpg', '../image']) await assert.rejects(help.asset('default', g.id, type, user), { status: 404 });
     for (const foreign of HELP_GUIDES.filter(g => g.role !== role)) {
       await assert.rejects(help.asset('default', foreign.id, 'pdf', user), { status: 403 });
       await assert.rejects(help.asset('default', foreign.id, 'image', user), { status: 403 });
+      await assert.rejects(help.asset('default', foreign.id, 'step-1', user), { status: 403 });
     }
     if (role !== 'admin') {
       await assert.rejects(help.management('default', user), { status: 403 });

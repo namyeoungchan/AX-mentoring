@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Download, FileText, Search, Upload, ZoomIn, ArrowUpRight, RotateCcw } from 'lucide-react'
+import { BookOpen, Download, FileText, Search, Upload, ZoomIn, ArrowUpRight, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { apiDownload, workspaceRequest } from './api'
 import { ModalShell } from './components'
 import './help-center.css'
 
 type Document = { filename: string; revision: string | null; updatedAt: number | null }
-type Guide = { id: string; role: string; feature: string; title: string; category: string; summary: string; route: string; steps: { title: string; body: string }[]; note: string; capturedAt: string; document: Document }
+type Guide = { id: string; role: string; feature: string; title: string; category: string; summary: string; route: string; steps: { title: string; body: string; surface?: string; imageAvailable?: boolean }[]; note: string; capturedAt: string; document: Document }
 type Catalog = { role: string; roleLabel: string; canManage: boolean; guides: Guide[] }
 type Management = { roles: Record<string, string>; readOnly: boolean; guides: Pick<Guide, 'id' | 'role' | 'title' | 'category' | 'document'>[] }
 const errorText = (e: unknown) => e instanceof Error ? e.message : '요청을 완료하지 못했습니다.'
@@ -31,7 +31,7 @@ export default function HelpCenter({ workspaceId, go, demo = false }: { workspac
   if (demo) return <section className="panel help-empty"><BookOpen /><h2>로그인 후 내 역할의 도움말을 확인하세요.</h2><p>도움말과 PDF는 실제 워크스페이스 권한을 확인한 뒤 제공합니다.</p></section>
   if (!data) return <section className="panel help-empty">{error ? <><p role="alert">{error}</p><button className="button secondary" onClick={() => setVersion(v => v + 1)}>다시 불러오기</button></> : <p role="status">내 역할의 가이드를 불러오는 중…</p>}</section>
   const categories = ['전체', ...new Set(data.guides.map(g => g.category))]
-  const visible = data.guides.filter(g => (category === '전체' || g.category === category) && `${g.title} ${g.summary} ${g.steps.map(s => s.title).join(' ')}`.includes(query.trim()))
+  const visible = data.guides.filter(g => (category === '전체' || g.category === category) && `${g.title} ${g.category} ${g.summary} ${g.steps.map(s => `${s.title} ${s.body}`).join(' ')}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
   const guide = visible.find(g => g.id === selected) || visible[0]
   return <section className="help-center" aria-label="역할별 도움말">
     <header className="help-intro"><div><span className="help-role">{data.roleLabel} 전용</span><h2>필요한 기능부터 살펴보세요.</h2><p>현재 역할에서 사용할 수 있는 기능을 실제 화면으로 안내합니다.</p></div><BookOpen size={34} aria-hidden="true" /></header>
@@ -45,7 +45,9 @@ export default function HelpCenter({ workspaceId, go, demo = false }: { workspac
 }
 
 function GuideDetail({ workspaceId, guide, roleLabel, go, onDenied }: { workspaceId: string; guide: Guide; roleLabel: string; go: (page: string) => void; onDenied: () => void }) {
-  const [image, setImage] = useState(''), [imageError, setImageError] = useState(''), [error, setError] = useState('')
+  const [imageState, setImageState] = useState({ path: '', url: '', error: '' }), [error, setError] = useState('')
+  const [stepIndex, setStepIndex] = useState(0)
+  const step = guide.steps[stepIndex]
   const [zoom, setZoom] = useState(false), [pdf, setPdf] = useState(''), [busy, setBusy] = useState(false)
   const live = useRef(true), locked = useRef(false), urls = useRef<string[]>([])
   const imageButton = useRef<HTMLButtonElement>(null), pdfButton = useRef<HTMLButtonElement>(null)
@@ -54,15 +56,19 @@ function GuideDetail({ workspaceId, guide, roleLabel, go, onDenied }: { workspac
   const denied = useRef(onDenied)
   useEffect(() => { denied.current = onDenied }, [onDenied])
   const path = `workspaces/${encodeURIComponent(workspaceId)}/help/${encodeURIComponent(guide.id)}`
+  const imagePath = `${path}/step-${stepIndex + 1}`
+  const image = imageState.path === imagePath ? imageState.url : ''
+  const imageError = imageState.path === imagePath ? imageState.error : ''
+  const hasImage = step.imageAvailable !== false
   useEffect(() => {
     live.current = true
     let cancelled = false
-    void apiDownload(`${path}/image`).then(blob => {
+    if (hasImage) void apiDownload(imagePath).then(blob => {
       if (cancelled) return
-      const url = URL.createObjectURL(blob); urls.current.push(url); setImage(url)
-    }).catch(e => { if (!cancelled) { setImageError(errorText(e)); if ([401, 403].includes(e.status)) denied.current() } })
+      const url = URL.createObjectURL(blob); urls.current.push(url); setImageState({ path: imagePath, url, error: '' })
+    }).catch(e => { if (!cancelled) { setImageState({ path: imagePath, url: '', error: errorText(e) }); if ([401, 403].includes(e.status)) denied.current() } })
     return () => { cancelled = true; live.current = false; urls.current.forEach(URL.revokeObjectURL); urls.current = [] }
-  }, [path])
+  }, [imagePath, hasImage])
   async function openPdf(download: boolean) {
     if (locked.current) return
     locked.current = true; setBusy(true); setError('')
@@ -77,11 +83,16 @@ function GuideDetail({ workspaceId, guide, roleLabel, go, onDenied }: { workspac
   }
   return <article className="panel help-detail" aria-label={guide.title}>
     <div className="help-detail-heading"><span>{guide.category}</span><h2>{guide.title}</h2><p>{guide.summary}</p><div className="help-actions"><button ref={pdfButton} className="button primary" disabled={busy} onClick={() => void openPdf(false)}><FileText size={16} />PDF 보기</button><button className="button secondary" disabled={busy} onClick={() => void openPdf(true)}><Download size={16} />다운로드</button><button className="text-button" onClick={() => go(guide.route)}>기능 화면 열기<ArrowUpRight size={15} /></button></div>{error && <p role="alert" className="error-text">{error}</p>}</div>
-    <figure className="help-screen">{image ? <button ref={imageButton} onClick={() => setZoom(true)} aria-label={`${guide.title} 화면 확대`}><img src={image} alt={`${roleLabel} 계정으로 촬영한 ${guide.title} 실제 LMS 화면`} /><span><ZoomIn size={16} />화면 확대</span></button> : <p role={imageError ? 'alert' : 'status'}>{imageError || '화면 불러오는 중…'}</p>}<figcaption>실제 LMS 화면 · 가이드용 예시 데이터 · {guide.capturedAt}</figcaption></figure>
-    <ol className="help-steps">{guide.steps.map((s, i) => <li key={s.title}><span>{String(i + 1).padStart(2, '0')}</span><div><h3>{s.title}</h3><p>{s.body}</p></div></li>)}</ol>
+    <nav className="help-step-tabs" aria-label="사용 순서">{guide.steps.map((s, i) => <button key={s.title} disabled={busy} aria-current={stepIndex === i ? 'step' : undefined} onClick={() => setStepIndex(i)}><span>{i + 1}</span>{s.title}</button>)}</nav>
+    <section className="help-current-step" aria-label={`${stepIndex + 1}단계 ${step.title}`}>
+      <div className="help-step-heading"><span>STEP {String(stepIndex + 1).padStart(2, '0')} / {String(guide.steps.length).padStart(2, '0')}{step.surface && ` · ${step.surface}에서 진행`}</span><h3>{step.title}</h3></div>
+      {hasImage ? <figure className="help-screen">{image ? <button ref={imageButton} onClick={() => setZoom(true)} aria-label={`${guide.title} ${stepIndex + 1}단계 화면 확대`}><img src={image} alt={`${roleLabel} ${stepIndex + 1}단계: ${step.title}. 실제 LMS 화면에서 조작·확인할 위치를 번호와 테두리로 강조했습니다.`} /><span><ZoomIn size={16} />화면 확대</span></button> : <p role={imageError ? 'alert' : 'status'}>{imageError || '단계 화면 불러오는 중…'}</p>}<figcaption>번호와 테두리로 표시된 위치를 확인하세요 · 실제 LMS 화면 · 예시 데이터</figcaption></figure> : <aside className="help-discord-screen"><strong>Discord에서 진행하는 단계입니다.</strong><p>아래에 안내된 채널과 버튼을 순서대로 사용하세요. 실제 Discord 화면 캡처는 아직 준비되지 않았습니다.</p></aside>}
+      <div className="help-step-description" aria-live="polite"><span>{stepIndex + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></div>
+      <div className="help-step-controls"><button className="button secondary" disabled={busy || stepIndex === 0} onClick={() => setStepIndex(i => i - 1)}><ChevronLeft size={16} />이전 단계</button><span>{stepIndex + 1} / {guide.steps.length}</span><button className="button primary" disabled={busy || stepIndex === guide.steps.length - 1} onClick={() => setStepIndex(i => i + 1)}>다음 단계<ChevronRight size={16} /></button></div>
+    </section>
     {guide.note && <aside className="help-note">{guide.note}</aside>}
-    <p className="help-document-info">{guide.document.revision ? `워크스페이스에서 등록한 PDF · ${new Date(guide.document.updatedAt!).toLocaleDateString('ko-KR')}` : '화면 설명과 같은 내용의 기본 PDF를 제공합니다.'}</p>
-    {zoom && <ModalShell title={`${guide.title} 화면 확대`} close={closeZoom} className="help-image-modal"><p>확대된 화면을 좌우·위아래로 움직여 확인하세요.</p><div className="help-image-scroll" tabIndex={0} role="region" aria-label="확대 화면 스크롤"><img src={image} alt={`${guide.title} 실제 화면 확대`} /></div></ModalShell>}
+    <p className="help-document-info">{guide.document.revision ? `워크스페이스에서 등록한 PDF · ${new Date(guide.document.updatedAt!).toLocaleDateString('ko-KR')}` : guide.category === 'Discord 연계' ? 'PDF에는 Discord 조작 순서와 준비된 LMS 연계 화면을 담았습니다. Discord 화면 캡처는 준비 중입니다.' : '단계별 강조 이미지와 사용 순서를 담은 기본 PDF를 제공합니다.'}</p>
+    {zoom && <ModalShell title={`${guide.title} 화면 확대`} close={closeZoom} className="help-image-modal"><p>확대된 화면을 좌우·위아래로 움직여 확인하세요.</p><div className="help-image-scroll" tabIndex={0} role="region" aria-label="확대 화면 스크롤"><img src={image} alt={`${stepIndex + 1}단계 ${step.title} 강조 화면 확대`} /></div></ModalShell>}
     {pdf && <ModalShell title={`${guide.title} PDF`} close={closePdf} className="help-pdf-modal"><p>PDF가 표시되지 않으면 다운로드해 확인하세요.</p><button className="button secondary" disabled={busy} onClick={() => void openPdf(true)}><Download size={16} />PDF 다운로드</button><iframe src={pdf} title={`${roleLabel} ${guide.title} PDF`} /></ModalShell>}
   </article>
 }

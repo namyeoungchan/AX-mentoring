@@ -12,7 +12,15 @@
 
 관리자는 도움말 → **PDF 등록·교체**에서 대상 역할과 기능을 선택해 5MB 이하의 PDF를 등록할 수 있습니다. 파일은 워크스페이스 DB에 저장되어 백업·복원 대상에 포함됩니다. 다른 역할의 파일을 등록할 수 있지만 해당 가이드의 본문과 파일을 열람할 수는 없습니다. 기본 화면 안내는 유지되며 기본 PDF로 복원할 수 있습니다.
 
-현재 기능별 가이드는 `lms-web/server/help-catalog.mjs`, 화면·PDF 생성기는 `lms-web/scripts/build-help-guides.mjs`입니다. `lms-web`에서 `npm run build` 후 `npm run guides:build`를 실행합니다. 별도 임시 SQLite DB에 가상 계정·예시 데이터를 만들고 실제 앱에 각 역할로 로그인해 41개 화면을 촬영합니다. 운영 DB·Discord 봇은 사용하지 않습니다. 생성된 `server/help-assets`는 공개 정적 폴더가 아니며 서버가 매 요청마다 워크스페이스와 정확한 역할을 확인합니다. 각 PDF는 실제 화면과 사용 순서로 구성된 A4 가로 2쪽입니다.
+현재 기능별 가이드는 `lms-web/server/help-catalog.mjs`, Discord 연계 본문은 `help-discord-catalog.mjs`입니다. 총 59개(관리자 26, 메인 강사 10, 조 담당 멘토 12, 수강생 11), 211단계입니다. 기존 LMS 41개에 Discord 연계 18개를 추가했습니다. 도움말에서 번호 탭 또는 이전·다음 단계로 이동하고, 실제 LMS 화면의 번호와 주황색 테두리 위치를 따라 사용합니다. PDF도 한 단계당 한 페이지로 같은 순서를 제공합니다.
+
+실제 Discord 클라이언트 캡처는 확보하지 못했습니다. Discord에서 수행하는 단계는 채널·버튼 이름과 사용 순서를 제공하고 화면 캡처 준비 중임을 명시합니다. 코드로 만든 화면을 실제 Discord 화면이라고 표시하지 않습니다. LMS에서 연계 결과를 확인하는 단계는 실제 LMS 캡처를 제공합니다. Discord 단계의 이미지 요청은 404이며 PDF는 본문을 정상 제공합니다. 캡처를 확보한 뒤 해당 단계의 `imageAvailable`과 캡처 생성 절차를 함께 갱신해야 합니다.
+
+`lms-web`에서 `npm run build` 후 `npm run guides:build`를 실행합니다. 별도 임시 SQLite DB에 가상 계정·예시 데이터를 만들고 실제 앱에 각 역할로 로그인합니다. `scripts/help-guide-capture.mjs`가 실제 표시된 요소의 위치를 읽어 브라우저 오버레이로 번호·테두리를 표시한 뒤 촬영하며, 대상이 없으면 실패합니다. 운영 DB·Discord 봇은 사용하지 않습니다. `HELP_GUIDE_IDS` 환경변수에 쉼표로 구분한 ID를 지정하면 해당 가이드만 다시 촬영합니다. PDF 본문·배치만 변경한 경우 `node scripts/rebuild-help-pdfs.mjs`로 기존 이미지를 재사용하고 푸터 겹침을 검사합니다.
+
+생성된 `server/help-assets`는 공개 정적 폴더가 아니며 서버가 매 요청마다 워크스페이스와 정확한 역할을 확인합니다. PDF뿐 아니라 단계 이미지도 동일하게 제한합니다. `capture-manifest.json`에는 단계·실제 요소·강조 영역을 기록합니다. 저장소 루트에서 `python docs/guides/verify_help_guides.py`를 실행하면 단계별 PDF 페이지 수·한글·글꼴 포함·이미지의 강조 표시를 검사하고 `pdf-checks.json`을 갱신합니다.
+
+Discord 안내의 검수 근거는 `cogs/panel_objects.py`, `cogs/lms_onboarding.py`, `cogs/lms_auth.py`, `cogs/attendance_panel.py`, `cogs/assignment.py`, `cogs/lms_mentoring.py`, `ui/mentor_availability.py`, `ui/mentor_setup.py`, `ui/date_select.py`, `ui/time_select.py`, `ui/confirm_view.py`, `ui/approval_view.py`와 `lms-web/shared/channel-guides.json`입니다. Discord 과제 생성은 Discord 관리자/운영자 권한이 필요하고, 가능 시간 등록은 LMS 인증된 조 담당 멘토만 가능하며, 메인 강사에게는 해당 가이드를 제공하지 않습니다.
 
 관리자·메인 강사는 정확한 예정 시간대를 입력하고 시작·종료 코드를 생성합니다. 학생은 Discord 패널 또는 웹 나의 출결에서 코드를 입력하며, 입퇴실이 곧 출석 기록입니다. 종료 코드 입력 시간이 끝나면 등록이 종료되고, 누락·예외를 검토해 출결을 확정합니다. 코드 재입력은 최초 시각과 멘토 정정을 유지합니다.
 
