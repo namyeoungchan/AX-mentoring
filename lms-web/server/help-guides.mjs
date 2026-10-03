@@ -43,12 +43,13 @@ export function createHelpGuides(workspaces, { assetRoot = join(dirname(fileURLT
   }
   async function asset(id, key, type, user) {
     const { db, item } = await allowed(id, key, user);
-    if (!['pdf', 'image'].includes(type)) throw new ApiError(404, '지원하지 않는 파일입니다.');
+    const step = /^step-([1-9]\d*)$/.exec(type);
+    if (!['pdf', 'image'].includes(type) && !(step && Number(step[1]) <= item.steps.length && item.steps[Number(step[1]) - 1].imageAvailable !== false)) throw new ApiError(404, '지원하지 않는 파일입니다.');
     if (type === 'pdf') {
       const row = await db.prepare("SELECT data FROM lms_records WHERE kind='helpDocument' AND id=?").get(item.id);
       if (row) return { bytes: Buffer.from(JSON.parse(row.data).base64, 'base64'), mime: 'application/pdf' };
     }
-    try { return { bytes: await readFile(join(assetRoot, `${item.id}.${type === 'pdf' ? 'pdf' : 'jpg'}`)), mime: type === 'pdf' ? 'application/pdf' : 'image/jpeg' }; }
+    try { return { bytes: await readFile(join(assetRoot, `${item.id}${step ? `-step-${step[1]}` : ''}.${type === 'pdf' ? 'pdf' : 'jpg'}`)), mime: type === 'pdf' ? 'application/pdf' : 'image/jpeg' }; }
     catch (error) { if (error.code === 'ENOENT') throw new ApiError(503, '가이드 파일을 준비 중입니다. 잠시 후 다시 확인하세요.'); throw error; }
   }
   async function replace(id, key, raw, user, remove = false) {

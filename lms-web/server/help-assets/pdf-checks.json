@@ -1,289 +1,415 @@
 [
   {
     "id": "admin-dashboard",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 354,
-    "bytes": 152020
+    "textCharacters": 452,
+    "bytes": 303165
   },
   {
     "id": "admin-discord",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 475,
-    "bytes": 138641
+    "textCharacters": 585,
+    "bytes": 309135
   },
   {
     "id": "admin-members",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 509,
-    "bytes": 151857
+    "textCharacters": 720,
+    "bytes": 389494
   },
   {
     "id": "admin-student-accounts",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 464,
-    "bytes": 151334
-  },
-  {
-    "id": "admin-courses",
-    "pages": 2,
-    "embeddedFonts": 2,
-    "textCharacters": 441,
-    "bytes": 108166
+    "textCharacters": 679,
+    "bytes": 382846
   },
   {
     "id": "admin-teams",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 369,
-    "bytes": 129949
-  },
-  {
-    "id": "admin-attendance",
-    "pages": 2,
-    "embeddedFonts": 2,
-    "textCharacters": 559,
-    "bytes": 181038
+    "textCharacters": 472,
+    "bytes": 230946
   },
   {
     "id": "admin-scores",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 353,
-    "bytes": 114626
-  },
-  {
-    "id": "admin-assignments",
-    "pages": 2,
-    "embeddedFonts": 2,
-    "textCharacters": 438,
-    "bytes": 124524
+    "textCharacters": 457,
+    "bytes": 212307
   },
   {
     "id": "admin-submissions",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 360,
-    "bytes": 100176
+    "textCharacters": 466,
+    "bytes": 195311
   },
   {
     "id": "admin-mentoring",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 447,
-    "bytes": 151836
+    "textCharacters": 649,
+    "bytes": 398124
   },
   {
     "id": "admin-videos",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 381,
-    "bytes": 92246
-  },
-  {
-    "id": "admin-notices",
-    "pages": 2,
-    "embeddedFonts": 2,
-    "textCharacters": 375,
-    "bytes": 120431
+    "textCharacters": 481,
+    "bytes": 219490
   },
   {
     "id": "admin-onboarding",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 382,
-    "bytes": 157019
+    "textCharacters": 488,
+    "bytes": 331141
   },
   {
     "id": "admin-connection",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 378,
-    "bytes": 131733
+    "textCharacters": 476,
+    "bytes": 262645
   },
   {
     "id": "admin-bot-data",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 370,
-    "bytes": 121248
+    "textCharacters": 465,
+    "bytes": 250839
   },
   {
     "id": "admin-bots",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 354,
-    "bytes": 115536
+    "textCharacters": 459,
+    "bytes": 214556
   },
   {
     "id": "admin-logs",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 349,
-    "bytes": 105002
+    "textCharacters": 447,
+    "bytes": 203262
   },
   {
     "id": "admin-settings",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 337,
-    "bytes": 117106
+    "textCharacters": 441,
+    "bytes": 234623
   },
   {
     "id": "admin-files",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 407,
-    "bytes": 108503
-  },
-  {
-    "id": "admin-discord-identities",
-    "pages": 2,
-    "embeddedFonts": 2,
-    "textCharacters": 528,
-    "bytes": 159475
+    "textCharacters": 513,
+    "bytes": 215526
   },
   {
     "id": "main-courses",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 403,
-    "bytes": 106732
-  },
-  {
-    "id": "main-attendance",
-    "pages": 2,
-    "embeddedFonts": 2,
-    "textCharacters": 588,
-    "bytes": 175081
+    "textCharacters": 501,
+    "bytes": 208033
   },
   {
     "id": "main-mentoring",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 565,
-    "bytes": 147999
+    "textCharacters": 746,
+    "bytes": 385090
   },
   {
     "id": "main-teams",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 431,
-    "bytes": 115206
+    "textCharacters": 529,
+    "bytes": 225499
   },
   {
     "id": "main-scores",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 361,
-    "bytes": 108665
+    "textCharacters": 457,
+    "bytes": 202218
   },
   {
     "id": "main-videos",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 447,
-    "bytes": 110006
+    "textCharacters": 542,
+    "bytes": 207370
   },
   {
     "id": "main-onboarding",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 492,
-    "bytes": 148725
+    "textCharacters": 698,
+    "bytes": 377653
   },
   {
     "id": "group-courses",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 411,
-    "bytes": 107269
-  },
-  {
-    "id": "group-attendance",
-    "pages": 2,
-    "embeddedFonts": 2,
-    "textCharacters": 594,
-    "bytes": 170122
+    "textCharacters": 507,
+    "bytes": 208074
   },
   {
     "id": "group-mentoring",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 621,
-    "bytes": 150143
+    "textCharacters": 801,
+    "bytes": 386620
   },
   {
     "id": "group-teams",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 439,
-    "bytes": 113968
+    "textCharacters": 535,
+    "bytes": 221789
   },
   {
     "id": "group-scores",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 369,
-    "bytes": 104159
+    "textCharacters": 463,
+    "bytes": 193756
   },
   {
     "id": "group-videos",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 455,
-    "bytes": 111340
+    "textCharacters": 548,
+    "bytes": 208116
   },
   {
     "id": "group-onboarding",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 476,
-    "bytes": 147350
+    "textCharacters": 686,
+    "bytes": 379481
   },
   {
     "id": "student-learning",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 361,
-    "bytes": 106338
+    "textCharacters": 461,
+    "bytes": 214115
   },
   {
     "id": "student-participation",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 447,
-    "bytes": 91526
+    "textCharacters": 643,
+    "bytes": 205162
   },
   {
     "id": "student-attendance",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 493,
-    "bytes": 133470
+    "textCharacters": 691,
+    "bytes": 344526
   },
   {
     "id": "student-assignments",
-    "pages": 2,
+    "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 480,
-    "bytes": 135957
+    "textCharacters": 680,
+    "bytes": 350500
   },
   {
     "id": "student-scores",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 364,
-    "bytes": 92679
+    "textCharacters": 465,
+    "bytes": 173632
   },
   {
     "id": "student-videos",
-    "pages": 2,
+    "pages": 3,
     "embeddedFonts": 2,
-    "textCharacters": 363,
-    "bytes": 98854
+    "textCharacters": 467,
+    "bytes": 192686
+  },
+  {
+    "id": "admin-courses",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 656,
+    "bytes": 282694
+  },
+  {
+    "id": "admin-attendance",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 773,
+    "bytes": 484543
+  },
+  {
+    "id": "admin-assignments",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 646,
+    "bytes": 333187
+  },
+  {
+    "id": "admin-notices",
+    "pages": 3,
+    "embeddedFonts": 2,
+    "textCharacters": 477,
+    "bytes": 200336
+  },
+  {
+    "id": "main-attendance",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 785,
+    "bytes": 462520
+  },
+  {
+    "id": "group-attendance",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 794,
+    "bytes": 435305
+  },
+  {
+    "id": "admin-discord-panels",
+    "pages": 4,
+    "embeddedFonts": 3,
+    "textCharacters": 1144,
+    "bytes": 259899
+  },
+  {
+    "id": "admin-discord-assignments",
+    "pages": 4,
+    "embeddedFonts": 3,
+    "textCharacters": 1099,
+    "bytes": 233240
+  },
+  {
+    "id": "admin-discord-notices",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 962,
+    "bytes": 223068
+  },
+  {
+    "id": "admin-discord-mentoring",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1067,
+    "bytes": 258671
+  },
+  {
+    "id": "main-discord-auth",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1062,
+    "bytes": 227911
+  },
+  {
+    "id": "main-discord-attendance",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1010,
+    "bytes": 282354
+  },
+  {
+    "id": "main-discord-mentoring",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1047,
+    "bytes": 248665
+  },
+  {
+    "id": "group-discord-auth",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1070,
+    "bytes": 235684
+  },
+  {
+    "id": "group-discord-attendance",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 914,
+    "bytes": 354472
+  },
+  {
+    "id": "group-discord-availability",
+    "pages": 5,
+    "embeddedFonts": 7,
+    "textCharacters": 1422,
+    "bytes": 194663
+  },
+  {
+    "id": "group-discord-booking",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1029,
+    "bytes": 239405
+  },
+  {
+    "id": "group-discord-report",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1036,
+    "bytes": 250224
+  },
+  {
+    "id": "student-discord-auth",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1072,
+    "bytes": 151514
+  },
+  {
+    "id": "student-discord-attendance",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1107,
+    "bytes": 151739
+  },
+  {
+    "id": "student-discord-booking",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1080,
+    "bytes": 138511
+  },
+  {
+    "id": "student-discord-report",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1199,
+    "bytes": 86728
+  },
+  {
+    "id": "student-discord-assignments",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1046,
+    "bytes": 219585
+  },
+  {
+    "id": "admin-discord-identities",
+    "pages": 3,
+    "embeddedFonts": 2,
+    "textCharacters": 635,
+    "bytes": 323599
+  },
+  {
+    "id": "admin-discord-identity-help",
+    "pages": 4,
+    "embeddedFonts": 2,
+    "textCharacters": 1031,
+    "bytes": 260839
   }
 ]

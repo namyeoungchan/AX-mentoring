@@ -4,6 +4,41 @@
     "role": "admin",
     "route": "dashboard",
     "heading": "운영 대시보드",
+    "steps": [
+      {
+        "step": 1,
+        "selector": "[aria-label=\"워크스페이스 선택\"]",
+        "bounds": {
+          "x": 12,
+          "y": 96,
+          "width": 217,
+          "height": 75
+        },
+        "title": "워크스페이스 확인"
+      },
+      {
+        "step": 2,
+        "selector": ".stats-grid",
+        "bounds": {
+          "x": 274,
+          "y": 426.4375,
+          "width": 1134,
+          "height": 148
+        },
+        "title": "현황 살펴보기"
+      },
+      {
+        "step": 3,
+        "selector": ".sidebar .nav-item:has-text(\"멘토링 일정\")",
+        "bounds": {
+          "x": 12,
+          "y": 474.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "세부 화면 이동"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -12,6 +47,41 @@
     "role": "admin",
     "route": "discord",
     "heading": "Discord 채널 설정",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".membership-invite .modal-form",
+        "bounds": {
+          "x": 275,
+          "y": 417.96875,
+          "width": 1132,
+          "height": 164
+        },
+        "title": "조 구성 저장"
+      },
+      {
+        "step": 2,
+        "selector": ".quick-stage-content",
+        "bounds": {
+          "x": 274,
+          "y": 412.078125,
+          "width": 1134,
+          "height": 510.015625
+        },
+        "title": "서버 연결"
+      },
+      {
+        "step": 3,
+        "selector": ".quick-stage-content",
+        "bounds": {
+          "x": 274,
+          "y": 412.078125,
+          "width": 1134,
+          "height": 305.296875
+        },
+        "title": "앱 초대와 구축 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -20,6 +90,52 @@
     "role": "admin",
     "route": "members",
     "heading": "구성원 · 초대",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".membership-form .form-row",
+        "bounds": {
+          "x": 299,
+          "y": 444.359375,
+          "width": 802,
+          "height": 112.09375
+        },
+        "title": "멘토 정보 입력"
+      },
+      {
+        "step": 2,
+        "selector": ".mentor-team-picker",
+        "bounds": {
+          "x": 299,
+          "y": 442.546875,
+          "width": 802,
+          "height": 115.5
+        },
+        "title": "담당 조 지정"
+      },
+      {
+        "step": 3,
+        "selector": ".membership-actions button.primary",
+        "bounds": {
+          "x": 904.875,
+          "y": 471.546875,
+          "width": 196.125,
+          "height": 56
+        },
+        "title": "계정 발급과 안내 전달"
+      },
+      {
+        "step": 4,
+        "selector": "main .panel:has(.card-heading :text-is(\"구성원\")) table",
+        "bounds": {
+          "x": 275,
+          "y": 377.4375,
+          "width": 1132,
+          "height": 336
+        },
+        "title": "담당 변경"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -28,14 +144,52 @@
     "role": "admin",
     "route": "student-accounts",
     "heading": "학생 계정 발급",
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
-    "id": "admin-courses",
-    "role": "admin",
-    "route": "courses",
-    "heading": "과정 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".student-account-form",
+        "bounds": {
+          "x": 275,
+          "y": 356.65625,
+          "width": 1132,
+          "height": 287
+        },
+        "title": "과정과 조 확인"
+      },
+      {
+        "step": 2,
+        "selector": ".student-account-form",
+        "bounds": {
+          "x": 275,
+          "y": 356.65625,
+          "width": 1132,
+          "height": 287
+        },
+        "title": "개별 또는 명단 등록"
+      },
+      {
+        "step": 3,
+        "selector": ".student-account-form button[type=\"submit\"]",
+        "bounds": {
+          "x": 295,
+          "y": 538.15625,
+          "width": 176.09375,
+          "height": 52.5
+        },
+        "title": "계정 안내"
+      },
+      {
+        "step": 4,
+        "selector": ".student-account-panel table",
+        "bounds": {
+          "x": 275,
+          "y": 729.65625,
+          "width": 1132,
+          "height": 57
+        },
+        "title": "최초 설정·인증 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -44,14 +198,41 @@
     "role": "admin",
     "route": "teams",
     "heading": "팀 관리",
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
-    "id": "admin-attendance",
-    "role": "admin",
-    "route": "attendance",
-    "heading": "출결 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".team-controls",
+        "bounds": {
+          "x": 275,
+          "y": 272.46875,
+          "width": 1132,
+          "height": 106.5
+        },
+        "title": "과정별 팀 확인"
+      },
+      {
+        "step": 2,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 365,
+          "width": 520,
+          "height": 376
+        },
+        "title": "팀 정보 관리"
+      },
+      {
+        "step": 3,
+        "selector": ".team-operations table",
+        "bounds": {
+          "x": 275,
+          "y": 384.65625,
+          "width": 1132,
+          "height": 231.5
+        },
+        "title": "배정 결과 점검"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -60,14 +241,41 @@
     "role": "admin",
     "route": "scores",
     "heading": "성적 관리",
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
-    "id": "admin-assignments",
-    "role": "admin",
-    "route": "assignments",
-    "heading": "과제 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".operations-toolbar",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 52.5
+        },
+        "title": "과정과 기록 확인"
+      },
+      {
+        "step": 2,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 277.5,
+          "width": 520,
+          "height": 551
+        },
+        "title": "평가 기록 등록"
+      },
+      {
+        "step": 3,
+        "selector": "main table",
+        "bounds": {
+          "x": 275,
+          "y": 472.46875,
+          "width": 1132,
+          "height": 276.5
+        },
+        "title": "수정과 검토"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -76,6 +284,41 @@
     "role": "admin",
     "route": "submissions",
     "heading": "제출 내역",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sidebar .nav-item.active",
+        "bounds": {
+          "x": 12,
+          "y": 489.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "제출 내역 열기"
+      },
+      {
+        "step": 2,
+        "selector": "main table",
+        "bounds": {
+          "x": 275,
+          "y": 296.46875,
+          "width": 1132,
+          "height": 132
+        },
+        "title": "과제와 제출자 대조"
+      },
+      {
+        "step": 3,
+        "selector": "main table tbody tr",
+        "bounds": {
+          "x": 275,
+          "y": 340.96875,
+          "width": 1132,
+          "height": 87.5
+        },
+        "title": "내용과 제출물 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -84,6 +327,52 @@
     "role": "admin",
     "route": "mentoring",
     "heading": "멘토링 일정",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentoring-toolbar",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 116
+        },
+        "title": "일정 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"승인\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 475.328125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "예약 승인·취소"
+      },
+      {
+        "step": 3,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"완료\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 629.828125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "진행 후 완료 처리"
+      },
+      {
+        "step": 4,
+        "selector": ".mentoring-report",
+        "bounds": {
+          "x": 397,
+          "y": 401.578125,
+          "width": 990,
+          "height": 196.390625
+        },
+        "title": "멘토링 기록 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -92,14 +381,41 @@
     "role": "admin",
     "route": "videos",
     "heading": "강의 영상",
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
-    "id": "admin-notices",
-    "role": "admin",
-    "route": "notices",
-    "heading": "공지 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sidebar .nav-item.active",
+        "bounds": {
+          "x": 12,
+          "y": 474.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "과정 선택"
+      },
+      {
+        "step": 2,
+        "selector": ".video-actions button:has-text(\"업로드\")",
+        "bounds": {
+          "x": 1263.703125,
+          "y": 222.578125,
+          "width": 120.296875,
+          "height": 56
+        },
+        "title": "영상 업로드"
+      },
+      {
+        "step": 3,
+        "selector": ".video-catalogue-body",
+        "bounds": {
+          "x": 275,
+          "y": 272.46875,
+          "width": 1132,
+          "height": 265.390625
+        },
+        "title": "변환 후 게시"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -108,6 +424,41 @@
     "role": "admin",
     "route": "onboarding",
     "heading": "온보딩 · 팀 연동",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".onboarding-grid .form-row",
+        "bounds": {
+          "x": 303,
+          "y": 452.578125,
+          "width": 555.078125,
+          "height": 99.5
+        },
+        "title": "서버와 조 연결 확인"
+      },
+      {
+        "step": 2,
+        "selector": ".onboarding-courses",
+        "bounds": {
+          "x": 303,
+          "y": 717.578125,
+          "width": 555.078125,
+          "height": 102
+        },
+        "title": "적용 상태 확인"
+      },
+      {
+        "step": 3,
+        "selector": ".onboarding-grid aside",
+        "bounds": {
+          "x": 895.078125,
+          "y": 260.078125,
+          "width": 512.921875,
+          "height": 629
+        },
+        "title": "누락 대응"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -116,6 +467,41 @@
     "role": "admin",
     "route": "connection",
     "heading": "봇 연결 현황",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".shared-bot-status",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 300.390625
+        },
+        "title": "연결 현황 열기"
+      },
+      {
+        "step": 2,
+        "selector": ".remote-status",
+        "bounds": {
+          "x": 299,
+          "y": 564.96875,
+          "width": 1084,
+          "height": 54
+        },
+        "title": "동기화 상태 확인"
+      },
+      {
+        "step": 3,
+        "selector": "main button:has-text(\"새로고침\")",
+        "bounds": {
+          "x": 1301.515625,
+          "y": 473.96875,
+          "width": 106.484375,
+          "height": 52.5
+        },
+        "title": "연결 오류 전달"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -124,6 +510,41 @@
     "role": "admin",
     "route": "bot-data",
     "heading": "봇 데이터 · 운영",
+    "steps": [
+      {
+        "step": 1,
+        "selector": "main .panel:has(.card-heading :text-is(\"데이터 이관\"))",
+        "bounds": {
+          "x": 274,
+          "y": 260.078125,
+          "width": 1134,
+          "height": 195.09375
+        },
+        "title": "대상 확인"
+      },
+      {
+        "step": 2,
+        "selector": ".bot-data-grid form",
+        "bounds": {
+          "x": 303,
+          "y": 199.671875,
+          "width": 505,
+          "height": 600
+        },
+        "title": "운영 데이터 검토"
+      },
+      {
+        "step": 3,
+        "selector": ".bot-data-grid .panel:has(h2:text-is(\"채널 · 역할 설정\"))",
+        "bounds": {
+          "x": 845,
+          "y": 406.171875,
+          "width": 563,
+          "height": 187.59375
+        },
+        "title": "복구 전 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -132,6 +553,41 @@
     "role": "admin",
     "route": "bots",
     "heading": "봇 · 서버 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".server-card",
+        "bounds": {
+          "x": 274,
+          "y": 295.96875,
+          "width": 372.65625,
+          "height": 333.5
+        },
+        "title": "서버 목록 확인"
+      },
+      {
+        "step": 2,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 322.75,
+          "width": 520,
+          "height": 460.5
+        },
+        "title": "서버 정보 등록"
+      },
+      {
+        "step": 3,
+        "selector": "main .inline-note",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 88.390625
+        },
+        "title": "연동 범위 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -140,6 +596,41 @@
     "role": "admin",
     "route": "logs",
     "heading": "활동 로그",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".log-console",
+        "bounds": {
+          "x": 299,
+          "y": 296.46875,
+          "width": 1084,
+          "height": 282
+        },
+        "title": "활동 로그 열기"
+      },
+      {
+        "step": 2,
+        "selector": ".log-console > div",
+        "bounds": {
+          "x": 304,
+          "y": 311.46875,
+          "width": 1074,
+          "height": 55.796875
+        },
+        "title": "변경 내용 확인"
+      },
+      {
+        "step": 3,
+        "selector": ".sidebar .nav-item:has-text(\"학습 과정\")",
+        "bounds": {
+          "x": 12,
+          "y": 340.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "업무 화면에서 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -148,6 +639,41 @@
     "role": "admin",
     "route": "settings",
     "heading": "워크스페이스 설정",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".settings-form label",
+        "bounds": {
+          "x": 299,
+          "y": 297.46875,
+          "width": 602.484375,
+          "height": 79.5
+        },
+        "title": "운영 공간 확인"
+      },
+      {
+        "step": 2,
+        "selector": ".settings-form button[type=\"submit\"]",
+        "bounds": {
+          "x": 299,
+          "y": 472.46875,
+          "width": 133.09375,
+          "height": 52.5
+        },
+        "title": "설정 검토"
+      },
+      {
+        "step": 3,
+        "selector": ".settings-info",
+        "bounds": {
+          "x": 938.484375,
+          "y": 199.578125,
+          "width": 469.5,
+          "height": 324.96875
+        },
+        "title": "변경 결과 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -156,14 +682,41 @@
     "role": "admin",
     "route": "files",
     "heading": "통합 파일함",
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
-    "id": "admin-discord-identities",
-    "role": "admin",
-    "route": "discord-identities",
-    "heading": "Discord 인증 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": "main .panel",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 481.890625
+        },
+        "title": "연결 상태 확인"
+      },
+      {
+        "step": 2,
+        "selector": "main .panel",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 481.890625
+        },
+        "title": "미연결 상태 이해"
+      },
+      {
+        "step": 3,
+        "selector": ".sidebar .nav-item:has-text(\"도움말\")",
+        "bounds": {
+          "x": 12,
+          "y": 748,
+          "width": 217,
+          "height": 51
+        },
+        "title": "가이드 PDF 관리"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -172,14 +725,41 @@
     "role": "main",
     "route": "courses",
     "heading": "멘토 활동 관리",
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
-    "id": "main-attendance",
-    "role": "main",
-    "route": "attendance",
-    "heading": "출결 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sidebar .nav-item.active",
+        "bounds": {
+          "x": 12,
+          "y": 211.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "수업 현황 열기"
+      },
+      {
+        "step": 2,
+        "selector": ".student-course",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 206
+        },
+        "title": "담당 과정 확인"
+      },
+      {
+        "step": 3,
+        "selector": "main table",
+        "bounds": {
+          "x": 275,
+          "y": 483.078125,
+          "width": 1132,
+          "height": 171
+        },
+        "title": "과제 진행 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -188,6 +768,52 @@
     "role": "main",
     "route": "mentoring",
     "heading": "멘토링 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentoring-toolbar",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 116
+        },
+        "title": "예약 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"승인\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 475.328125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "승인·취소 처리"
+      },
+      {
+        "step": 3,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"완료\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 629.828125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "진행 후 완료 처리"
+      },
+      {
+        "step": 4,
+        "selector": ".mentoring-report",
+        "bounds": {
+          "x": 397,
+          "y": 401.578125,
+          "width": 990,
+          "height": 196.390625
+        },
+        "title": "멘토링 기록 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -196,6 +822,41 @@
     "role": "main",
     "route": "teams",
     "heading": "팀 배정",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".team-controls",
+        "bounds": {
+          "x": 275,
+          "y": 272.46875,
+          "width": 1132,
+          "height": 106.5
+        },
+        "title": "팀 배정 열기"
+      },
+      {
+        "step": 2,
+        "selector": ".team-operations table tbody tr",
+        "bounds": {
+          "x": 275,
+          "y": 490.15625,
+          "width": 1132,
+          "height": 70.5
+        },
+        "title": "변경할 수강생 선택"
+      },
+      {
+        "step": 3,
+        "selector": ".team-controls button:has-text(\"미리보기\")",
+        "bounds": {
+          "x": 697,
+          "y": 310.46875,
+          "width": 107.40625,
+          "height": 52.5
+        },
+        "title": "변경 결과 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -204,6 +865,41 @@
     "role": "main",
     "route": "scores",
     "heading": "성적 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".operations-toolbar",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 52.5
+        },
+        "title": "성적 관리 열기"
+      },
+      {
+        "step": 2,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 277.5,
+          "width": 520,
+          "height": 551
+        },
+        "title": "평가 기록 입력"
+      },
+      {
+        "step": 3,
+        "selector": "main table",
+        "bounds": {
+          "x": 275,
+          "y": 512.46875,
+          "width": 1132,
+          "height": 276.5
+        },
+        "title": "저장 결과 검토"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -212,6 +908,41 @@
     "role": "main",
     "route": "videos",
     "heading": "강의 영상",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sidebar .nav-item.active",
+        "bounds": {
+          "x": 12,
+          "y": 297.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "과정 선택"
+      },
+      {
+        "step": 2,
+        "selector": ".video-actions button:has-text(\"업로드\")",
+        "bounds": {
+          "x": 1263.703125,
+          "y": 222.578125,
+          "width": 120.296875,
+          "height": 56
+        },
+        "title": "영상 등록"
+      },
+      {
+        "step": 3,
+        "selector": ".video-catalogue-body",
+        "bounds": {
+          "x": 275,
+          "y": 272.46875,
+          "width": 1132,
+          "height": 265.390625
+        },
+        "title": "처리 상태 확인 후 게시"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -220,6 +951,52 @@
     "role": "main",
     "route": "onboarding",
     "heading": "멘토 활동 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentor-context",
+        "bounds": {
+          "x": 1116,
+          "y": 308.265625,
+          "width": 292,
+          "height": 526.78125
+        },
+        "title": "초대와 첫 로그인"
+      },
+      {
+        "step": 2,
+        "selector": ".mentor-profile-form",
+        "bounds": {
+          "x": 310,
+          "y": 465.953125,
+          "width": 752,
+          "height": 340.375
+        },
+        "title": "기본 정보 저장"
+      },
+      {
+        "step": 3,
+        "selector": ".mentor-server",
+        "bounds": {
+          "x": 1116,
+          "y": 611.15625,
+          "width": 292,
+          "height": 237.890625
+        },
+        "title": "서버 참여와 인증"
+      },
+      {
+        "step": 4,
+        "selector": ".mentor-guide-list",
+        "bounds": {
+          "x": 310,
+          "y": 467.953125,
+          "width": 752,
+          "height": 210
+        },
+        "title": "업무 안내 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -228,14 +1005,41 @@
     "role": "group",
     "route": "courses",
     "heading": "멘토 활동 관리",
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
-    "id": "group-attendance",
-    "role": "group",
-    "route": "attendance",
-    "heading": "출결 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sidebar .nav-item.active",
+        "bounds": {
+          "x": 12,
+          "y": 211.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "수업 현황 열기"
+      },
+      {
+        "step": 2,
+        "selector": ".student-course",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 206
+        },
+        "title": "담당 과정 확인"
+      },
+      {
+        "step": 3,
+        "selector": "main table",
+        "bounds": {
+          "x": 275,
+          "y": 483.078125,
+          "width": 1132,
+          "height": 171
+        },
+        "title": "과제 진행 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -244,6 +1048,52 @@
     "role": "group",
     "route": "mentoring",
     "heading": "멘토링 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentoring-toolbar",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 116
+        },
+        "title": "예약 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"승인\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 475.328125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "승인·취소 처리"
+      },
+      {
+        "step": 3,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"완료\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 629.828125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "진행 후 완료 처리"
+      },
+      {
+        "step": 4,
+        "selector": ".mentoring-report",
+        "bounds": {
+          "x": 397,
+          "y": 401.578125,
+          "width": 990,
+          "height": 196.390625
+        },
+        "title": "멘토링 기록 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -252,6 +1102,41 @@
     "role": "group",
     "route": "teams",
     "heading": "팀 배정",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".team-controls",
+        "bounds": {
+          "x": 275,
+          "y": 272.46875,
+          "width": 1132,
+          "height": 106.5
+        },
+        "title": "팀 배정 열기"
+      },
+      {
+        "step": 2,
+        "selector": ".team-operations table tbody tr",
+        "bounds": {
+          "x": 275,
+          "y": 490.15625,
+          "width": 1132,
+          "height": 70.5
+        },
+        "title": "변경할 수강생 선택"
+      },
+      {
+        "step": 3,
+        "selector": ".team-controls button:has-text(\"미리보기\")",
+        "bounds": {
+          "x": 697,
+          "y": 310.46875,
+          "width": 107.40625,
+          "height": 52.5
+        },
+        "title": "변경 결과 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -260,6 +1145,41 @@
     "role": "group",
     "route": "scores",
     "heading": "성적 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".operations-toolbar",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 52.5
+        },
+        "title": "성적 관리 열기"
+      },
+      {
+        "step": 2,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 277.5,
+          "width": 520,
+          "height": 551
+        },
+        "title": "평가 기록 입력"
+      },
+      {
+        "step": 3,
+        "selector": "main table",
+        "bounds": {
+          "x": 275,
+          "y": 512.46875,
+          "width": 1132,
+          "height": 203
+        },
+        "title": "저장 결과 검토"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -268,6 +1188,41 @@
     "role": "group",
     "route": "videos",
     "heading": "강의 영상",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sidebar .nav-item.active",
+        "bounds": {
+          "x": 12,
+          "y": 297.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "과정 선택"
+      },
+      {
+        "step": 2,
+        "selector": ".video-actions button:has-text(\"업로드\")",
+        "bounds": {
+          "x": 1263.703125,
+          "y": 222.578125,
+          "width": 120.296875,
+          "height": 56
+        },
+        "title": "영상 등록"
+      },
+      {
+        "step": 3,
+        "selector": ".video-catalogue-body",
+        "bounds": {
+          "x": 275,
+          "y": 272.46875,
+          "width": 1132,
+          "height": 265.390625
+        },
+        "title": "처리 상태 확인 후 게시"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -276,6 +1231,52 @@
     "role": "group",
     "route": "onboarding",
     "heading": "멘토 활동 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentor-context",
+        "bounds": {
+          "x": 1116,
+          "y": 308.265625,
+          "width": 292,
+          "height": 526.78125
+        },
+        "title": "초대와 첫 로그인"
+      },
+      {
+        "step": 2,
+        "selector": ".mentor-profile-form",
+        "bounds": {
+          "x": 310,
+          "y": 465.953125,
+          "width": 752,
+          "height": 340.375
+        },
+        "title": "기본 정보 저장"
+      },
+      {
+        "step": 3,
+        "selector": ".mentor-server",
+        "bounds": {
+          "x": 1116,
+          "y": 502.15625,
+          "width": 292,
+          "height": 237.890625
+        },
+        "title": "서버 참여와 인증"
+      },
+      {
+        "step": 4,
+        "selector": ".mentor-guide-list",
+        "bounds": {
+          "x": 310,
+          "y": 467.953125,
+          "width": 752,
+          "height": 210
+        },
+        "title": "업무 안내 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -284,6 +1285,41 @@
     "role": "student",
     "route": "learning",
     "heading": "나의 학습",
+    "steps": [
+      {
+        "step": 1,
+        "selector": "[aria-label=\"워크스페이스 선택\"]",
+        "bounds": {
+          "x": 12,
+          "y": 96,
+          "width": 217,
+          "height": 75
+        },
+        "title": "워크스페이스 선택"
+      },
+      {
+        "step": 2,
+        "selector": ".student-course",
+        "bounds": {
+          "x": 274,
+          "y": 278.578125,
+          "width": 1134,
+          "height": 206
+        },
+        "title": "과정 확인"
+      },
+      {
+        "step": 3,
+        "selector": ".role-shortcuts",
+        "bounds": {
+          "x": 274,
+          "y": 492.578125,
+          "width": 1134,
+          "height": 154
+        },
+        "title": "학습 메뉴 이동"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -292,6 +1328,52 @@
     "role": "student",
     "route": "participation",
     "heading": "워크스페이스 참여",
+    "steps": [
+      {
+        "step": 1,
+        "selector": "[aria-label=\"워크스페이스 선택\"]",
+        "bounds": {
+          "x": 12,
+          "y": 96,
+          "width": 217,
+          "height": 75
+        },
+        "title": "첫 로그인"
+      },
+      {
+        "step": 2,
+        "selector": ".admissions-status",
+        "bounds": {
+          "x": 274,
+          "y": 227.578125,
+          "width": 1134,
+          "height": 72.5
+        },
+        "title": "서버 참여"
+      },
+      {
+        "step": 3,
+        "selector": ".admissions-status",
+        "bounds": {
+          "x": 274,
+          "y": 227.578125,
+          "width": 1134,
+          "height": 72.5
+        },
+        "title": "LMS 인증"
+      },
+      {
+        "step": 4,
+        "selector": ".admissions-status",
+        "bounds": {
+          "x": 274,
+          "y": 227.578125,
+          "width": 1134,
+          "height": 72.5
+        },
+        "title": "자기소개 완료"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -300,6 +1382,52 @@
     "role": "student",
     "route": "attendance",
     "heading": "나의 출결",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".student-attendance-date",
+        "bounds": {
+          "x": 299,
+          "y": 441.5625,
+          "width": 1084,
+          "height": 33
+        },
+        "title": "나의 출결 열기"
+      },
+      {
+        "step": 2,
+        "selector": ".student-attendance-code-form",
+        "bounds": {
+          "x": 299,
+          "y": 290.46875,
+          "width": 1084,
+          "height": 163.09375
+        },
+        "title": "시작 코드 입력"
+      },
+      {
+        "step": 3,
+        "selector": ".student-attendance-code-form",
+        "bounds": {
+          "x": 299,
+          "y": 290.46875,
+          "width": 1084,
+          "height": 163.09375
+        },
+        "title": "종료 코드 입력"
+      },
+      {
+        "step": 4,
+        "selector": ".student-attendance-help",
+        "bounds": {
+          "x": 299,
+          "y": 640.0625,
+          "width": 1084,
+          "height": 33.59375
+        },
+        "title": "누락 문의"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -308,6 +1436,52 @@
     "role": "student",
     "route": "assignments",
     "heading": "과제",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sa-filters",
+        "bounds": {
+          "x": 275,
+          "y": 332.46875,
+          "width": 1132,
+          "height": 71
+        },
+        "title": "과제 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".sa-instructions",
+        "bounds": {
+          "x": 299,
+          "y": 649.46875,
+          "width": 670.21875,
+          "height": 190.6875
+        },
+        "title": "제출 방식 확인"
+      },
+      {
+        "step": 3,
+        "selector": ".sa-submit",
+        "bounds": {
+          "x": 989.21875,
+          "y": 649.46875,
+          "width": 393.78125,
+          "height": 190.6875
+        },
+        "title": "제출하기"
+      },
+      {
+        "step": 4,
+        "selector": ".sa-filters button:has-text(\"제출 완료\")",
+        "bounds": {
+          "x": 408.390625,
+          "y": 332.46875,
+          "width": 79,
+          "height": 70
+        },
+        "title": "완료 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -316,6 +1490,41 @@
     "role": "student",
     "route": "scores",
     "heading": "나의 성적",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sidebar .nav-item.active",
+        "bounds": {
+          "x": 12,
+          "y": 297.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "나의 성적 열기"
+      },
+      {
+        "step": 2,
+        "selector": "main table",
+        "bounds": {
+          "x": 275,
+          "y": 296.46875,
+          "width": 1132,
+          "height": 113.5
+        },
+        "title": "평가항목 확인"
+      },
+      {
+        "step": 3,
+        "selector": "main .panel .card-heading",
+        "bounds": {
+          "x": 275,
+          "y": 200.578125,
+          "width": 1132,
+          "height": 83.890625
+        },
+        "title": "정정 요청"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   },
@@ -324,6 +1533,1180 @@
     "role": "student",
     "route": "videos",
     "heading": "강의 영상",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sidebar .nav-item.active",
+        "bounds": {
+          "x": 12,
+          "y": 383.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "강의 영상 열기"
+      },
+      {
+        "step": 2,
+        "selector": ".video-empty",
+        "bounds": {
+          "x": 303,
+          "y": 294.46875,
+          "width": 1076,
+          "height": 195.890625
+        },
+        "title": "영상 선택"
+      },
+      {
+        "step": 3,
+        "selector": ".video-empty p",
+        "bounds": {
+          "x": 324,
+          "y": 411.96875,
+          "width": 1034,
+          "height": 35.390625
+        },
+        "title": "재생 문제 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-courses",
+    "role": "admin",
+    "route": "courses",
+    "heading": "과정 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".courses-grid",
+        "bounds": {
+          "x": 274,
+          "y": 267.078125,
+          "width": 1134,
+          "height": 341.296875
+        },
+        "title": "과정 선택 또는 생성"
+      },
+      {
+        "step": 2,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 160.25,
+          "width": 520,
+          "height": 769.75
+        },
+        "title": "기본 정보 입력"
+      },
+      {
+        "step": 3,
+        "selector": ".course-schedule-form",
+        "bounds": {
+          "x": 333,
+          "y": 273.90625,
+          "width": 774,
+          "height": 640.1875
+        },
+        "title": "일정 등록"
+      },
+      {
+        "step": 4,
+        "selector": ".course-summary",
+        "bounds": {
+          "x": 333,
+          "y": 415.34375,
+          "width": 774,
+          "height": 97
+        },
+        "title": "등록 결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-attendance",
+    "role": "admin",
+    "route": "attendance",
+    "heading": "출결 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".attendance-context",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 112
+        },
+        "title": "회차와 시간 선택"
+      },
+      {
+        "step": 2,
+        "selector": ".attendance-code",
+        "bounds": {
+          "x": 1108,
+          "y": 157.578125,
+          "width": 300,
+          "height": 684.515625
+        },
+        "title": "시작·종료 코드 생성"
+      },
+      {
+        "step": 3,
+        "selector": ".attendance-code-controls",
+        "bounds": {
+          "x": 1127,
+          "y": 396.03125,
+          "width": 262,
+          "height": 208
+        },
+        "title": "필요 시 강의 재시작"
+      },
+      {
+        "step": 4,
+        "selector": ".attendance-finalize",
+        "bounds": {
+          "x": 1127,
+          "y": 608.0625,
+          "width": 262,
+          "height": 121.78125
+        },
+        "title": "누락 정정과 출결 확정"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-assignments",
+    "role": "admin",
+    "route": "assignments",
+    "heading": "과제 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 270.5,
+          "width": 520,
+          "height": 565
+        },
+        "title": "과제 만들기"
+      },
+      {
+        "step": 2,
+        "selector": ".publication-preview",
+        "bounds": {
+          "x": 299,
+          "y": 533.953125,
+          "width": 1084,
+          "height": 154.96875
+        },
+        "title": "제출 대상 확인"
+      },
+      {
+        "step": 3,
+        "selector": "main button:has-text(\"과제 배포\")",
+        "bounds": {
+          "x": 316,
+          "y": 617.234375,
+          "width": 87.171875,
+          "height": 54.6875
+        },
+        "title": "과제 배포"
+      },
+      {
+        "step": 4,
+        "selector": ".assignment-delivery-history",
+        "bounds": {
+          "x": 299,
+          "y": 692.921875,
+          "width": 1084,
+          "height": 58.09375
+        },
+        "title": "제출과 마감 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-notices",
+    "role": "admin",
+    "route": "notices",
+    "heading": "공지 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 301.25,
+          "width": 520,
+          "height": 503.5
+        },
+        "title": "공지 초안 작성"
+      },
+      {
+        "step": 2,
+        "selector": "dialog",
+        "bounds": {
+          "x": 459,
+          "y": 371,
+          "width": 522,
+          "height": 258
+        },
+        "title": "발송 전 검토"
+      },
+      {
+        "step": 3,
+        "selector": "main .panel:has(.card-heading :text-is(\"Discord 공지 발송\"))",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 350.578125
+        },
+        "title": "결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-attendance",
+    "role": "main",
+    "route": "attendance",
+    "heading": "출결 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".attendance-context",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 112
+        },
+        "title": "회차 선택"
+      },
+      {
+        "step": 2,
+        "selector": ".attendance-code",
+        "bounds": {
+          "x": 1108,
+          "y": 157.578125,
+          "width": 300,
+          "height": 684.515625
+        },
+        "title": "강의 시작·종료 코드 생성"
+      },
+      {
+        "step": 3,
+        "selector": ".attendance-status-buttons",
+        "bounds": {
+          "x": 639.21875,
+          "y": 473.921875,
+          "width": 204,
+          "height": 52
+        },
+        "title": "출결 저장·정정"
+      },
+      {
+        "step": 4,
+        "selector": ".attendance-finalize",
+        "bounds": {
+          "x": 1127,
+          "y": 628.0625,
+          "width": 262,
+          "height": 101.390625
+        },
+        "title": "누락 확인 후 출결 확정"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-attendance",
+    "role": "group",
+    "route": "attendance",
+    "heading": "출결 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".attendance-context",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 112
+        },
+        "title": "회차 선택"
+      },
+      {
+        "step": 2,
+        "selector": ".attendance-code",
+        "bounds": {
+          "x": 1108,
+          "y": 269.578125,
+          "width": 300,
+          "height": 461.015625
+        },
+        "title": "담당 조 시작 코드 발급"
+      },
+      {
+        "step": 3,
+        "selector": ".attendance-status-buttons",
+        "bounds": {
+          "x": 639.21875,
+          "y": 605.921875,
+          "width": 204,
+          "height": 52
+        },
+        "title": "출결 저장·정정"
+      },
+      {
+        "step": 4,
+        "selector": ".attendance-savebar",
+        "bounds": {
+          "x": 1108,
+          "y": 391.46875,
+          "width": 300,
+          "height": 335.09375
+        },
+        "title": "담당 범위와 저장 결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-discord-panels",
+    "role": "admin",
+    "route": "discord",
+    "heading": "Discord 채널 설정",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".membership-invite .modal-form",
+        "bounds": {
+          "x": 275,
+          "y": 417.96875,
+          "width": 1132,
+          "height": 164
+        },
+        "title": "운영할 서버와 조 구성 확인"
+      },
+      {
+        "step": 2,
+        "selector": ".quick-stage-content",
+        "bounds": {
+          "x": 274,
+          "y": 412.078125,
+          "width": 1134,
+          "height": 305.296875
+        },
+        "title": "봇 초대와 구축 결과 확인"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "기능별 패널 확인"
+      },
+      {
+        "step": 4,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "멘토 시간 설정 위치 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-discord-assignments",
+    "role": "admin",
+    "route": "assignments",
+    "heading": "과제 관리",
+    "steps": [
+      {
+        "step": 1,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "과제 대시보드에서 만들기"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "과정과 제출 항목 입력"
+      },
+      {
+        "step": 3,
+        "selector": "main button:has-text(\"과제 배포\")",
+        "bounds": {
+          "x": 316,
+          "y": 617.234375,
+          "width": 87.171875,
+          "height": 54.6875
+        },
+        "title": "LMS에서 제출 대상과 알림 확인"
+      },
+      {
+        "step": 4,
+        "selector": ".assignment-delivery-history",
+        "bounds": {
+          "x": 299,
+          "y": 692.921875,
+          "width": 1084,
+          "height": 58.09375
+        },
+        "title": "제출 결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-discord-notices",
+    "role": "admin",
+    "route": "notices",
+    "heading": "공지 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 301.25,
+          "width": 520,
+          "height": 503.5
+        },
+        "title": "공지 초안 저장"
+      },
+      {
+        "step": 2,
+        "selector": "dialog",
+        "bounds": {
+          "x": 459,
+          "y": 371,
+          "width": 522,
+          "height": 258
+        },
+        "title": "발송 미리보기와 요청"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "공지 채널에서 게시 확인"
+      },
+      {
+        "step": 4,
+        "selector": "main .panel:has(.card-heading :text-is(\"Discord 공지 발송\"))",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 350.578125
+        },
+        "title": "발송 결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-discord-mentoring",
+    "role": "admin",
+    "route": "mentoring",
+    "heading": "멘토링 일정",
+    "steps": [
+      {
+        "step": 1,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "예약 신청과 승인 흐름 안내"
+      },
+      {
+        "step": 2,
+        "selector": ".mentoring-toolbar",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 116
+        },
+        "title": "LMS에서 예약 상태 확인"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "종료 후 기록 작성 안내"
+      },
+      {
+        "step": 4,
+        "selector": ".mentoring-report",
+        "bounds": {
+          "x": 397,
+          "y": 401.578125,
+          "width": 990,
+          "height": 196.390625
+        },
+        "title": "멘토·멘티 기록과 DM 상태 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-discord-auth",
+    "role": "main",
+    "route": "onboarding",
+    "heading": "멘토 활동 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentor-server",
+        "bounds": {
+          "x": 1116,
+          "y": 611.15625,
+          "width": 292,
+          "height": 237.890625
+        },
+        "title": "LMS에서 참여할 서버 확인"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "시작하기 → LMS 인증"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "멘토 인증 완료 안내 확인"
+      },
+      {
+        "step": 4,
+        "selector": ".mentor-server",
+        "bounds": {
+          "x": 1116,
+          "y": 611.15625,
+          "width": 292,
+          "height": 237.890625
+        },
+        "title": "LMS에서 연결 결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-discord-attendance",
+    "role": "main",
+    "route": "attendance",
+    "heading": "출결 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".attendance-code",
+        "bounds": {
+          "x": 1108,
+          "y": 157.578125,
+          "width": 300,
+          "height": 684.515625
+        },
+        "title": "회차 선택과 시작 코드 발급"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "학생에게 입실 방법 안내"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "종료 코드로 퇴실 안내"
+      },
+      {
+        "step": 4,
+        "selector": ".attendance-finalize",
+        "bounds": {
+          "x": 1127,
+          "y": 628.0625,
+          "width": 262,
+          "height": 101.390625
+        },
+        "title": "LMS 기록 점검과 확정"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-discord-mentoring",
+    "role": "main",
+    "route": "mentoring",
+    "heading": "멘토링 관리",
+    "steps": [
+      {
+        "step": 1,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "예약 신청과 승인 흐름 안내"
+      },
+      {
+        "step": 2,
+        "selector": ".mentoring-toolbar",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 116
+        },
+        "title": "LMS에서 예약 상태 확인"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "종료 후 기록 작성 안내"
+      },
+      {
+        "step": 4,
+        "selector": ".mentoring-report",
+        "bounds": {
+          "x": 397,
+          "y": 401.578125,
+          "width": 990,
+          "height": 196.390625
+        },
+        "title": "멘토·멘티 기록과 DM 상태 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-discord-auth",
+    "role": "group",
+    "route": "onboarding",
+    "heading": "멘토 활동 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentor-server",
+        "bounds": {
+          "x": 1116,
+          "y": 502.15625,
+          "width": 292,
+          "height": 237.890625
+        },
+        "title": "LMS에서 참여할 서버 확인"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "시작하기 → LMS 인증"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "멘토 인증 완료 안내 확인"
+      },
+      {
+        "step": 4,
+        "selector": ".mentor-server",
+        "bounds": {
+          "x": 1116,
+          "y": 502.15625,
+          "width": 292,
+          "height": 237.890625
+        },
+        "title": "LMS에서 연결 결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-discord-attendance",
+    "role": "group",
+    "route": "attendance",
+    "heading": "출결 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".attendance-context",
+        "bounds": {
+          "x": 274,
+          "y": 199.578125,
+          "width": 1134,
+          "height": 112
+        },
+        "title": "담당 회차와 강의 상태 확인"
+      },
+      {
+        "step": 2,
+        "selector": ".attendance-code",
+        "bounds": {
+          "x": 1108,
+          "y": 269.578125,
+          "width": 300,
+          "height": 461.015625
+        },
+        "title": "담당 조 시작 코드 안내"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "입실·퇴실 패널 사용 안내"
+      },
+      {
+        "step": 4,
+        "selector": ".attendance-savebar",
+        "bounds": {
+          "x": 1108,
+          "y": 391.46875,
+          "width": 300,
+          "height": 335.09375
+        },
+        "title": "누락 확인과 담당 조 정정 저장"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-discord-availability",
+    "role": "group",
+    "route": "onboarding",
+    "heading": "멘토 활동 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentor-server",
+        "bounds": {
+          "x": 1116,
+          "y": 502.15625,
+          "width": 292,
+          "height": 237.890625
+        },
+        "title": "조 담당 멘토 인증 확인"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "과제 대시보드에서 설정 열기"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "시간대 설정"
+      },
+      {
+        "step": 4,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "예약 날짜의 슬롯 생성"
+      },
+      {
+        "step": 5,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "예약 불가일과 결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-discord-booking",
+    "role": "group",
+    "route": "mentoring",
+    "heading": "멘토링 관리",
+    "steps": [
+      {
+        "step": 1,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "본인에게 온 신청 DM 확인"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "승인 또는 반려"
+      },
+      {
+        "step": 3,
+        "selector": ".mentoring-toolbar",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 116
+        },
+        "title": "LMS에서 처리 결과 확인"
+      },
+      {
+        "step": 4,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"완료\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 629.828125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "진행 후 완료 처리"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-discord-report",
+    "role": "group",
+    "route": "mentoring",
+    "heading": "멘토링 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentoring-toolbar",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 116
+        },
+        "title": "예약의 종료 시간 확인"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "본인 DM의 기록 작성 열기"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "주제·피드백·다음 할 일 제출"
+      },
+      {
+        "step": 4,
+        "selector": ".mentoring-report",
+        "bounds": {
+          "x": 397,
+          "y": 401.578125,
+          "width": 990,
+          "height": 196.390625
+        },
+        "title": "LMS에서 저장 결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-discord-auth",
+    "role": "student",
+    "route": "participation",
+    "heading": "워크스페이스 참여",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".admissions-status",
+        "bounds": {
+          "x": 274,
+          "y": 227.578125,
+          "width": 1134,
+          "height": 72.5
+        },
+        "title": "LMS에서 참여할 서버 확인"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "시작하기 → LMS 인증"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "자기소개 작성"
+      },
+      {
+        "step": 4,
+        "selector": ".admissions-status",
+        "bounds": {
+          "x": 274,
+          "y": 227.578125,
+          "width": 1134,
+          "height": 72.5
+        },
+        "title": "LMS에서 연결 결과 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-discord-attendance",
+    "role": "student",
+    "route": "attendance",
+    "heading": "나의 출결",
+    "steps": [
+      {
+        "step": 1,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "시작하기의 입퇴실 패널 열기"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "입실 · 시작 코드 입력"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "퇴실 · 종료 코드 입력"
+      },
+      {
+        "step": 4,
+        "selector": ".student-attendance-date",
+        "bounds": {
+          "x": 299,
+          "y": 441.5625,
+          "width": 1084,
+          "height": 33
+        },
+        "title": "LMS 나의 출결에서 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-discord-booking",
+    "role": "student",
+    "route": "learning",
+    "heading": "나의 학습",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".student-course",
+        "bounds": {
+          "x": 274,
+          "y": 278.578125,
+          "width": 1134,
+          "height": 206
+        },
+        "title": "과정과 담당 조 확인"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "멘토와 날짜·시간 선택"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "신청 확정"
+      },
+      {
+        "step": 4,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "승인 결과와 내 예약 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-discord-report",
+    "role": "student",
+    "route": "learning",
+    "heading": "나의 학습",
+    "steps": [
+      {
+        "step": 1,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "본인에게 온 기록 작성 DM 확인"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "멘토링 내용 작성 열기"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "배운 내용과 다음 할 일 제출"
+      },
+      {
+        "step": 4,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "저장 완료 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-discord-assignments",
+    "role": "student",
+    "route": "assignments",
+    "heading": "과제",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sa-instructions",
+        "bounds": {
+          "x": 299,
+          "y": 649.46875,
+          "width": 670.21875,
+          "height": 190.6875
+        },
+        "title": "LMS에서 과제와 마감 확인"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "과제제출 → 과제 제출하기"
+      },
+      {
+        "step": 3,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "요구 항목과 링크 제출"
+      },
+      {
+        "step": 4,
+        "selector": ".sa-filters button:has-text(\"제출 완료\")",
+        "bounds": {
+          "x": 408.390625,
+          "y": 332.46875,
+          "width": 79,
+          "height": 70
+        },
+        "title": "LMS에서 제출 완료 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-discord-identities",
+    "role": "admin",
+    "route": "discord-identities",
+    "heading": "Discord 인증 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".sidebar .nav-item.active",
+        "bounds": {
+          "x": 12,
+          "y": 474.5,
+          "width": 217,
+          "height": 51
+        },
+        "title": "인증 관리 열기"
+      },
+      {
+        "step": 2,
+        "selector": ".identity-row",
+        "bounds": {
+          "x": 275,
+          "y": 399.078125,
+          "width": 1132,
+          "height": 89.5
+        },
+        "title": "계정과 인증 상태 확인"
+      },
+      {
+        "step": 3,
+        "selector": ".identity-row button",
+        "bounds": {
+          "x": 1225,
+          "y": 421.828125,
+          "width": 162,
+          "height": 56
+        },
+        "title": "필요할 때 연결 해제"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-discord-identity-help",
+    "role": "admin",
+    "route": "discord-identities",
+    "heading": "Discord 인증 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".identity-row",
+        "bounds": {
+          "x": 275,
+          "y": 399.078125,
+          "width": 1132,
+          "height": 89.5
+        },
+        "title": "대상 계정 찾기"
+      },
+      {
+        "step": 2,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "인증한 서버와 계정 확인"
+      },
+      {
+        "step": 3,
+        "selector": ".identity-row button",
+        "bounds": {
+          "x": 1225,
+          "y": 421.828125,
+          "width": 162,
+          "height": 56
+        },
+        "title": "잘못된 연결만 해제"
+      },
+      {
+        "step": 4,
+        "surface": "Discord",
+        "imageAvailable": false,
+        "title": "재인증과 채널 접근 확인"
+      }
+    ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
   }
