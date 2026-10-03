@@ -1,3 +1,4 @@
+import { helpGuidesScenario } from './help-guides-scenario.mjs';
 import { discordIdentitiesScenario } from './discord-identities-scenario.mjs';
 import { mentoringFeedbackScenario } from './mentoring-feedback-scenario.mjs';
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
@@ -30,6 +31,9 @@ import { assignmentCourseScenario } from './assignment-course-scenario.mjs'
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL role-specific help files and PDF replacements remain isolated', async t => {
+  await helpGuidesScenario((await fixture(t)).runtime)
+})
 pgTest('PostgreSQL Discord authentication cleanup and re-verification', async t => {
   const f=await fixture(t)
   const configured=await createRuntime(join(f.dir,'identity.db'),{...f.env,LEARNINGOPS_AUTH_TOKEN:'test-token-123456789012345678901234567890'})

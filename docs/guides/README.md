@@ -8,7 +8,11 @@
 - [전체 9쪽 통합 PDF](output/all-role-guides.pdf)
 - [전체 페이지 미리보기](output/review-contact-sheet.png)
 
-운영 다운로드: [통합본](https://ax-learningops-web.onrender.com/guides/all-role-guides.pdf), [관리자](https://ax-learningops-web.onrender.com/guides/admin-guide.pdf), [멘토](https://ax-learningops-web.onrender.com/guides/mentor-guide.pdf), [학생](https://ax-learningops-web.onrender.com/guides/student-guide.pdf).
+현재 운영 가이드는 LMS 로그인 후 **도움말** 탭에서 확인합니다. 관리자·메인 강사·조 담당 멘토·수강생의 기능별 실제 화면과 PDF를 제공합니다. 본인 역할의 파일만 조회할 수 있으며 기존 공개 `/guides/*.pdf` 주소는 폐기했습니다.
+
+관리자는 도움말 → **PDF 등록·교체**에서 대상 역할과 기능을 선택해 5MB 이하의 PDF를 등록할 수 있습니다. 파일은 워크스페이스 DB에 저장되어 백업·복원 대상에 포함됩니다. 다른 역할의 파일을 등록할 수 있지만 해당 가이드의 본문과 파일을 열람할 수는 없습니다. 기본 화면 안내는 유지되며 기본 PDF로 복원할 수 있습니다.
+
+현재 기능별 가이드는 `lms-web/server/help-catalog.mjs`, 화면·PDF 생성기는 `lms-web/scripts/build-help-guides.mjs`입니다. `lms-web`에서 `npm run build` 후 `npm run guides:build`를 실행합니다. 별도 임시 SQLite DB에 가상 계정·예시 데이터를 만들고 실제 앱에 각 역할로 로그인해 41개 화면을 촬영합니다. 운영 DB·Discord 봇은 사용하지 않습니다. 생성된 `server/help-assets`는 공개 정적 폴더가 아니며 서버가 매 요청마다 워크스페이스와 정확한 역할을 확인합니다. 각 PDF는 실제 화면과 사용 순서로 구성된 A4 가로 2쪽입니다.
 
 관리자·메인 강사는 정확한 예정 시간대를 입력하고 시작·종료 코드를 생성합니다. 학생은 Discord 패널 또는 웹 나의 출결에서 코드를 입력하며, 입퇴실이 곧 출석 기록입니다. 종료 코드 입력 시간이 끝나면 등록이 종료되고, 누락·예외를 검토해 출결을 확정합니다. 코드 재입력은 최초 시각과 멘토 정정을 유지합니다.
 
@@ -25,6 +29,6 @@ node docs/guides/render.mjs
 ```
 
 본문은 build_guides.py, 색상·배치는 guide.css에서 수정합니다. render.mjs는 글꼴 로딩 후 페이지 넘침과 푸터 여백을 검사합니다. verify_guides.py는 페이지 수, A4 크기, 한글 텍스트, 글꼴 포함, 접속 링크를 검사하고 통합본·미리보기를 만듭니다. 결과는 output의 layout-checks.json과 pdf-checks.json에 남습니다.
-검증을 통과한 PDF 4개는 `lms-web/public/guides`에도 복사합니다. 원본 출력과 이 배포 사본을 함께 커밋하면 Render와 GitHub Pages에서 다운로드할 수 있습니다.
+위의 이전 통합 문서는 기록용입니다. 이 생성기는 더 이상 공개 정적 폴더에 문서를 복사하지 않습니다.
 
 검수 근거: lms-web의 STUDENT-ACCOUNTS.md, ATTENDANCE.md, ATTENDANCE-CODES.md, ASSIGNMENT-ALERTS.md, WORKSPACE-SETUP-GUIDE.md 및 관리자·멘토·학생 화면 구현. 실제 학생 정보나 운영 계정 정보는 포함하지 않습니다.

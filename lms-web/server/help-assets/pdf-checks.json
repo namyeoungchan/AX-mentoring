@@ -1,0 +1,289 @@
+[
+  {
+    "id": "admin-dashboard",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 354,
+    "bytes": 152020
+  },
+  {
+    "id": "admin-discord",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 475,
+    "bytes": 138641
+  },
+  {
+    "id": "admin-members",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 509,
+    "bytes": 151857
+  },
+  {
+    "id": "admin-student-accounts",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 464,
+    "bytes": 151334
+  },
+  {
+    "id": "admin-courses",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 441,
+    "bytes": 108166
+  },
+  {
+    "id": "admin-teams",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 369,
+    "bytes": 129949
+  },
+  {
+    "id": "admin-attendance",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 559,
+    "bytes": 181038
+  },
+  {
+    "id": "admin-scores",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 353,
+    "bytes": 114626
+  },
+  {
+    "id": "admin-assignments",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 438,
+    "bytes": 124524
+  },
+  {
+    "id": "admin-submissions",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 360,
+    "bytes": 100176
+  },
+  {
+    "id": "admin-mentoring",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 447,
+    "bytes": 151836
+  },
+  {
+    "id": "admin-videos",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 381,
+    "bytes": 92246
+  },
+  {
+    "id": "admin-notices",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 375,
+    "bytes": 120431
+  },
+  {
+    "id": "admin-onboarding",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 382,
+    "bytes": 157019
+  },
+  {
+    "id": "admin-connection",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 378,
+    "bytes": 131733
+  },
+  {
+    "id": "admin-bot-data",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 370,
+    "bytes": 121248
+  },
+  {
+    "id": "admin-bots",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 354,
+    "bytes": 115536
+  },
+  {
+    "id": "admin-logs",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 349,
+    "bytes": 105002
+  },
+  {
+    "id": "admin-settings",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 337,
+    "bytes": 117106
+  },
+  {
+    "id": "admin-files",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 407,
+    "bytes": 108503
+  },
+  {
+    "id": "admin-discord-identities",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 528,
+    "bytes": 159475
+  },
+  {
+    "id": "main-courses",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 403,
+    "bytes": 106732
+  },
+  {
+    "id": "main-attendance",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 588,
+    "bytes": 175081
+  },
+  {
+    "id": "main-mentoring",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 565,
+    "bytes": 147999
+  },
+  {
+    "id": "main-teams",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 431,
+    "bytes": 115206
+  },
+  {
+    "id": "main-scores",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 361,
+    "bytes": 108665
+  },
+  {
+    "id": "main-videos",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 447,
+    "bytes": 110006
+  },
+  {
+    "id": "main-onboarding",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 492,
+    "bytes": 148725
+  },
+  {
+    "id": "group-courses",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 411,
+    "bytes": 107269
+  },
+  {
+    "id": "group-attendance",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 594,
+    "bytes": 170122
+  },
+  {
+    "id": "group-mentoring",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 621,
+    "bytes": 150143
+  },
+  {
+    "id": "group-teams",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 439,
+    "bytes": 113968
+  },
+  {
+    "id": "group-scores",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 369,
+    "bytes": 104159
+  },
+  {
+    "id": "group-videos",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 455,
+    "bytes": 111340
+  },
+  {
+    "id": "group-onboarding",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 476,
+    "bytes": 147350
+  },
+  {
+    "id": "student-learning",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 361,
+    "bytes": 106338
+  },
+  {
+    "id": "student-participation",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 447,
+    "bytes": 91526
+  },
+  {
+    "id": "student-attendance",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 493,
+    "bytes": 133470
+  },
+  {
+    "id": "student-assignments",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 480,
+    "bytes": 135957
+  },
+  {
+    "id": "student-scores",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 364,
+    "bytes": 92679
+  },
+  {
+    "id": "student-videos",
+    "pages": 2,
+    "embeddedFonts": 2,
+    "textCharacters": 363,
+    "bytes": 98854
+  }
+]

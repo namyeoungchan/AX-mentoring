@@ -84,8 +84,10 @@ for (const role of ['instructor', 'student'] as const) {
     await expect(page.locator('.role-workspace')).toBeVisible()
     await expect(page.getByRole('heading', { name: '백업 · 데이터 관리', exact: true })).toHaveCount(0)
     expect((await request.get(base + '/workspace')).status()).toBe(403)
-    const guide = page.locator('footer a')
-    expect((await request.get((await guide.getAttribute('href'))!)).headers()['content-type']).toContain('application/pdf')
+    await page.locator('footer').getByRole('button', { name: '도움말' }).click()
+    await expect(page.locator('.help-role')).toHaveText(role === 'instructor' ? '메인 강사 전용' : '수강생 전용')
+    const guide = (await (await request.get(base + '/help')).json()).guides[0]
+    expect((await request.get(base + '/help/' + guide.id + '/pdf')).headers()['content-type']).toContain('application/pdf')
     expect(errors).toEqual([])
   })
 }

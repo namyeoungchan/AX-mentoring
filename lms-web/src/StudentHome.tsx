@@ -1,3 +1,4 @@
+import HelpCenter from './HelpCenter'
 import StudentAttendance from './StudentAttendance'
 import StudentAssignments, { type StudentAssignment } from './StudentAssignments'
 import CourseVideos from './CourseVideos'
@@ -15,6 +16,7 @@ const pages: RolePage[] = [
   { id: 'assignments', name: '과제', description: '해야 할 과제부터 확인하고, 제출 결과를 살펴보세요.', icon: BookOpen },
   { id: 'videos', name: '강의 영상', description: '내 과정의 강의 영상을 시청하세요.', icon: BookOpen },
   { id: 'participation', name: '워크스페이스 참여', description: '계정 배정 · Discord 서버 참여와 인증 상태', icon: Users },
+  { id: 'help', name: '도움말', description: '내 권한의 기능별 사용법 · 실제 화면 가이드 · PDF', icon: BookOpen },
 ]
 
 export type Account = { id: string; username: string; name: string; discordId: string; role: 'admin' | 'student'; verified?: boolean; mustCompleteProfile?: boolean; mustChangePassword?: boolean }
@@ -39,6 +41,7 @@ export default function StudentHome({ user, learning, error, refresh, logout, wo
       {learning?.courses.map(course => <section key={course.id} className="panel student-course"><Badge>{course.status}</Badge><h2>{course.title}</h2><p>{course.description}</p><span>{course.startDate} — {course.endDate}</span>{learning.enrollment?.team && <span> · {learning.enrollment.team}</span>}</section>)}
       <div className="role-shortcuts">{pages.slice(1, 4).map(item => <button key={item.id} className="panel role-shortcut" onClick={() => go(item.id)}><item.icon size={23} /><strong>{item.name}</strong><span>{item.id === 'attendance' ? `확정 기록 ${learning?.attendance.length || 0}건` : item.id === 'scores' ? `평가항목 ${learning?.scores.length || 0}개` : `진행 중 ${learning?.assignments.filter(a => a.active).length || 0}개`}</span><ArrowRight size={17} /></button>)}</div>
     </>}
+    {page === 'help' && <HelpCenter key={activeId} workspaceId={activeId} go={go} />}
     {page === 'videos' && <CourseVideos key={activeId} workspaceId={activeId} />}
     {page === 'attendance' && <StudentAttendance key={activeId} workspaceId={activeId} verified={!!activeWorkspace?.discordVerified} attendance={learning?.attendance || []} />}
     {page === 'scores' && <section className="panel"><CardHeading title="성적 기록" subtitle="기록 정정은 과정·평가항목과 함께 담당 멘토에게 요청하세요." /><div className="table-scroll"><table><thead><tr><th>평가항목</th><th>점수</th><th>배점</th></tr></thead><tbody>{learning?.scores.map(row => <tr key={row.id}><td>{row.item}</td><td>{row.score}</td><td>{row.maximum}</td></tr>)}</tbody></table></div>{!learning?.scores.length && <p className="calendar-empty">등록된 성적 기록이 없습니다.</p>}</section>}
