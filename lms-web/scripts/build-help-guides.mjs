@@ -100,7 +100,8 @@ try {
       const steps = await captureGuideSteps(page, guide, { navigate, save: async (number, available = true) => {
         if (!available) { images.push(null); return; }
         const file = join(output, `${guide.id}-step-${number}.jpg`);
-        await page.screenshot({ path: file, type: 'jpeg', quality: 85, animations: 'disabled' });
+        // Real Discord captures are supplied separately; never replace them with an LMS page.
+        if (available !== 'existing') await page.screenshot({ path: file, type: 'jpeg', quality: 85, animations: 'disabled' });
         images.push((await readFile(file)).toString('base64'));
       } });
       if (errors.length) throw new Error(`${guide.id}: ${errors.join(', ')}`);

@@ -60,6 +60,8 @@ function GuideDetail({ workspaceId, guide, roleLabel, go, onDenied }: { workspac
   const image = imageState.path === imagePath ? imageState.url : ''
   const imageError = imageState.path === imagePath ? imageState.error : ''
   const hasImage = step.imageAvailable !== false
+  const surface = step.surface || 'LMS'
+  const pendingScreens = guide.steps.filter(s => s.imageAvailable === false).length
   useEffect(() => {
     live.current = true
     let cancelled = false
@@ -86,12 +88,12 @@ function GuideDetail({ workspaceId, guide, roleLabel, go, onDenied }: { workspac
     <nav className="help-step-tabs" aria-label="사용 순서">{guide.steps.map((s, i) => <button key={s.title} disabled={busy} aria-current={stepIndex === i ? 'step' : undefined} onClick={() => setStepIndex(i)}><span>{i + 1}</span>{s.title}</button>)}</nav>
     <section className="help-current-step" aria-label={`${stepIndex + 1}단계 ${step.title}`}>
       <div className="help-step-heading"><span>STEP {String(stepIndex + 1).padStart(2, '0')} / {String(guide.steps.length).padStart(2, '0')}{step.surface && ` · ${step.surface}에서 진행`}</span><h3>{step.title}</h3></div>
-      {hasImage ? <figure className="help-screen">{image ? <button ref={imageButton} onClick={() => setZoom(true)} aria-label={`${guide.title} ${stepIndex + 1}단계 화면 확대`}><img src={image} alt={`${roleLabel} ${stepIndex + 1}단계: ${step.title}. 실제 LMS 화면에서 조작·확인할 위치를 번호와 테두리로 강조했습니다.`} /><span><ZoomIn size={16} />화면 확대</span></button> : <p role={imageError ? 'alert' : 'status'}>{imageError || '단계 화면 불러오는 중…'}</p>}<figcaption>번호와 테두리로 표시된 위치를 확인하세요 · 실제 LMS 화면 · 예시 데이터</figcaption></figure> : <aside className="help-discord-screen"><strong>Discord에서 진행하는 단계입니다.</strong><p>아래에 안내된 채널과 버튼을 순서대로 사용하세요. 실제 Discord 화면 캡처는 아직 준비되지 않았습니다.</p></aside>}
+      {hasImage ? <figure className="help-screen">{image ? <button ref={imageButton} onClick={() => setZoom(true)} aria-label={`${guide.title} ${stepIndex + 1}단계 화면 확대`}><img src={image} alt={`${roleLabel} ${stepIndex + 1}단계: ${step.title}. 실제 ${surface} 화면에서 조작·확인할 위치를 번호와 테두리로 강조했습니다.`} /><span><ZoomIn size={16} />화면 확대</span></button> : <p role={imageError ? 'alert' : 'status'}>{imageError || '단계 화면 불러오는 중…'}</p>}<figcaption>번호와 테두리로 표시된 위치를 확인하세요 · 실제 {surface} 화면{surface === 'LMS' ? ' · 예시 데이터' : ' · 채널명과 날짜는 서버에 따라 다릅니다'}</figcaption></figure> : <aside className="help-discord-screen"><strong>Discord에서 진행하는 단계입니다.</strong><p>아래에 안내된 채널과 버튼을 순서대로 사용하세요. 실제 Discord 화면 캡처는 아직 준비되지 않았습니다.</p></aside>}
       <div className="help-step-description" aria-live="polite"><span>{stepIndex + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></div>
       <div className="help-step-controls"><button className="button secondary" disabled={busy || stepIndex === 0} onClick={() => setStepIndex(i => i - 1)}><ChevronLeft size={16} />이전 단계</button><span>{stepIndex + 1} / {guide.steps.length}</span><button className="button primary" disabled={busy || stepIndex === guide.steps.length - 1} onClick={() => setStepIndex(i => i + 1)}>다음 단계<ChevronRight size={16} /></button></div>
     </section>
     {guide.note && <aside className="help-note">{guide.note}</aside>}
-    <p className="help-document-info">{guide.document.revision ? `워크스페이스에서 등록한 PDF · ${new Date(guide.document.updatedAt!).toLocaleDateString('ko-KR')}` : guide.category === 'Discord 연계' ? 'PDF에는 Discord 조작 순서와 준비된 LMS 연계 화면을 담았습니다. Discord 화면 캡처는 준비 중입니다.' : '단계별 강조 이미지와 사용 순서를 담은 기본 PDF를 제공합니다.'}</p>
+    <p className="help-document-info">{guide.document.revision ? `워크스페이스에서 등록한 PDF · ${new Date(guide.document.updatedAt!).toLocaleDateString('ko-KR')}` : pendingScreens ? `PDF에는 확보된 실제 화면과 단계별 사용 순서를 담았습니다. 미촬영 ${pendingScreens}단계는 글로 안내합니다.` : '단계별 실제 화면의 강조 이미지와 사용 순서를 담은 기본 PDF를 제공합니다.'}</p>
     {zoom && <ModalShell title={`${guide.title} 화면 확대`} close={closeZoom} className="help-image-modal"><p>확대된 화면을 좌우·위아래로 움직여 확인하세요.</p><div className="help-image-scroll" tabIndex={0} role="region" aria-label="확대 화면 스크롤"><img src={image} alt={`${stepIndex + 1}단계 ${step.title} 강조 화면 확대`} /></div></ModalShell>}
     {pdf && <ModalShell title={`${guide.title} PDF`} close={closePdf} className="help-pdf-modal"><p>PDF가 표시되지 않으면 다운로드해 확인하세요.</p><button className="button secondary" disabled={busy} onClick={() => void openPdf(true)}><Download size={16} />PDF 다운로드</button><iframe src={pdf} title={`${roleLabel} ${guide.title} PDF`} /></ModalShell>}
   </article>

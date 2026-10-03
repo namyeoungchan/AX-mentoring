@@ -24,9 +24,11 @@ for entry in manifest:
         if step.get('imageAvailable') is False:
             assert '실제 화면 캡처 준비 중' in page.get_text(), (path, i)
         else:
-            assert '실제 LMS 화면' in page.get_text(), (path, i)
+            surface = step.get('surface', 'LMS')
+            assert f'실제 {surface} 화면' in page.get_text(), (path, i)
             image = Image.open(assets / f"{entry['id']}-step-{i + 1}.jpg").convert('RGB')
-            assert image.size == (1440, 1000), path
+            size = step.get('size', {'width': 1440, 'height': 1000})
+            assert image.size == (size['width'], size['height']), (path, i)
             # The numbered orange border must actually be present in every screenshot.
             assert sum(count for count, (r, g, b) in image.getcolors(image.width * image.height) if r > 150 and 35 < g < 110 and b < 60 and r > g * 1.7) > 500, (path, i)
         assert abs(page.rect.width - 841.89) < 2 and abs(page.rect.height - 595.28) < 2, path
