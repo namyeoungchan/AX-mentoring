@@ -1915,14 +1915,38 @@
       {
         "step": 3,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "기능별 패널 확인"
+        "imageAvailable": true,
+        "title": "기능별 패널 확인",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 312
+        },
+        "bounds": {
+          "x": 3,
+          "y": 247,
+          "width": 350,
+          "height": 44
+        }
       },
       {
         "step": 4,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "멘토 시간 설정 위치 확인"
+        "imageAvailable": true,
+        "title": "멘토 시간 설정 위치 확인",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 1060,
+          "height": 500
+        },
+        "bounds": {
+          "x": 499,
+          "y": 432,
+          "width": 149,
+          "height": 44
+        }
       }
     ],
     "viewport": "1440×1000",
@@ -1937,8 +1961,20 @@
       {
         "step": 1,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "과제 대시보드에서 만들기"
+        "imageAvailable": true,
+        "title": "과제 대시보드에서 만들기",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 1060,
+          "height": 500
+        },
+        "bounds": {
+          "x": 361,
+          "y": 356,
+          "width": 309,
+          "height": 44
+        }
       },
       {
         "step": 2,
@@ -2030,8 +2066,20 @@
       {
         "step": 1,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "예약 신청과 승인 흐름 안내"
+        "imageAvailable": true,
+        "title": "예약 신청과 승인 흐름 안내",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 426,
+          "height": 312
+        },
+        "bounds": {
+          "x": 3,
+          "y": 57,
+          "width": 408,
+          "height": 198
+        }
       },
       {
         "step": 2,
@@ -2085,8 +2133,20 @@
       {
         "step": 2,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "시작하기 → LMS 인증"
+        "imageAvailable": true,
+        "title": "시작하기 → LMS 인증",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 218
+        },
+        "bounds": {
+          "x": 3,
+          "y": 173,
+          "width": 110,
+          "height": 44
+        }
       },
       {
         "step": 3,
@@ -2129,14 +2189,38 @@
       {
         "step": 2,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "학생에게 입실 방법 안내"
+        "imageAvailable": true,
+        "title": "학생에게 입실 방법 안내",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 312
+        },
+        "bounds": {
+          "x": 3,
+          "y": 247,
+          "width": 132,
+          "height": 44
+        }
       },
       {
         "step": 3,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "종료 코드로 퇴실 안내"
+        "imageAvailable": true,
+        "title": "종료 코드로 퇴실 안내",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 312
+        },
+        "bounds": {
+          "x": 132,
+          "y": 247,
+          "width": 132,
+          "height": 44
+        }
       },
       {
         "step": 4,
@@ -2162,8 +2246,20 @@
       {
         "step": 1,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "예약 신청과 승인 흐름 안내"
+        "imageAvailable": true,
+        "title": "예약 신청과 승인 흐름 안내",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 426,
+          "height": 312
+        },
+        "bounds": {
+          "x": 3,
+          "y": 57,
+          "width": 408,
+          "height": 198
+        }
       },
       {
         "step": 2,
@@ -2217,14 +2313,38 @@
       {
         "step": 2,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "시작하기 → LMS 인증"
+        "imageAvailable": true,
+        "title": "시작하기 → LMS 인증",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 218
+        },
+        "bounds": {
+          "x": 3,
+          "y": 173,
+          "width": 110,
+          "height": 44
+        }
       },
       {
         "step": 3,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "멘토 인증 완료 안내 확인"
+        "imageAvailable": true,
+        "title": "멘토 인증 완료 안내 확인",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 528,
+          "height": 113
+        },
+        "bounds": {
+          "x": 4,
+          "y": 40,
+          "width": 510,
+          "height": 72
+        }
       },
       {
         "step": 4,
@@ -2272,8 +2392,20 @@
       {
         "step": 3,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "입실·퇴실 패널 사용 안내"
+        "imageAvailable": true,
+        "title": "입실·퇴실 패널 사용 안내",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 312
+        },
+        "bounds": {
+          "x": 3,
+          "y": 247,
+          "width": 261,
+          "height": 44
+        }
       },
       {
         "step": 4,
@@ -2310,26 +2442,74 @@
       {
         "step": 2,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "과제 대시보드에서 설정 열기"
+        "imageAvailable": true,
+        "title": "과제 대시보드에서 설정 열기",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 1060,
+          "height": 500
+        },
+        "bounds": {
+          "x": 499,
+          "y": 432,
+          "width": 149,
+          "height": 44
+        }
       },
       {
         "step": 3,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "시간대 설정"
+        "imageAvailable": true,
+        "title": "시간대 설정",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 480,
+          "height": 502
+        },
+        "bounds": {
+          "x": 19,
+          "y": 151,
+          "width": 442,
+          "height": 267
+        }
       },
       {
         "step": 4,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "예약 날짜의 슬롯 생성"
+        "imageAvailable": true,
+        "title": "예약 날짜의 슬롯 생성",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 480,
+          "height": 406
+        },
+        "bounds": {
+          "x": 19,
+          "y": 151,
+          "width": 442,
+          "height": 172
+        }
       },
       {
         "step": 5,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "예약 불가일과 결과 확인"
+        "imageAvailable": true,
+        "title": "예약 불가일과 결과 확인",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 515,
+          "height": 297
+        },
+        "bounds": {
+          "x": 242,
+          "y": 206,
+          "width": 133,
+          "height": 44
+        }
       }
     ],
     "viewport": "1440×1000",
@@ -2443,14 +2623,38 @@
       {
         "step": 2,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "시작하기 → LMS 인증"
+        "imageAvailable": true,
+        "title": "시작하기 → LMS 인증",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 218
+        },
+        "bounds": {
+          "x": 3,
+          "y": 173,
+          "width": 110,
+          "height": 44
+        }
       },
       {
         "step": 3,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "자기소개 작성"
+        "imageAvailable": true,
+        "title": "자기소개 작성",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 218
+        },
+        "bounds": {
+          "x": 115,
+          "y": 173,
+          "width": 140,
+          "height": 44
+        }
       },
       {
         "step": 4,
@@ -2476,20 +2680,56 @@
       {
         "step": 1,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "시작하기의 입퇴실 패널 열기"
+        "imageAvailable": true,
+        "title": "시작하기의 입퇴실 패널 열기",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 312
+        },
+        "bounds": {
+          "x": 10,
+          "y": 23,
+          "width": 524,
+          "height": 230
+        }
       },
       {
         "step": 2,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "입실 · 시작 코드 입력"
+        "imageAvailable": true,
+        "title": "입실 · 시작 코드 입력",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 480,
+          "height": 310
+        },
+        "bounds": {
+          "x": 19,
+          "y": 151,
+          "width": 442,
+          "height": 77
+        }
       },
       {
         "step": 3,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "퇴실 · 종료 코드 입력"
+        "imageAvailable": true,
+        "title": "퇴실 · 종료 코드 입력",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 480,
+          "height": 310
+        },
+        "bounds": {
+          "x": 19,
+          "y": 151,
+          "width": 442,
+          "height": 77
+        }
       },
       {
         "step": 4,
@@ -2526,17 +2766,59 @@
       {
         "step": 2,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "멘토와 날짜·시간 선택"
+        "imageAvailable": true,
+        "title": "멘토와 날짜 선택",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 426,
+          "height": 312
+        },
+        "bounds": {
+          "x": 3,
+          "y": 57,
+          "width": 408,
+          "height": 198
+        }
       },
       {
         "step": 3,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "신청 확정"
+        "imageAvailable": true,
+        "title": "예약 가능한 시간 선택",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 430,
+          "height": 296
+        },
+        "bounds": {
+          "x": 3,
+          "y": 190,
+          "width": 408,
+          "height": 50
+        }
       },
       {
         "step": 4,
+        "surface": "Discord",
+        "imageAvailable": true,
+        "title": "신청 확정",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 348,
+          "height": 239
+        },
+        "bounds": {
+          "x": 3,
+          "y": 173,
+          "width": 134,
+          "height": 44
+        }
+      },
+      {
+        "step": 5,
         "surface": "Discord",
         "imageAvailable": false,
         "title": "승인 결과와 내 예약 확인"
@@ -2599,8 +2881,20 @@
       {
         "step": 2,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "과제제출 → 과제 제출하기"
+        "imageAvailable": true,
+        "title": "과제제출 → 과제 제출하기",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 490,
+          "height": 337
+        },
+        "bounds": {
+          "x": 3,
+          "y": 281,
+          "width": 147,
+          "height": 45
+        }
       },
       {
         "step": 3,
@@ -2686,8 +2980,20 @@
       {
         "step": 2,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "인증한 서버와 계정 확인"
+        "imageAvailable": true,
+        "title": "인증한 서버와 계정 확인",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 218
+        },
+        "bounds": {
+          "x": 3,
+          "y": 173,
+          "width": 110,
+          "height": 44
+        }
       },
       {
         "step": 3,
@@ -2703,8 +3009,20 @@
       {
         "step": 4,
         "surface": "Discord",
-        "imageAvailable": false,
-        "title": "재인증과 채널 접근 확인"
+        "imageAvailable": true,
+        "title": "재인증과 채널 접근 확인",
+        "source": "Discord web client",
+        "capturedAt": "2026-10-03",
+        "size": {
+          "width": 550,
+          "height": 218
+        },
+        "bounds": {
+          "x": 3,
+          "y": 173,
+          "width": 110,
+          "height": 44
+        }
       }
     ],
     "viewport": "1440×1000",

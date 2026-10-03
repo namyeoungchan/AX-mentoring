@@ -18,7 +18,7 @@ const issueCode = phase => async page => {
 
 function plans(guide) {
   const { feature, role } = guide;
-  if (feature.startsWith('discord-') && guide.category === 'Discord 연계') return guide.steps.map(step => step.imageAvailable === false ? null : plans({ ...guide, feature: step.capture.feature, category: '' })[step.capture.index]);
+  if (feature.startsWith('discord-') && guide.category === 'Discord 연계') return guide.steps.map(step => step.imageAvailable === false ? null : step.surface === 'Discord' ? { existing: true } : plans({ ...guide, feature: step.capture.feature, category: '' })[step.capture.index]);
   if (role === 'student') return {
     learning: [plan('[aria-label="워크스페이스 선택"]'), plan('.student-course'), plan('.role-shortcuts')],
     participation: [plan('[aria-label="워크스페이스 선택"]'), plan('.admissions-status'), plan('.admissions-status'), plan('.admissions-status')],
@@ -67,6 +67,11 @@ export async function captureGuideSteps(page, guide, { navigate, save }) {
   const result = [];
   for (const [index, item] of steps.entries()) {
     if (!item) { await save(index + 1, false); result.push({ step: index + 1, surface: 'Discord', imageAvailable: false, title: guide.steps[index].title }); continue; }
+    if (item.existing) {
+      await save(index + 1, 'existing');
+      result.push({ step: index + 1, surface: 'Discord', imageAvailable: true, title: guide.steps[index].title, ...guide.steps[index].screenshot });
+      continue;
+    }
     await navigate();
     try {
       await item.prepare?.(page);

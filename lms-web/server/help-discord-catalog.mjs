@@ -1,10 +1,15 @@
 // Button names and behavior are checked against the bot source; see docs/guides/README.md.
-// Discord client screenshots are unavailable. Never present a rendered example as a capture.
+// Only registered captures from the real Discord client are exposed as screenshots.
+import { DISCORD_CAPTURES } from './help-discord-captures.mjs';
 const discord = (title, body) => ({ title, body, surface: 'Discord', imageAvailable: false });
 const lms = (title, body, feature, index) => ({ title, body, surface: 'LMS', capture: { feature, index } });
 const guide = (role, feature, title, route, steps, note = '') => ({
   id: `${role}-discord-${feature}`, role, feature: `discord-${feature}`, title, category: 'Discord 연계',
-  summary: 'Discord에서 수행할 작업과 LMS에서 확인할 결과를 순서대로 안내합니다.', route, steps, note,
+  summary: 'Discord에서 수행할 작업과 LMS에서 확인할 결과를 순서대로 안내합니다.', route,
+  steps: steps.map((step, i) => {
+    const screenshot = DISCORD_CAPTURES[`${role}-discord-${feature}-step-${i + 1}`];
+    return screenshot ? { ...step, imageAvailable: true, screenshot } : step;
+  }), note,
   capturedAt: '2026-10-03',
 });
 const authentication = role => guide(role, 'auth', 'Discord 서버 참여와 LMS 인증', role === 'student' ? 'participation' : 'onboarding', [
@@ -91,7 +96,8 @@ export const DISCORD_HELP_GUIDES = [
   ]),
   guide('student', 'booking', 'Discord에서 멘토링 신청과 예약 확인', 'learning', [
     lms('과정과 담당 조 확인', '나의 학습에서 과정과 배정된 조를 확인합니다. 같은 워크스페이스의 Discord 서버를 사용합니다.', 'learning', 1),
-    discord('멘토와 날짜·시간 선택', '멘토링예약 채널에서 멘토를 고르고 ‘날짜를 선택하세요’, ‘시간을 선택하세요’ 순서로 예약 가능한 시간을 선택합니다. 시간이 없으면 멘토에게 가능 시간 등록 여부를 문의합니다.'),
+    discord('멘토와 날짜 선택', '멘토링예약 채널에서 멘토를 고른 뒤 ‘날짜를 선택하세요’를 눌러 예약 가능한 날짜를 선택합니다. 날짜가 없으면 멘토에게 예약 슬롯 생성 여부를 문의합니다.'),
+    discord('예약 가능한 시간 선택', '선택한 날짜의 시간 목록을 확인하고 ‘시간을 선택하세요’를 눌러 원하는 시간을 고릅니다. 모든 시간은 한국시간입니다. 선택 창이 만료되었다면 멘토 선택부터 다시 시작합니다.'),
     discord('신청 확정', '멘토·날짜·시간을 다시 확인하고 ‘신청 확정’을 누릅니다. 신청 후에는 멘토의 승인 결과를 기다립니다. 신청 접수만으로 예약이 승인된 것은 아닙니다.'),
     discord('승인 결과와 내 예약 확인', '봇의 안내와 /mybooking으로 본인 예약 상태를 확인합니다. 승인된 시간에 참여하고, 변경·취소가 필요하면 담당 멘토와 먼저 조율합니다.'),
   ]),

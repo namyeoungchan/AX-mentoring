@@ -283,15 +283,15 @@
     "id": "admin-discord-panels",
     "pages": 4,
     "embeddedFonts": 3,
-    "textCharacters": 1144,
-    "bytes": 259899
+    "textCharacters": 1012,
+    "bytes": 337627
   },
   {
     "id": "admin-discord-assignments",
     "pages": 4,
     "embeddedFonts": 3,
-    "textCharacters": 1099,
-    "bytes": 233240
+    "textCharacters": 1033,
+    "bytes": 285804
   },
   {
     "id": "admin-discord-notices",
@@ -304,50 +304,50 @@
     "id": "admin-discord-mentoring",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 1067,
-    "bytes": 258671
+    "textCharacters": 1001,
+    "bytes": 267539
   },
   {
     "id": "main-discord-auth",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 1062,
-    "bytes": 227911
+    "textCharacters": 996,
+    "bytes": 246933
   },
   {
     "id": "main-discord-attendance",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 1010,
-    "bytes": 282354
+    "textCharacters": 878,
+    "bytes": 334310
   },
   {
     "id": "main-discord-mentoring",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 1047,
-    "bytes": 248665
+    "textCharacters": 981,
+    "bytes": 257533
   },
   {
     "id": "group-discord-auth",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 1070,
-    "bytes": 235684
+    "textCharacters": 938,
+    "bytes": 265305
   },
   {
     "id": "group-discord-attendance",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 914,
-    "bytes": 354472
+    "textCharacters": 848,
+    "bytes": 379045
   },
   {
     "id": "group-discord-availability",
     "pages": 5,
     "embeddedFonts": 7,
-    "textCharacters": 1422,
-    "bytes": 194663
+    "textCharacters": 1158,
+    "bytes": 314231
   },
   {
     "id": "group-discord-booking",
@@ -367,22 +367,22 @@
     "id": "student-discord-auth",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 1072,
-    "bytes": 151514
+    "textCharacters": 940,
+    "bytes": 187046
   },
   {
     "id": "student-discord-attendance",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 1107,
-    "bytes": 151739
+    "textCharacters": 909,
+    "bytes": 215528
   },
   {
     "id": "student-discord-booking",
-    "pages": 4,
+    "pages": 5,
     "embeddedFonts": 2,
-    "textCharacters": 1080,
-    "bytes": 138511
+    "textCharacters": 1172,
+    "bytes": 185899
   },
   {
     "id": "student-discord-report",
@@ -395,8 +395,8 @@
     "id": "student-discord-assignments",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 1046,
-    "bytes": 219585
+    "textCharacters": 980,
+    "bytes": 242320
   },
   {
     "id": "admin-discord-identities",
@@ -409,7 +409,7 @@
     "id": "admin-discord-identity-help",
     "pages": 4,
     "embeddedFonts": 2,
-    "textCharacters": 1031,
-    "bytes": 260839
+    "textCharacters": 899,
+    "bytes": 295620
   }
 ]
