@@ -113,11 +113,16 @@ test('nested schedule generation accepts bot date values and skips configured ho
     await storage.bootstrap(payload());
     const mentor = (await call('add_mentor', ['555456789012345678', '예약 멘토'])).result;
     await call('set_slot_template', [mentor, 10, 0, 11, 0, 30]);
-    await call('block_date', [mentor, '2026-10-02']);
-    const result = await call('generate_slots_for_range', [mentor, { $lms: 'date', value: '2026-10-01' }, { $lms: 'date', value: '2026-10-02' }]);
+    // Keep the range in the future: production correctly skips past slots.
+    const dayMs = 24 * 60 * 60 * 1000;
+    const start = new Date(Date.now() + 30 * dayMs).toISOString().slice(0, 10);
+    const end = new Date(Date.parse(start) + dayMs).toISOString().slice(0, 10);
+    const range = [mentor, { $lms: 'date', value: start }, { $lms: 'date', value: end }];
+    await call('block_date', [mentor, end]);
+    const result = await call('generate_slots_for_range', range);
     assert.deepEqual(result.result, { $lms: 'tuple', value: [2, 1] });
     assert.equal((await storage.table(workspace.id, 'slots')).total, 2);
-    assert.deepEqual((await call('generate_slots_for_range', [mentor, { $lms: 'date', value: '2026-10-01' }, { $lms: 'date', value: '2026-10-02' }])).result, { $lms: 'tuple', value: [0, 1] });
+    assert.deepEqual((await call('generate_slots_for_range', range)).result, { $lms: 'tuple', value: [0, 1] });
 });
 
 test('online reservation rechecks current group membership and scoped proof, including stale buttons', async t => {
