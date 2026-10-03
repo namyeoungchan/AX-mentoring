@@ -1,0 +1,330 @@
+[
+  {
+    "id": "admin-dashboard",
+    "role": "admin",
+    "route": "dashboard",
+    "heading": "운영 대시보드",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-discord",
+    "role": "admin",
+    "route": "discord",
+    "heading": "Discord 채널 설정",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-members",
+    "role": "admin",
+    "route": "members",
+    "heading": "구성원 · 초대",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-student-accounts",
+    "role": "admin",
+    "route": "student-accounts",
+    "heading": "학생 계정 발급",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-courses",
+    "role": "admin",
+    "route": "courses",
+    "heading": "과정 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-teams",
+    "role": "admin",
+    "route": "teams",
+    "heading": "팀 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-attendance",
+    "role": "admin",
+    "route": "attendance",
+    "heading": "출결 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-scores",
+    "role": "admin",
+    "route": "scores",
+    "heading": "성적 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-assignments",
+    "role": "admin",
+    "route": "assignments",
+    "heading": "과제 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-submissions",
+    "role": "admin",
+    "route": "submissions",
+    "heading": "제출 내역",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-mentoring",
+    "role": "admin",
+    "route": "mentoring",
+    "heading": "멘토링 일정",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-videos",
+    "role": "admin",
+    "route": "videos",
+    "heading": "강의 영상",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-notices",
+    "role": "admin",
+    "route": "notices",
+    "heading": "공지 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-onboarding",
+    "role": "admin",
+    "route": "onboarding",
+    "heading": "온보딩 · 팀 연동",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-connection",
+    "role": "admin",
+    "route": "connection",
+    "heading": "봇 연결 현황",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-bot-data",
+    "role": "admin",
+    "route": "bot-data",
+    "heading": "봇 데이터 · 운영",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-bots",
+    "role": "admin",
+    "route": "bots",
+    "heading": "봇 · 서버 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-logs",
+    "role": "admin",
+    "route": "logs",
+    "heading": "활동 로그",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-settings",
+    "role": "admin",
+    "route": "settings",
+    "heading": "워크스페이스 설정",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-files",
+    "role": "admin",
+    "route": "files",
+    "heading": "통합 파일함",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "admin-discord-identities",
+    "role": "admin",
+    "route": "discord-identities",
+    "heading": "Discord 인증 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-courses",
+    "role": "main",
+    "route": "courses",
+    "heading": "멘토 활동 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-attendance",
+    "role": "main",
+    "route": "attendance",
+    "heading": "출결 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-mentoring",
+    "role": "main",
+    "route": "mentoring",
+    "heading": "멘토링 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-teams",
+    "role": "main",
+    "route": "teams",
+    "heading": "팀 배정",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-scores",
+    "role": "main",
+    "route": "scores",
+    "heading": "성적 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-videos",
+    "role": "main",
+    "route": "videos",
+    "heading": "강의 영상",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-onboarding",
+    "role": "main",
+    "route": "onboarding",
+    "heading": "멘토 활동 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-courses",
+    "role": "group",
+    "route": "courses",
+    "heading": "멘토 활동 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-attendance",
+    "role": "group",
+    "route": "attendance",
+    "heading": "출결 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-mentoring",
+    "role": "group",
+    "route": "mentoring",
+    "heading": "멘토링 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-teams",
+    "role": "group",
+    "route": "teams",
+    "heading": "팀 배정",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-scores",
+    "role": "group",
+    "route": "scores",
+    "heading": "성적 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-videos",
+    "role": "group",
+    "route": "videos",
+    "heading": "강의 영상",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-onboarding",
+    "role": "group",
+    "route": "onboarding",
+    "heading": "멘토 활동 관리",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-learning",
+    "role": "student",
+    "route": "learning",
+    "heading": "나의 학습",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-participation",
+    "role": "student",
+    "route": "participation",
+    "heading": "워크스페이스 참여",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-attendance",
+    "role": "student",
+    "route": "attendance",
+    "heading": "나의 출결",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-assignments",
+    "role": "student",
+    "route": "assignments",
+    "heading": "과제",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-scores",
+    "role": "student",
+    "route": "scores",
+    "heading": "나의 성적",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "student-videos",
+    "role": "student",
+    "route": "videos",
+    "heading": "강의 영상",
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-03"
+  }
+]

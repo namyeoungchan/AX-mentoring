@@ -359,6 +359,17 @@ app.use('/api/workspaces/:workspaceId', async (req, _res, next) => {
     next();
 });
 app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace));
+app.get('/api/workspaces/:workspaceId/help', async (req, res) => res.set('Cache-Control', 'private, no-store').json(await runtime.helpGuides.list(req.workspaceId, req.account)));
+app.get('/api/workspaces/:workspaceId/help/manage', async (req, res) => res.set('Cache-Control', 'private, no-store').json(await runtime.helpGuides.management(req.workspaceId, req.account)));
+app.post('/api/workspaces/:workspaceId/help/manage/:guideId', async (req, res) => {
+    await auth.limit('help-upload', req.account.id, 60, 3600000);
+    res.json(await runtime.helpGuides.upload(req.workspaceId, req.params.guideId, req.body, req.account));
+});
+app.delete('/api/workspaces/:workspaceId/help/manage/:guideId', async (req, res) => res.json(await runtime.helpGuides.reset(req.workspaceId, req.params.guideId, req.body, req.account)));
+app.get('/api/workspaces/:workspaceId/help/:guideId/:type', async (req, res) => {
+    const file = await runtime.helpGuides.asset(req.workspaceId, req.params.guideId, req.params.type, req.account);
+    res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `inline; filename="guide.${req.params.type === 'pdf' ? 'pdf' : 'jpg'}"` }).type(file.mime).send(file.bytes);
+});
 app.get('/api/workspaces/:workspaceId/discord-identities', async (req, res) => res.json(await runtime.discordIdentities.list(req.account, req.workspaceId)));
 app.delete('/api/workspaces/:workspaceId/discord-identities/:discordId', async (req, res) => res.json(await runtime.discordIdentities.remove(req.account, req.params.discordId, req.body, req.workspaceId)));
 app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback', async (req, res) => res.json(await runtime.mentoringFeedback.read(req.workspaceId, req.params.bookingId, req.account)));
@@ -518,6 +529,8 @@ app.patch('/api/workspace', async (req, res) => res.json(await workspaces.mutate
 app.get('/api/audit', async (_req, res) => res.json(await (store.db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 500')).all()));
 app.get('/api/integrations/render', async (_req, res) => res.json(await renderSync.read()));
 app.use('/api', async (_req, res) => res.status(404).json({ error: '지원하지 않는 API입니다.' }));
+// Legacy public PDFs must not bypass the role-checked help API.
+app.use('/guides', (_req, res) => res.status(410).send('로그인 후 도움말 탭에서 현재 역할의 가이드를 확인하세요.'));
 app.use(express.static(resolve(root, 'dist')));
 app.use(async (error, _req, res, _next) => {
     if (Number.isInteger(error.retryAfter) && error.retryAfter > 0) res.set('Retry-After', String(error.retryAfter));
