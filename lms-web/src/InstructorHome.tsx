@@ -1,4 +1,5 @@
 import HelpCenter from './HelpCenter'
+import MentoringCoordination from './MentoringCoordination'
 import { useState } from 'react'
 import MentoringManagement from './MentoringManagement'
 import CourseVideos from './CourseVideos'
@@ -27,6 +28,7 @@ export default function InstructorHome({ workspace }: { workspace: ReturnType<ty
   const [filter, setFilter] = useState('전체')
   const [page, go] = useRolePage(pages, data.onboardingComplete ? 'courses' : 'onboarding')
   return <RoleWorkspace role="mentor" username={account?.username} name={account?.name || '멘토'} title={['courses', 'onboarding'].includes(page) ? '멘토 활동 관리' : pages.find(p => p.id === page)!.name} pages={pages} page={page} go={go} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={saving} error={error} refresh={refresh} logout={logout}>
+    {page === 'mentoring' && data.mentorType === 'group' && data.mode !== 'demo' && <MentoringCoordination key={activeId} workspaceId={activeId} onChanged={workspace.refreshQuietly} />}
     {page === 'help' ? <HelpCenter key={activeId} workspaceId={activeId} go={go} demo={data.mode === 'demo'} /> : page === 'mentoring' ? <MentoringManagement key={activeId} error={error} data={data} filter={filter} setFilter={setFilter} change={async updater => update(updater)} saving={saving} /> : page === 'videos' ? <CourseVideos key={activeId} workspaceId={activeId} /> : page === 'onboarding' ? <MentorOnboarding workspace={workspace} /> : page === 'teams' ? <TeamOperations key={activeId} workspaceId={activeId} refresh={workspace.refreshQuietly} /> : page !== 'courses' ? <Operations refresh={workspace.refreshQuietly} key={page} page={page} data={data} query="" change={async updater => update(updater)} saving={saving} error={error} /> : <>
       {data.courses.map(c => <section className="panel student-course" key={c.id}><Badge>{c.status}</Badge><h2>{c.title}</h2><p>{c.description}</p><span>수강생 {c.learners}명 · {c.startDate} — {c.endDate}</span></section>)}
       {!data.courses.length && <section className="panel student-empty"><h2>등록된 수업이 없습니다.</h2></section>}

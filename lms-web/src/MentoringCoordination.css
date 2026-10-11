@@ -1,0 +1,17 @@
+.mentoring-coordination { margin-bottom: 24px; }
+.coordination-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.coordination-heading h2, .coordination-heading h3 { margin: 0; }
+.coordination-heading p, .coordination-help { color: var(--text-muted, #647067); }
+.coordination-help { margin: 16px 0; }
+.coordination-help li, .coordination-appointment details li { margin: 8px 0; }
+.coordination-appointment { border-top: 1px solid var(--border, #dce3dd); padding: 24px 0; overflow-wrap: anywhere; }
+.coordination-proposal { padding: 16px; margin: 16px 0; background: var(--surface-soft, #f0f5f1); border-left: 3px solid #547b5f; }
+.coordination-warning { color: #815414; }
+.coordination-reason { white-space: pre-wrap; }
+.coordination-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.coordination-form { border: 1px solid var(--border, #dce3dd); padding: 20px; margin: 16px 0; display: flex; gap: 14px; flex-wrap: wrap; }
+.coordination-form h4, .coordination-form > p, .coordination-form > label { flex-basis: 100%; margin: 0; }
+.coordination-form label { display: grid; gap: 8px; }
+.coordination-form select, .coordination-form textarea { width: 100%; min-width: 0; padding: 10px; font: inherit; border: 1px solid var(--border, #dce3dd); border-radius: 6px; }
+.coordination-form textarea { min-height: 90px; resize: vertical; }
+@media (max-width: 600px) { .coordination-form { padding: 12px; } .coordination-form select { font-size: 16px; } }

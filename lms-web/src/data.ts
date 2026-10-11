@@ -1,13 +1,13 @@
 export type CourseSession = { id: string; week: number; title: string; date: string; startTime: string; endTime: string; notes: string }
 export type Course = { id: string; title: string; category: string; description: string; progress: number; learners: number; weeks: string; mentor: string; theme: 'orange' | 'green' | 'blue'; status: '진행 중' | '모집 중' | '종료'; code?: string; cohort?: string; guildId?: string; startDate?: string; endDate?: string; schedule?: CourseSession[] }
-export type Session = { id: string; title: string; mentor: string; mentorId?: string; studentId?: string; team: string; date: string; time: string; endDate?: string; endTime?: string; status: '승인 대기' | '예약 확정' | '완료' | '취소' }
+export type Session = { coordinationStatus?: 'proposed' | 'needs_coordination'; id: string; title: string; mentor: string; mentorId?: string; studentId?: string; team: string; date: string; time: string; endDate?: string; endTime?: string; status: '승인 대기' | '예약 확정' | '완료' | '취소' }
 export type Assignment = { type?: 'team' | 'individual'; id: string; title: string; course: string; courseId?: string; due: string; submitted: number; total: number; status: '진행 중' | '마감' }
 export type Server = { id: string; name: string; provider: string; region: string; status: '실행 중' | '중지됨' | '미연결'; version: string }
 export type Log = { id: string; time: string; text: string; before?: string; after?: string }
 export type RecordData = { id: string; [key: string]: string | number }
 export type Learner = { id: string; name: string; email: string; team: string; courseId: string; discordId: string; status: string; progress: number; color: string }
 export type Mentor = { id: string; name: string; discordId: string; bio: string; onlineBookable?: boolean }
-export type Workspace = { removedLearners?: Learner[]; onboardingComplete?: boolean; workspaceId?: string; courses: Course[]; sessions: Session[]; assignments: Assignment[]; servers: Server[]; logs: Log[]; learners: Learner[]; mentors: Mentor[]; teams: RecordData[]; attendance: RecordData[]; scores: RecordData[]; notices: RecordData[]; files: RecordData[]; submissions: RecordData[]; name: string; reminders: boolean; onboarding: boolean; qa: boolean; revision?: string; mode?: 'api' | 'demo'; authEnabled?: boolean }
+export type Workspace = { mentorType?: 'main' | 'group'; removedLearners?: Learner[]; onboardingComplete?: boolean; workspaceId?: string; courses: Course[]; sessions: Session[]; assignments: Assignment[]; servers: Server[]; logs: Log[]; learners: Learner[]; mentors: Mentor[]; teams: RecordData[]; attendance: RecordData[]; scores: RecordData[]; notices: RecordData[]; files: RecordData[]; submissions: RecordData[]; name: string; reminders: boolean; onboarding: boolean; qa: boolean; revision?: string; mode?: 'api' | 'demo'; authEnabled?: boolean }
 export const initialData: Workspace = {
   name: 'AX 학습관리시스템', reminders: true, onboarding: true, qa: true,
   learners: [], mentors: [], teams: [], attendance: [], scores: [], notices: [], files: [], submissions: [],

@@ -6,6 +6,7 @@ import database
 from ui import embeds
 from ui.date_select import DateSelectView
 from ui.confirm_view import CancelConfirmView
+from cogs.lms_rescheduling import coordination_view, show_booking
 
 
 class Booking(commands.Cog):
@@ -82,7 +83,8 @@ class Booking(commands.Cog):
             return
         mentor = await database.get_mentor_by_id(booking["mentor_id"], include_inactive=True)
         await interaction.response.send_message(
-            embed=embeds.my_booking_embed(booking, mentor), ephemeral=True
+            embed=embeds.my_booking_embed(booking, mentor), ephemeral=True,
+            view=coordination_view(interaction.guild_id, booking['id'], interaction.user.id) if booking.get('status') == 'approved' else None,
         )
 
     # ── /cancel ───────────────────────────────────────────────────────────
@@ -94,6 +96,9 @@ class Booking(commands.Cog):
             await interaction.response.send_message(
                 embed=embeds.no_booking_embed(), ephemeral=True
             )
+            return
+        if booking.get('status') == 'approved':
+            await show_booking(interaction, interaction.guild_id, booking['id'])
             return
         mentor = await database.get_mentor_by_id(booking["mentor_id"], include_inactive=True)
         await interaction.response.send_message(

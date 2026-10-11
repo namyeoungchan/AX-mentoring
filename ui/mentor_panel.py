@@ -11,6 +11,8 @@ import database
 from ui import embeds
 from ui.date_select import DateSelectView
 
+MAX_MENTOR_BUTTONS = 24  # Reserve one of Discord's 25 components for existing reservations.
+
 
 def _chunk(lst: list, size: int) -> list[list]:
     return [lst[i : i + size] for i in range(0, len(lst), size)]
@@ -24,7 +26,7 @@ class MentorPanelView(WorkspaceView):
 
     def __init__(self, mentors: list[dict]) -> None:
         super().__init__(timeout=None)
-        for mentor in mentors[:25]:  # Discord limit: 25 components
+        for mentor in mentors[:MAX_MENTOR_BUTTONS]:
             btn = discord.ui.Button(
                 label=mentor["name"][:80],
                 emoji="💬",
@@ -33,6 +35,12 @@ class MentorPanelView(WorkspaceView):
             )
             btn.callback = self._make_callback(mentor)
             self.add_item(btn)
+
+    @discord.ui.button(label='내 예약 · 일정 변경', emoji='📅', style=discord.ButtonStyle.primary,
+                       custom_id='mentoring:my_reservations')
+    async def my_reservations(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        from cogs.lms_rescheduling import show_bookings
+        await show_bookings(interaction)
 
     def _make_callback(self, mentor: dict):
         async def callback(interaction: discord.Interaction) -> None:
@@ -66,13 +74,14 @@ async def build_panel_embed(mentors: list[dict]) -> discord.Embed:
     embed = embeds.panel_embed(
         "멘토와 함께, 다음 단계로",
         "막힌 부분을 정리하고, 함께 해결할 시간을 만나보세요.\n"
-        "**멘토 선택 → 날짜 · 시간 선택 → 승인 후 확정**",
+        "**멘토 선택 → 날짜 · 시간 선택 → 승인 후 확정**\n"
+        "승인된 예약은 **내 예약 · 일정 변경** 버튼에서 담당 멘토와 다시 조율할 수 있습니다.",
         section="MENTORING",
     )
     if not mentors:
         embeds.panel_field(embed, "예약 준비 중", "멘토가 등록되면 이곳에서 예약할 수 있습니다.\n운영자에게 멘토 초대 상태를 확인해 주세요.")
         return embed
-    for mentor in mentors[:25]:
+    for mentor in mentors[:MAX_MENTOR_BUTTONS]:
         slots = await database.get_slots_for_mentor(mentor["id"], active_only=True)
         bookings = await database.get_bookings_by_slot_ids([slot["id"] for slot in slots])
         today = datetime.now(embeds.KST).date().isoformat()
@@ -80,7 +89,10 @@ async def build_panel_embed(mentors: list[dict]) -> discord.Embed:
         status = f"예약 가능 **{available}개**" if available else "새 일정 준비 중"
         expertise = (mentor.get("bio") or "").split("\n", 1)[0][:100]
         embeds.panel_field(embed, mentor["name"], f"{expertise}\n{status}".strip(), inline=True)
-    embeds.panel_field(embed, "예약 안내", "아래에서 멘토를 선택하세요. 신청 결과는 본인에게만 표시됩니다.\n멘토의 승인은 개인 메시지로 안내하며, `/mybooking`으로 예약을 확인할 수 있습니다.")
-    if len(mentors) > 25:
-        embed.set_footer(text="AX 학습관리시스템 · 첫 25명 표시 · /book에서 전체 멘토 검색")
+    guidance = "아래에서 멘토를 선택하세요. 신청 결과는 본인에게만 표시됩니다.\n멘토의 승인은 개인 메시지로 안내합니다. 승인된 예약은 **내 예약 · 일정 변경**에서 확인하세요. 승인 대기 중인 신청은 `/mybooking`에서 확인할 수 있습니다."
+    if len(mentors) > MAX_MENTOR_BUTTONS:
+        guidance += f"\n패널에는 첫 {MAX_MENTOR_BUTTONS}명이 표시됩니다. `/book`에서 전체 멘토를 검색할 수 있습니다."
+    embeds.panel_field(embed, "예약 안내", guidance)
+    if len(mentors) > MAX_MENTOR_BUTTONS:
+        embed.set_footer(text=f"AX 학습관리시스템 · 첫 {MAX_MENTOR_BUTTONS}명 표시 · /book에서 전체 멘토 검색")
     return embed

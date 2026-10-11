@@ -82,11 +82,14 @@ class ApprovalView(WorkspaceView):
             )
             return
 
-        # DM user: approved
+        from cogs.lms_rescheduling import coordination_view
+        guild_id = self.workspace_guild_id
+        # Both participants can reopen the appointment after the approval buttons disappear.
         try:
             user = await interaction.client.fetch_user(int(self.booking_user_id))
             await user.send(
-                embed=embeds.booking_approved_embed(self.slot, self.mentor)
+                embed=embeds.booking_approved_embed(self.slot, self.mentor),
+                view=coordination_view(guild_id, booking['id'], self.booking_user_id) if guild_id else None,
             )
         except Exception:
             pass
@@ -96,7 +99,7 @@ class ApprovalView(WorkspaceView):
                 approved=True,
                 user_name=self.booking_user_name,
             ),
-            view=None,
+            view=coordination_view(guild_id, booking['id'], self.mentor['discord_id']) if guild_id else None,
         )
 
         from cogs.admin import refresh_all_panels

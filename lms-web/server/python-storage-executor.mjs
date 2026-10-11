@@ -27,6 +27,8 @@ export function createPythonStorageExecutor({ python, script, timeoutMs = 25000,
       if (response.ok) current.resolve(response.result)
       else {
         if (response.error === 'assignment_course_required') { current.reject(new ApiError(422, '과제를 생성할 학습 과정을 선택하세요. 과정이 없다면 먼저 등록하세요.')); return }
+        if (response.error === 'mentoring_coordination_required') { current.reject(new ApiError(409, '재조율 예약은 당사자가 /reschedule 또는 LMS 일정 재조율에서 처리하세요.')); return }
+        if (response.error === 'mentoring_slot_held') { current.reject(new ApiError(409, '일정 변경 응답을 기다리는 시간이 있습니다. 제안이 처리된 뒤 시간을 정리하세요.')); return }
         const stale = response.error === 'stale_revision', busy = response.error === 'storage_busy'
         current.reject(new ApiError(stale ? 409 : busy ? 503 : 422, stale ? '다른 작업으로 데이터가 변경되었습니다. 새로고침하세요.' : busy ? '데이터 저장소가 사용 중입니다. 잠시 후 다시 시도하세요.' : '입력 값이나 데이터 연결 관계를 확인하세요.'))
       }

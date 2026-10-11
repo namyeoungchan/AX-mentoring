@@ -14,7 +14,8 @@ export function createMentoringFeedback(main, workspaces, { now = Date.now } = {
             const { activated_at: activatedAt } = await db.prepare('SELECT activated_at FROM lms_mentoring_feedback_control WHERE id=1').get();
             const bookings = await db.prepare(`SELECT b.id,b.user_id,b.user_name,b.status,s.start_time,s.end_time,s.label,
                 m.discord_id AS mentor_discord,m.name AS mentor_name FROM bookings b JOIN slots s ON s.id=b.slot_id JOIN mentors m ON m.id=s.mentor_id
-                WHERE b.status IN ('approved','completed')`).all();
+                WHERE b.status IN ('approved','completed') AND NOT EXISTS (SELECT 1 FROM lms_records r WHERE r.kind='mentoringCoordination'
+                    AND r.id=CAST(b.id AS TEXT) AND json_extract(r.data,'$.status') IN ('proposed','needs_coordination'))`).all();
             for (const booking of bookings) {
                 const ended = endMillis(booking.end_time);
                 if (!Number.isFinite(ended) || ended < activatedAt || ended > now()) continue;
@@ -62,7 +63,8 @@ export function createMentoringFeedback(main, workspaces, { now = Date.now } = {
                 WHERE r.id=? AND o.guild_id=?`).get(input.requestId, input.guildId);
             if (!request || request.discord_id !== input.discordId) throw new ApiError(403, '본인에게 발송된 멘토링 요청에만 답변할 수 있습니다.');
             const booking = await db.prepare('SELECT status FROM bookings WHERE CAST(id AS TEXT)=?').get(request.booking_id);
-            if (!booking || !['approved', 'completed'].includes(booking.status) || request.state === 'cancelled' || !request.attempts)
+            const coordinating = await db.prepare("SELECT 1 FROM lms_records WHERE kind='mentoringCoordination' AND id=? AND json_extract(data,'$.status') IN ('proposed','needs_coordination')").get(request.booking_id);
+            if (!booking || coordinating || !['approved', 'completed'].includes(booking.status) || request.state === 'cancelled' || !request.attempts)
                 throw new ApiError(409, '취소되었거나 아직 발송되지 않은 멘토링 요청입니다.');
             const previous = await db.prepare('SELECT * FROM lms_mentoring_feedback_responses WHERE event_id=?').get(input.eventId);
             if (previous && (previous.request_id !== request.id || previous.content !== input.content)) throw new ApiError(409, '이미 처리된 응답입니다. 새 답변으로 제출하세요.');

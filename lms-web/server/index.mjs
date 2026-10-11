@@ -33,6 +33,7 @@ async function prepareAssignmentAlerts() {
         try {
             await assignmentAlerts.prepare(row.id, outbox.channel);
             await runtime.onlineMentoring.prepare(row.id);
+            await runtime.mentoringCoordination.prepare(row.id);
             await runtime.mentoringFeedback.prepare(row.id);
         }
         catch {
@@ -225,6 +226,11 @@ app.post('/api/integrations/discord/mentoring/response', async (req, res) => {
     if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
     res.json(await runtime.mentoringFeedback.submit(req.body));
 });
+app.post('/api/integrations/discord/mentoring/coordination/:operation', async (req, res) => {
+    if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
+    await auth.limit('mentoring-coordination-bot', `${req.body?.guildId || ''}:${req.body?.discordId || ''}`, 60, 60000);
+    res.json(await runtime.mentoringCoordination.discord(req.body, req.params.operation));
+});
 app.post('/api/integrations/discord/outbox/:operation', async (req, res) => {
     if (!provision.authorized(req.get('authorization')))
         return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
@@ -373,6 +379,10 @@ app.get('/api/workspaces/:workspaceId/help/:guideId/:type', async (req, res) => 
 app.get('/api/workspaces/:workspaceId/discord-identities', async (req, res) => res.json(await runtime.discordIdentities.list(req.account, req.workspaceId)));
 app.delete('/api/workspaces/:workspaceId/discord-identities/:discordId', async (req, res) => res.json(await runtime.discordIdentities.remove(req.account, req.params.discordId, req.body, req.workspaceId)));
 app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback', async (req, res) => res.json(await runtime.mentoringFeedback.read(req.workspaceId, req.params.bookingId, req.account)));
+app.get('/api/workspaces/:workspaceId/mentoring/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.list(req.workspaceId, req.account)));
+app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.read(req.workspaceId, req.params.bookingId, req.account)));
+app.post('/api/workspaces/:workspaceId/mentoring/:bookingId/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.act(req.workspaceId, req.params.bookingId, req.account, req.body)));
+app.post('/api/workspaces/:workspaceId/mentoring/:bookingId/coordination/:deliveryId/retry', async (req, res) => res.json(await runtime.mentoringCoordination.retry(req.workspaceId, req.params.bookingId, req.params.deliveryId, req.account)));
 app.post('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback/:requestId/retry', async (req, res) => res.json(await runtime.mentoringFeedback.retry(req.workspaceId, req.params.bookingId, req.params.requestId, req.account)));
 app.get('/api/workspaces/:workspaceId/videos', async (req, res) => res.json(await runtime.courseVideos.list(req.workspaceId, req.account)));
 app.post('/api/workspaces/:workspaceId/videos', async (req, res) => {

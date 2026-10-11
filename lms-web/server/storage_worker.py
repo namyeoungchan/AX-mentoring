@@ -20,6 +20,50 @@ from storage_codec import encode, decode
 READ_ONLY = frozenset(json.loads((Path(__file__).resolve().parents[2] / "storage_operations.json").read_text())["readOnly"])
 
 
+async def coordination_guard(connection, operation, values):
+    """Use the same transaction as the legacy operation, so holds cannot race bookings."""
+    relevant = {'create_booking', 'cancel_booking', 'admin_cancel_booking', 'reject_booking',
+                'deactivate_slot', 'clear_slots', 'remove_mentor', 'get_slots_for_mentor_date',
+                'get_approved_bookings_for_reminder', 'is_reminder_sent', 'mark_reminder_sent'}
+    if operation not in relevant:
+        return [], False
+    async with connection.execute("SELECT data FROM lms_records WHERE kind='mentoringCoordination'") as rows:
+        states = [json.loads(row[0]) for row in await rows.fetchall()]
+    active = [state for state in states if state['status'] in ('proposed', 'needs_coordination')]
+    holds = [state['proposal'] for state in active if state['status'] == 'proposed'
+             and state['proposal']['expiresAt'] > int(time.time() * 1000)]
+    if operation == 'create_booking':
+        async with connection.execute('SELECT mentor_id,start_time,end_time FROM slots WHERE id=?', (values['slot_id'],)) as rows:
+            slot = await rows.fetchone()
+        if slot:
+            reserved = any((hold['mentorId'] == slot[0] or hold['studentId'] == values['user_id'])
+                           and hold['start'] < slot[2] and hold['end'] > slot[1] for hold in holds)
+            async with connection.execute("""SELECT 1 FROM bookings b JOIN slots s ON s.id=b.slot_id
+                WHERE b.status IN ('pending','approved') AND (s.mentor_id=? OR b.user_id=?)
+                AND s.start_time<? AND s.end_time>?""", (slot[0], values['user_id'], slot[2], slot[1])) as rows:
+                reserved = reserved or await rows.fetchone() is not None
+            return states, reserved
+    if operation in ('cancel_booking', 'admin_cancel_booking', 'reject_booking'):
+        async with connection.execute('SELECT id FROM bookings WHERE slot_id=?', (values['slot_id'],)) as rows:
+            booking = await rows.fetchone()
+        if booking and any(state['bookingId'] == str(booking[0]) and state['status'] != 'cancelled' for state in states):
+            raise ValueError('mentoring_coordination_required')
+    if operation in ('deactivate_slot', 'clear_slots', 'remove_mentor'):
+        if any((str(values.get('slot_id')) == hold['slotId'] if operation == 'deactivate_slot'
+                else values.get('mentor_id') == hold['mentorId']) for hold in holds):
+            raise ValueError('mentoring_slot_held')
+        for state in active:
+            async with connection.execute('SELECT s.id,s.mentor_id FROM bookings b JOIN slots s ON s.id=b.slot_id WHERE CAST(b.id AS TEXT)=?', (state['bookingId'],)) as rows:
+                original = await rows.fetchone()
+            if original and ((operation == 'deactivate_slot' and values['slot_id'] == original[0])
+                             or (operation == 'remove_mentor' and values['mentor_id'] == original[1])):
+                raise ValueError('mentoring_coordination_required')
+    if operation in ('is_reminder_sent', 'mark_reminder_sent'):
+        if any(state['bookingId'] == str(values['booking_id']) for state in active):
+            return states, True
+    return states, False
+
+
 async def enqueue_assignment_publication(connection, assignment_id, course_id, values, request):
     """Freeze the creation-time audience in the same transaction as the assignment."""
     async with connection.execute("SELECT kind,id,data FROM lms_records WHERE kind IN ('learners','teams') ORDER BY id") as rows:
@@ -150,7 +194,23 @@ async def run(request, filename, schema=None):
                 for table in ('lms_assignment_courses', 'lms_assignment_publications'):
                     await connection.execute(f'DELETE FROM {table} WHERE assignment_id=?', (assignment_id,))
                 await connection.execute("UPDATE lms_outbox SET state='cancelled',claim=NULL,error='assignment_removed' WHERE source_id=? AND kind IN ('submission','reminder','publication') AND state IN ('pending','failed','held','reconcile','uncertain')", (str(assignment_id),))
-            result = encode(await fn(*bound.args, **bound.kwargs))
+            coordination, blocked = await coordination_guard(connection, operation, bound.arguments)
+            if blocked:
+                result = operation == 'is_reminder_sent'
+            else:
+                result = await fn(*bound.args, **bound.kwargs)
+            if operation == 'get_approved_bookings_for_reminder':
+                unresolved = {state['bookingId'] for state in coordination if state['status'] in ('proposed', 'needs_coordination')}
+                result = [row for row in result if str(row['booking_id']) not in unresolved]
+                versions = {state['bookingId']: state['version'] for state in coordination}
+                for row in result:
+                    if str(row['booking_id']) in versions:
+                        row['schedule_version'] = versions[str(row['booking_id'])]
+            if operation == 'get_slots_for_mentor_date':
+                held = {state['proposal']['slotId'] for state in coordination if state['status'] == 'proposed'
+                        and state['proposal']['expiresAt'] > int(time.time() * 1000)}
+                result = [row for row in result if str(row['id']) not in held]
+            result = encode(result)
             if operation == 'create_assignment':
                 await connection.execute('INSERT INTO lms_assignment_courses(assignment_id,course_id) VALUES(?,?)', (result, course_id))
                 if request.get('autoPublishAssignment'):
@@ -230,7 +290,7 @@ async def respond(request, filename, schema=None):
         return {"ok": True, "result": await run(request, filename, schema)}
     except Exception as error:
         # Never echo private submissions, SQL parameters, or filesystem paths.
-        code = str(error) if str(error) in {'stale_revision', 'assignment_course_required'} else 'invalid_operation'
+        code = str(error) if str(error) in {'stale_revision', 'assignment_course_required', 'mentoring_coordination_required', 'mentoring_slot_held'} else 'invalid_operation'
         if isinstance(error, sqlite3.OperationalError) and getattr(error, "sqlite_errorcode", 0) & 255 in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}:
             code = "storage_busy"
         if getattr(error, 'sqlstate', None) in {'55P03', '57014', '40001', '40P01'} or (getattr(error, 'sqlstate', None) or '').startswith('08'):

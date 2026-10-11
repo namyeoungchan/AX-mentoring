@@ -472,7 +472,7 @@ export async function createWorkspaces({ store, dbPath, provision, syncToken = '
             const mentor = data.mentors.find(m => m.discordId === user.discordId);
             data.sessions = data.sessions.filter(s => mentor && s.mentorId === mentor.id);
         }
-        return { ...data, servers: [], logs: [], notices: [], files: [], submissions: [], reminders: false, onboarding: false, qa: false,
+        return { ...data, mentorType: scope.mentorType, servers: [], logs: [], notices: [], files: [], submissions: [], reminders: false, onboarding: false, qa: false,
             learners: data.learners.map(row => ({ ...row, email: '', discordId: '' })), removedLearners: (data.removedLearners || []).map(row => ({ ...row, email: '', discordId: '' })), mentors: [] };
     }
     async function teach(id, body, user) {

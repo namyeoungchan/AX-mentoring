@@ -31,6 +31,7 @@ COGS = [
     "cogs.lms_auth",
     "cogs.lms_attendance",
     "cogs.lms_mentoring",
+    "cogs.lms_rescheduling",
     "cogs.lms_provision",
     "cogs.lms_admissions",
     "cogs.lms_outbox",

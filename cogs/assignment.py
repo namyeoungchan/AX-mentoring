@@ -860,6 +860,19 @@ class AdminDashboardView(WorkspaceView):
         from ui.mentor_availability import AvailabilityButton
         await AvailabilityButton(interaction.guild_id, interaction.user.id).callback(interaction)
 
+    @discord.ui.button(
+        label="승인된 예약 · 일정 조율",
+        emoji="📅",
+        style=discord.ButtonStyle.primary,
+        custom_id="assignment:mentor_rescheduling",
+        row=2,
+    )
+    async def mentor_rescheduling(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        from cogs.lms_rescheduling import show_bookings
+        await show_bookings(interaction)
+
 
 # ── Student: Dynamic submit modal ─────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ import { createOutbox } from './outbox.mjs';
 import { createAssignmentAlerts } from './assignment-alerts.mjs';
 import { createOnlineMentoring } from './online-mentoring.mjs';
 import { createMentoringFeedback } from './mentoring-feedback.mjs';
+import { createMentoringCoordination } from './mentoring-coordination.mjs';
 import { createTeamOperations } from './team-operations.mjs';
 import { createAttendance } from './attendance.mjs';
 import { createAttendanceCodes } from './attendance-codes.mjs';
@@ -42,9 +43,11 @@ export async function createRuntime(dbPath, env = process.env) {
         const assignmentAlerts = createAssignmentAlerts(store.db, workspaces);
         const onlineMentoring = createOnlineMentoring(store.db, workspaces);
         const mentoringFeedback = createMentoringFeedback(store.db, workspaces);
+        const mentoringCoordination = createMentoringCoordination(store.db, workspaces);
         const outbox = createOutbox(store.db, workspaces, { prepare: async (id, channel) => {
             await assignmentAlerts.prepare(id, channel);
             await onlineMentoring.prepare(id);
+            await mentoringCoordination.prepare(id);
             await mentoringFeedback.prepare(id);
         } });
         const attendance = createAttendance(workspaces, { outbox });
@@ -52,7 +55,7 @@ export async function createRuntime(dbPath, env = process.env) {
         const attendancePresence = attendanceCodes.presence;
         const discordIdentities = createDiscordIdentities(store.db, auth);
         const helpGuides = createHelpGuides(workspaces);
-        return { helpGuides, discordIdentities, store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, onlineMentoring, mentoringFeedback, outbox, attendance, attendanceCodes, attendancePresence,
+        return { mentoringCoordination, helpGuides, discordIdentities, store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, onlineMentoring, mentoringFeedback, outbox, attendance, attendanceCodes, attendancePresence,
             close() { botStorage.close(); workspaces.close(); store.db.close(); } };
     }
     catch (error) {
