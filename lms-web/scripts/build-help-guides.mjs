@@ -2,6 +2,7 @@
 // Requires `npm run build`; never connects to a production database or Discord bot.
 import { captureGuideSteps } from './help-guide-capture.mjs';
 import { renderGuidePdf } from './render-help-pdf.mjs';
+import { seedReschedulingCaptures, reschedulingCapturePlan } from './help-rescheduling-capture.mjs';
 import { chromium } from '@playwright/test';
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -57,6 +58,7 @@ for (const [i, status] of ['pending', 'approved', 'completed'].entries()) {
   await db.prepare('INSERT INTO bookings(slot_id,user_id,user_name,status) VALUES(?,?,?,?)').run(i + 1, users.student.user.discordId, '최학습 · 1조', status);
 }
 await db.prepare('INSERT INTO slots(mentor_id,start_time,end_time,label) VALUES(?,?,?,?)').run(mentor.id, '2027-01-04T14:00:00', '2027-01-04T14:50:00', '예약 가능 시간');
+const reschedulingFixtures = await seedReschedulingCaptures(db, mentor.id, users.student.user.discordId);
 await db.prepare('INSERT INTO lms_audit(actor,action,target) VALUES(?,?,?)').run('김운영', '학습 과정 등록', '생성형 AI 실무 프로젝트');
 runtime.close();
 await mkdir(output, { recursive: true });
@@ -75,7 +77,7 @@ try {
   const selected = (process.env.HELP_GUIDE_IDS || '').split(',').filter(Boolean);
   const previous = JSON.parse(await readFile(join(output, 'capture-manifest.json'), 'utf8').catch(() => '[]'));
   const checks = selected.length ? previous.filter(g => !selected.includes(g.id)) : [];
-  const failures = [];
+  const failures = [], rehearsals = [];
   for (const [role, login] of Object.entries(users)) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'ko-KR', timezoneId: 'Asia/Seoul', deviceScaleFactor: 1 });
     await context.addCookies([{ name: 'learningops_session', value: login.token, url: origin + '/api', httpOnly: true, sameSite: 'Lax' }]);
@@ -84,6 +86,7 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     for (const guide of HELP_GUIDES.filter(g => g.role === role && (!selected.length || selected.includes(g.id)))) {
+      let counterpartContext;
       try {
       let captureVisit = 0;
       const navigate = async () => {
@@ -97,13 +100,23 @@ try {
       const heading = await page.locator('main h1').innerText();
       await page.screenshot({ path: join(output, `${guide.id}.jpg`), type: 'jpeg', quality: 85, animations: 'disabled' });
       const images = [];
-      const steps = await captureGuideSteps(page, guide, { navigate, save: async (number, available = true) => {
+      let rehearsal;
+      if (guide.feature === 'rescheduling') {
+        const counterpartRole = role === 'group' ? 'student' : 'group';
+        counterpartContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'ko-KR', timezoneId: 'Asia/Seoul' });
+        await counterpartContext.addCookies([{ name: 'learningops_session', value: users[counterpartRole].token, url: origin + '/api', httpOnly: true, sameSite: 'Lax' }]);
+        const counterpart = await counterpartContext.newPage();
+        await counterpart.goto(`${origin}/?workspace=default#mentoring`);
+        rehearsal = await reschedulingCapturePlan(page, counterpart, reschedulingFixtures[role]);
+      }
+      const steps = await captureGuideSteps(page, guide, { navigate, plansOverride: rehearsal?.plans, save: async (number, available = true) => {
         if (!available) { images.push(null); return; }
         const file = join(output, `${guide.id}-step-${number}.jpg`);
         // Real Discord captures are supplied separately; never replace them with an LMS page.
         if (available !== 'existing') await page.screenshot({ path: file, type: 'jpeg', quality: 85, animations: 'disabled' });
         images.push((await readFile(file)).toString('base64'));
       } });
+      if (rehearsal) rehearsals.push({ guide: guide.id, ...await rehearsal.finish() });
       if (errors.length) throw new Error(`${guide.id}: ${errors.join(', ')}`);
       const pdf = await context.newPage();
       await pdf.setContent(renderGuidePdf(guide, images));
@@ -115,11 +128,14 @@ try {
       await pdf.close();
       console.log(`Captured ${guide.id}: ${steps.length} highlighted steps`);
       } catch (error) { failures.push({ id: guide.id, error: error.message }); console.error(`FAILED ${guide.id}: ${error.message.slice(0, 160)}`); }
+      finally { await counterpartContext?.close(); }
     }
     await context.close();
   }
   await writeFile(join(output, 'capture-manifest.json'), JSON.stringify(checks, null, 2));
-  await writeFile(resolve('../.venv/help-capture-errors.json'), JSON.stringify(failures, null, 2));
+  await writeFile(join(scratch, 'help-capture-errors.json'), JSON.stringify(failures, null, 2));
+  await writeFile(join(scratch, 'rescheduling-rehearsal.json'), JSON.stringify(rehearsals, null, 2));
+  console.log(`Local-only rehearsal evidence: ${scratch}`);
   console.log(`Captured ${checks.length} guides; ${failures.length} failures.`);
   if (failures.length) process.exitCode = 1;
 } finally { await browser?.close(); server.kill(); }

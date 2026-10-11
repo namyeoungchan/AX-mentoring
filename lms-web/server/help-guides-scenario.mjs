@@ -3,6 +3,17 @@ import { HELP_GUIDES } from './help-catalog.mjs';
 
 export async function helpGuidesScenario({ store: { db }, workspaces, helpGuides: help }) {
   assert.equal(new Set(HELP_GUIDES.map(g => g.id)).size, HELP_GUIDES.length, 'Guide IDs must be unique across LMS and Discord categories');
+  const rescheduling = HELP_GUIDES.filter(g => g.feature === 'rescheduling');
+  assert.deepEqual(rescheduling.map(g => g.role).sort(), ['group', 'student']);
+  for (const guide of rescheduling) {
+    assert.equal(guide.route, 'mentoring');
+    assert.equal(guide.steps.length, 6);
+    assert.ok(guide.steps.every(step => step.surface !== 'Discord'), 'Do not label local LMS captures as live Discord screenshots');
+    assert.match(JSON.stringify(guide), /상대방 수락/);
+    assert.match(JSON.stringify(guide), /제안 철회/);
+    assert.match(JSON.stringify(guide), /예약 취소/);
+  }
+  for (const guide of HELP_GUIDES) assert.doesNotMatch(JSON.stringify(guide), /취소·재예약|취소하고 새 시간으로 예약/, 'Remove superseded cancel-and-rebook instructions');
   const root = { id: 'admin', username: 'root', role: 'admin' };
   const users = {};
   const time = Date.now();

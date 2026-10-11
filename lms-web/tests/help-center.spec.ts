@@ -122,5 +122,27 @@ for (const [role, label] of Object.entries(roles)) {
     }
     expect((await request.get('http://127.0.0.1:3002/guides/all-role-guides.pdf')).status()).toBe(410)
     expect(errors).toEqual([])
+    if (role === 'group' || role === 'student') {
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await page.getByRole('button', { name: '멘토링', exact: true }).click()
+      await page.locator('.help-topics button').filter({ hasText: '승인된 멘토링 일정 변경' }).click()
+      await expect(page.locator('.help-detail-heading h2')).toHaveText('승인된 멘토링 일정 변경')
+      await expect(page.locator('.help-step-tabs button')).toHaveCount(6)
+      for (let index = 0; index < 6; index++) {
+        await page.locator('.help-step-tabs button').nth(index).click()
+        await expect(page.locator('.help-step-tabs button').nth(index)).toHaveAttribute('aria-current', 'step')
+        await expect(page.locator('.help-screen img')).toBeVisible()
+        await expect.poll(() => page.locator('.help-screen img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1440)
+        await expect(page.locator('.help-screen figcaption')).toContainText('실제 LMS 화면')
+        await expect(page.locator('.help-screen figcaption')).toContainText('예시 데이터')
+      }
+      await page.screenshot({ path: `test-results/help-${role}-rescheduling.png`, fullPage: true })
+      await page.getByRole('button', { name: 'PDF 보기', exact: true }).click()
+      await expect(page.getByRole('dialog').locator('iframe')).toHaveAttribute('src', /^blob:/)
+      await page.keyboard.press('Escape')
+      await page.getByRole('button', { name: '기능 화면 열기', exact: true }).click()
+      await expect(page).toHaveURL(/#mentoring$/)
+      await expect(page.getByRole('heading', { name: '멘토링 일정 재조율', exact: true })).toBeVisible()
+    }
   })
 }

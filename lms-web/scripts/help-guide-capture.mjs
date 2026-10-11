@@ -61,8 +61,8 @@ function plans(guide) {
   }[feature];
 }
 
-export async function captureGuideSteps(page, guide, { navigate, save }) {
-  const steps = plans(guide);
+export async function captureGuideSteps(page, guide, { navigate, save, plansOverride }) {
+  const steps = plansOverride || plans(guide);
   if (!steps || steps.length !== guide.steps.length) throw new Error(`${guide.id}: capture plan has ${steps?.length} steps; expected ${guide.steps.length}`);
   const result = [];
   for (const [index, item] of steps.entries()) {

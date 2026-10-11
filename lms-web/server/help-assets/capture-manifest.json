@@ -3051,5 +3051,157 @@
     ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "group-rescheduling",
+    "role": "group",
+    "route": "mentoring",
+    "heading": "멘토링 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\")",
+        "bounds": {
+          "x": 275,
+          "y": 404.078125,
+          "width": 1132,
+          "height": 192
+        },
+        "title": "승인된 본인 예약 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\") .coordination-form",
+        "bounds": {
+          "x": 275,
+          "y": 288.078125,
+          "width": 1132,
+          "height": 424.5
+        },
+        "title": "다른 시간과 사유 입력"
+      },
+      {
+        "step": 3,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\")",
+        "bounds": {
+          "x": 275,
+          "y": 331.578125,
+          "width": 1132,
+          "height": 337.5
+        },
+        "title": "상대방의 응답 기다리기"
+      },
+      {
+        "step": 4,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\")",
+        "bounds": {
+          "x": 275,
+          "y": 331.078125,
+          "width": 1132,
+          "height": 337.5
+        },
+        "title": "상대방 제안 검토와 응답"
+      },
+      {
+        "step": 5,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\")",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 427
+        },
+        "title": "변경된 확정 일정 확인"
+      },
+      {
+        "step": 6,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\") .coordination-form",
+        "bounds": {
+          "x": 275,
+          "y": 329.078125,
+          "width": 1132,
+          "height": 342
+        },
+        "title": "제안 철회와 예약 취소 구분"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-11"
+  },
+  {
+    "id": "student-rescheduling",
+    "role": "student",
+    "route": "mentoring",
+    "heading": "멘토링 일정",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\")",
+        "bounds": {
+          "x": 275,
+          "y": 301.078125,
+          "width": 1132,
+          "height": 192
+        },
+        "title": "승인된 본인 예약 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\") .coordination-form",
+        "bounds": {
+          "x": 275,
+          "y": 288.078125,
+          "width": 1132,
+          "height": 424.5
+        },
+        "title": "다른 시간과 사유 입력"
+      },
+      {
+        "step": 3,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\")",
+        "bounds": {
+          "x": 275,
+          "y": 320.578125,
+          "width": 1132,
+          "height": 337.5
+        },
+        "title": "상대방의 응답 기다리기"
+      },
+      {
+        "step": 4,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\")",
+        "bounds": {
+          "x": 275,
+          "y": 301.078125,
+          "width": 1132,
+          "height": 337.5
+        },
+        "title": "상대방 제안 검토와 응답"
+      },
+      {
+        "step": 5,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\")",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 427
+        },
+        "title": "변경된 확정 일정 확인"
+      },
+      {
+        "step": 6,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\") .coordination-form",
+        "bounds": {
+          "x": 275,
+          "y": 329.078125,
+          "width": 1132,
+          "height": 342
+        },
+        "title": "제안 철회와 예약 취소 구분"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-11"
   }
 ]

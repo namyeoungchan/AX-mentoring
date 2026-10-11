@@ -51,9 +51,9 @@
   {
     "id": "admin-mentoring",
     "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 649,
-    "bytes": 398124
+    "embeddedFonts": 6,
+    "textCharacters": 741,
+    "bytes": 435396
   },
   {
     "id": "admin-videos",
@@ -121,9 +121,9 @@
   {
     "id": "main-mentoring",
     "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 746,
-    "bytes": 385090
+    "embeddedFonts": 6,
+    "textCharacters": 813,
+    "bytes": 422675
   },
   {
     "id": "main-teams",
@@ -163,9 +163,9 @@
   {
     "id": "group-mentoring",
     "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 801,
-    "bytes": 386620
+    "embeddedFonts": 6,
+    "textCharacters": 862,
+    "bytes": 425285
   },
   {
     "id": "group-teams",
@@ -352,9 +352,9 @@
   {
     "id": "group-discord-booking",
     "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 1029,
-    "bytes": 239405
+    "embeddedFonts": 9,
+    "textCharacters": 1109,
+    "bytes": 313394
   },
   {
     "id": "group-discord-report",
@@ -380,9 +380,9 @@
   {
     "id": "student-discord-booking",
     "pages": 5,
-    "embeddedFonts": 2,
-    "textCharacters": 1106,
-    "bytes": 187818
+    "embeddedFonts": 6,
+    "textCharacters": 1185,
+    "bytes": 224192
   },
   {
     "id": "student-discord-report",
@@ -411,5 +411,19 @@
     "embeddedFonts": 2,
     "textCharacters": 899,
     "bytes": 295620
+  },
+  {
+    "id": "group-rescheduling",
+    "pages": 6,
+    "embeddedFonts": 6,
+    "textCharacters": 1643,
+    "bytes": 619494
+  },
+  {
+    "id": "student-rescheduling",
+    "pages": 6,
+    "embeddedFonts": 6,
+    "textCharacters": 1640,
+    "bytes": 590119
   }
 ]
