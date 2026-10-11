@@ -3,7 +3,7 @@ export const RESCHEDULING_HELP_GUIDES = ['group', 'student'].map(role => ({
   id: `${role}-rescheduling`, role, feature: 'rescheduling', route: 'mentoring',
   title: '승인된 멘토링 일정 변경', category: '멘토링',
   summary: '기존 예약을 취소하지 않고 새 시간을 제안하고, 상대방 수락 후 변경된 일정을 확인합니다.',
-  capturedAt: '2026-10-11',
+  capturedAt: '2026-10-12',
   steps: [
     { title: '승인된 본인 예약 찾기', body: role === 'group'
       ? '멘토링 관리 → 멘토링 일정 재조율에서 신청자와 기존 시간을 확인합니다. Discord에서는 과제 대시보드 → 승인된 예약 · 일정 조율을 누릅니다. 본인이 담당하는 승인 예약만 변경할 수 있습니다.'

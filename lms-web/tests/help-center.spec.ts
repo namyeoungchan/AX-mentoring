@@ -121,7 +121,6 @@ for (const [role, label] of Object.entries(roles)) {
       expect((await request.post(`${base}/help/manage/${own}`, { data: {} })).status()).toBe(403)
     }
     expect((await request.get('http://127.0.0.1:3002/guides/all-role-guides.pdf')).status()).toBe(410)
-    expect(errors).toEqual([])
     if (role === 'group' || role === 'student') {
       await page.setViewportSize({ width: 1440, height: 1000 })
       await page.getByRole('button', { name: '멘토링', exact: true }).click()
@@ -143,6 +142,23 @@ for (const [role, label] of Object.entries(roles)) {
       await page.getByRole('button', { name: '기능 화면 열기', exact: true }).click()
       await expect(page).toHaveURL(/#mentoring$/)
       await expect(page.getByRole('heading', { name: '멘토링 일정 재조율', exact: true })).toBeVisible()
+      const coordination = page.getByRole('region', { name: '멘토링 일정 재조율', exact: true })
+      await expect(coordination).toHaveCount(1)
+      // Repeated client-side navigation reproduced a duplicate-key/retained-panel defect.
+      for (let repeat = 0; repeat < 2; repeat++) {
+        await page.locator('.sidebar .nav-item').filter({ hasText: '도움말' }).click()
+        await expect(coordination).toHaveCount(0)
+        await page.getByRole('button', { name: '멘토링', exact: true }).click()
+        await page.locator('.help-topics button').filter({ hasText: '승인된 멘토링 일정 변경' }).click()
+        await page.getByRole('button', { name: '기능 화면 열기', exact: true }).click()
+        await expect(coordination).toHaveCount(1)
+      }
+      if (role === 'group') {
+        await page.locator('.sidebar .nav-item').filter({ hasText: '멘토 온보딩' }).click()
+        await expect(page.getByRole('region', { name: '멘토 온보딩', exact: true })).toBeVisible()
+        await expect(coordination).toHaveCount(0)
+      }
     }
+    expect(errors).toEqual([])
   })
 }

@@ -3,7 +3,7 @@ import { DISCORD_HELP_GUIDES } from './help-discord-catalog.mjs';
 import { RESCHEDULING_HELP_GUIDES } from './help-rescheduling-catalog.mjs';
 export const HELP_ROLES = { admin: '워크스페이스 관리자', main: '메인 강사', group: '조 담당 멘토', student: '수강생' };
 const step = (title, body) => ({ title, body });
-const guide = (role, feature, title, category, summary, steps, note = '') => ({ id: `${role}-${feature}`, role, feature, title, category, summary, route: feature, steps, note, capturedAt: '2026-10-03' });
+const guide = (role, feature, title, category, summary, steps, note = '') => ({ id: `${role}-${feature}`, role, feature, title, category, summary, route: feature, steps, note, capturedAt: ['main', 'group'].includes(role) && ['onboarding', 'mentoring'].includes(feature) ? '2026-10-12' : '2026-10-03' });
 const admin = (feature, title, category, summary, steps, note) => guide('admin', feature, title, category, summary, steps, note);
 const mentors = ['main', 'group'].flatMap(role => {
   const scope = role === 'main' ? '전체 담당 과정' : '배정된 조가 속한 과정';
@@ -23,7 +23,7 @@ const mentors = ['main', 'group'].flatMap(role => {
     guide(role, 'teams', '담당 수강생의 팀 배정', '수업 운영', `${scope}의 수강생과 조 배정을 확인합니다.`, [step('팀 배정 열기', '왼쪽 팀 배정 메뉴에서 담당 과정과 수강생을 확인합니다.'), step('변경할 수강생 선택', '대상 수강생과 변경할 조를 선택하고 이름과 과정이 맞는지 확인합니다.'), step('변경 결과 확인', '변경을 저장한 뒤 배정 결과와 이력을 확인합니다. Discord 역할 동기화는 처리 시간이 걸릴 수 있습니다.')], '권한 밖 과정·조로 배정할 수 없습니다. 담당 범위 변경은 워크스페이스 관리자에게 요청하세요.'),
     guide(role, 'scores', '성적 입력과 정정', '기록 확인', `${scope}의 평가항목과 점수를 관리합니다.`, [step('성적 관리 열기', '과정 필터로 수강생과 기존 평가 기록을 확인합니다.'), step('평가 기록 입력', '수강생·과정·평가항목·점수·배점을 입력합니다. 점수는 배점을 초과할 수 없습니다.'), step('저장 결과 검토', '저장 후 목록에서 수강생과 평가항목을 다시 확인합니다. 잘못 입력한 기록은 수정합니다.')]),
     guide(role, 'videos', '강의 영상 업로드와 게시', '수업 운영', `${scope}에 영상을 등록하고 수강생에게 게시합니다.`, [step('과정 선택', '강의 영상 메뉴에서 담당 과정을 선택합니다.'), step('영상 등록', '영상 파일과 제목 등 정보를 입력하고 업로드합니다. Vimeo 연결이 준비되어 있어야 합니다.'), step('처리 상태 확인 후 게시', '업로드와 변환이 완료됐는지 확인하고 게시합니다. 수강생은 게시된 본인 과정의 영상을 시청합니다.')], '연결 또는 변환 오류가 표시되면 안내 문구를 확인하고 관리자에게 문의하세요. 업로드만으로 게시가 완료되지는 않습니다.'),
-    guide(role, 'onboarding', '멘토 기본 정보와 Discord 인증', '시작하기', '초대 수락 후 기본 정보·서버 참여·LMS 인증을 완료합니다.', [step('초대와 첫 로그인', '관리자가 전달한 계정으로 로그인하고 초기 비밀번호를 변경한 뒤 초대를 수락합니다.'), step('기본 정보 저장', '멘토 온보딩에서 활동 이름·전문 분야를 저장합니다. 멘토는 학생용 자기소개를 제출하지 않습니다.'), step('서버 참여와 인증', '안내된 Discord 서버에 참여한 뒤 웹의 인증 코드로 /lms인증을 실행합니다.'), step('업무 안내 확인', role === 'group' ? '과제·예약 승인·멘토링 진행 안내를 확인하고 본인 예약 가능 시간도 등록합니다.' : '과제·예약 승인·멘토링 진행 안내를 확인합니다. 메인 강사는 가능 시간 등록 없이 업무 안내를 완료할 수 있습니다.')]),
+    guide(role, 'onboarding', '멘토 기본 정보와 Discord 인증', '시작하기', '초대 수락 후 기본 정보·서버 참여·LMS 인증을 완료합니다.', [step('초대와 첫 로그인', '관리자가 전달한 계정으로 로그인하고 초기 비밀번호를 변경한 뒤 초대를 수락합니다.'), step('기본 정보 저장', '멘토 온보딩에서 활동 이름·전문 분야를 저장합니다. 멘토는 학생용 자기소개를 제출하지 않습니다.'), step('서버 참여와 인증', '안내된 Discord 서버에 참여한 뒤 웹의 인증 코드로 /lms인증을 실행합니다.'), step('업무 안내 확인', role === 'group' ? '업무 안내의 멘토링 진행을 펼쳐 확인합니다. 승인된 예약은 멘토링 일정 재조율에서 다른 시간을 제안하고 상대방 수락 후 변경합니다. 제안 철회는 예약 취소와 다릅니다. 본인 예약 가능 시간도 등록합니다.' : '업무 안내의 멘토링 진행을 펼쳐 확인합니다. 승인된 예약의 시간 변경은 해당 조 담당 멘토와 신청 수강생이 합의합니다. 메인 강사는 제안·수락을 대신하지 않으며 가능 시간 등록 없이 업무 안내를 완료할 수 있습니다.')]),
   ];
 });
 export const HELP_GUIDES = [
