@@ -51,9 +51,9 @@
   {
     "id": "admin-mentoring",
     "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 649,
-    "bytes": 398124
+    "embeddedFonts": 6,
+    "textCharacters": 741,
+    "bytes": 435396
   },
   {
     "id": "admin-videos",
@@ -119,13 +119,6 @@
     "bytes": 208033
   },
   {
-    "id": "main-mentoring",
-    "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 746,
-    "bytes": 385090
-  },
-  {
     "id": "main-teams",
     "pages": 3,
     "embeddedFonts": 2,
@@ -147,25 +140,11 @@
     "bytes": 207370
   },
   {
-    "id": "main-onboarding",
-    "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 698,
-    "bytes": 377653
-  },
-  {
     "id": "group-courses",
     "pages": 3,
     "embeddedFonts": 2,
     "textCharacters": 507,
     "bytes": 208074
-  },
-  {
-    "id": "group-mentoring",
-    "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 801,
-    "bytes": 386620
   },
   {
     "id": "group-teams",
@@ -187,13 +166,6 @@
     "embeddedFonts": 2,
     "textCharacters": 548,
     "bytes": 208116
-  },
-  {
-    "id": "group-onboarding",
-    "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 686,
-    "bytes": 379481
   },
   {
     "id": "student-learning",
@@ -352,9 +324,9 @@
   {
     "id": "group-discord-booking",
     "pages": 4,
-    "embeddedFonts": 2,
-    "textCharacters": 1029,
-    "bytes": 239405
+    "embeddedFonts": 9,
+    "textCharacters": 1109,
+    "bytes": 313394
   },
   {
     "id": "group-discord-report",
@@ -380,9 +352,9 @@
   {
     "id": "student-discord-booking",
     "pages": 5,
-    "embeddedFonts": 2,
-    "textCharacters": 1106,
-    "bytes": 187818
+    "embeddedFonts": 6,
+    "textCharacters": 1185,
+    "bytes": 224192
   },
   {
     "id": "student-discord-report",
@@ -411,5 +383,47 @@
     "embeddedFonts": 2,
     "textCharacters": 899,
     "bytes": 295620
+  },
+  {
+    "id": "main-mentoring",
+    "pages": 4,
+    "embeddedFonts": 6,
+    "textCharacters": 813,
+    "bytes": 431627
+  },
+  {
+    "id": "main-onboarding",
+    "pages": 4,
+    "embeddedFonts": 6,
+    "textCharacters": 754,
+    "bytes": 417556
+  },
+  {
+    "id": "group-mentoring",
+    "pages": 4,
+    "embeddedFonts": 6,
+    "textCharacters": 862,
+    "bytes": 425124
+  },
+  {
+    "id": "group-onboarding",
+    "pages": 4,
+    "embeddedFonts": 6,
+    "textCharacters": 755,
+    "bytes": 421082
+  },
+  {
+    "id": "group-rescheduling",
+    "pages": 6,
+    "embeddedFonts": 6,
+    "textCharacters": 1643,
+    "bytes": 597785
+  },
+  {
+    "id": "student-rescheduling",
+    "pages": 6,
+    "embeddedFonts": 6,
+    "textCharacters": 1640,
+    "bytes": 591898
   }
 ]

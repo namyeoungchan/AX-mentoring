@@ -764,60 +764,6 @@
     "capturedAt": "2026-10-03"
   },
   {
-    "id": "main-mentoring",
-    "role": "main",
-    "route": "mentoring",
-    "heading": "멘토링 관리",
-    "steps": [
-      {
-        "step": 1,
-        "selector": ".mentoring-toolbar",
-        "bounds": {
-          "x": 275,
-          "y": 286.578125,
-          "width": 1132,
-          "height": 116
-        },
-        "title": "예약 찾기"
-      },
-      {
-        "step": 2,
-        "selector": ".mentoring-session-actions:has(button:has-text(\"승인\"))",
-        "bounds": {
-          "x": 1220,
-          "y": 475.328125,
-          "width": 167,
-          "height": 54
-        },
-        "title": "승인·취소 처리"
-      },
-      {
-        "step": 3,
-        "selector": ".mentoring-session-actions:has(button:has-text(\"완료\"))",
-        "bounds": {
-          "x": 1220,
-          "y": 629.828125,
-          "width": 167,
-          "height": 54
-        },
-        "title": "진행 후 완료 처리"
-      },
-      {
-        "step": 4,
-        "selector": ".mentoring-report",
-        "bounds": {
-          "x": 397,
-          "y": 401.578125,
-          "width": 990,
-          "height": 196.390625
-        },
-        "title": "멘토링 기록 확인"
-      }
-    ],
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
     "id": "main-teams",
     "role": "main",
     "route": "teams",
@@ -947,60 +893,6 @@
     "capturedAt": "2026-10-03"
   },
   {
-    "id": "main-onboarding",
-    "role": "main",
-    "route": "onboarding",
-    "heading": "멘토 활동 관리",
-    "steps": [
-      {
-        "step": 1,
-        "selector": ".mentor-context",
-        "bounds": {
-          "x": 1116,
-          "y": 308.265625,
-          "width": 292,
-          "height": 526.78125
-        },
-        "title": "초대와 첫 로그인"
-      },
-      {
-        "step": 2,
-        "selector": ".mentor-profile-form",
-        "bounds": {
-          "x": 310,
-          "y": 465.953125,
-          "width": 752,
-          "height": 340.375
-        },
-        "title": "기본 정보 저장"
-      },
-      {
-        "step": 3,
-        "selector": ".mentor-server",
-        "bounds": {
-          "x": 1116,
-          "y": 611.15625,
-          "width": 292,
-          "height": 237.890625
-        },
-        "title": "서버 참여와 인증"
-      },
-      {
-        "step": 4,
-        "selector": ".mentor-guide-list",
-        "bounds": {
-          "x": 310,
-          "y": 467.953125,
-          "width": 752,
-          "height": 210
-        },
-        "title": "업무 안내 확인"
-      }
-    ],
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
     "id": "group-courses",
     "role": "group",
     "route": "courses",
@@ -1038,60 +930,6 @@
           "height": 171
         },
         "title": "과제 진행 확인"
-      }
-    ],
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
-    "id": "group-mentoring",
-    "role": "group",
-    "route": "mentoring",
-    "heading": "멘토링 관리",
-    "steps": [
-      {
-        "step": 1,
-        "selector": ".mentoring-toolbar",
-        "bounds": {
-          "x": 275,
-          "y": 286.578125,
-          "width": 1132,
-          "height": 116
-        },
-        "title": "예약 찾기"
-      },
-      {
-        "step": 2,
-        "selector": ".mentoring-session-actions:has(button:has-text(\"승인\"))",
-        "bounds": {
-          "x": 1220,
-          "y": 475.328125,
-          "width": 167,
-          "height": 54
-        },
-        "title": "승인·취소 처리"
-      },
-      {
-        "step": 3,
-        "selector": ".mentoring-session-actions:has(button:has-text(\"완료\"))",
-        "bounds": {
-          "x": 1220,
-          "y": 629.828125,
-          "width": 167,
-          "height": 54
-        },
-        "title": "진행 후 완료 처리"
-      },
-      {
-        "step": 4,
-        "selector": ".mentoring-report",
-        "bounds": {
-          "x": 397,
-          "y": 401.578125,
-          "width": 990,
-          "height": 196.390625
-        },
-        "title": "멘토링 기록 확인"
       }
     ],
     "viewport": "1440×1000",
@@ -1221,60 +1059,6 @@
           "height": 265.390625
         },
         "title": "처리 상태 확인 후 게시"
-      }
-    ],
-    "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
-  },
-  {
-    "id": "group-onboarding",
-    "role": "group",
-    "route": "onboarding",
-    "heading": "멘토 활동 관리",
-    "steps": [
-      {
-        "step": 1,
-        "selector": ".mentor-context",
-        "bounds": {
-          "x": 1116,
-          "y": 308.265625,
-          "width": 292,
-          "height": 526.78125
-        },
-        "title": "초대와 첫 로그인"
-      },
-      {
-        "step": 2,
-        "selector": ".mentor-profile-form",
-        "bounds": {
-          "x": 310,
-          "y": 465.953125,
-          "width": 752,
-          "height": 340.375
-        },
-        "title": "기본 정보 저장"
-      },
-      {
-        "step": 3,
-        "selector": ".mentor-server",
-        "bounds": {
-          "x": 1116,
-          "y": 502.15625,
-          "width": 292,
-          "height": 237.890625
-        },
-        "title": "서버 참여와 인증"
-      },
-      {
-        "step": 4,
-        "selector": ".mentor-guide-list",
-        "bounds": {
-          "x": 310,
-          "y": 467.953125,
-          "width": 752,
-          "height": 210
-        },
-        "title": "업무 안내 확인"
       }
     ],
     "viewport": "1440×1000",
@@ -3051,5 +2835,373 @@
     ],
     "viewport": "1440×1000",
     "capturedAt": "2026-10-03"
+  },
+  {
+    "id": "main-mentoring",
+    "role": "main",
+    "route": "mentoring",
+    "heading": "멘토링 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentoring-toolbar",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 116
+        },
+        "title": "예약 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"승인\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 475.328125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "승인과 일정 변경 안내"
+      },
+      {
+        "step": 3,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"완료\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 473.328125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "진행 후 완료 처리"
+      },
+      {
+        "step": 4,
+        "selector": ".mentoring-report",
+        "bounds": {
+          "x": 397,
+          "y": 401.578125,
+          "width": 990,
+          "height": 196.390625
+        },
+        "title": "멘토링 기록 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-12"
+  },
+  {
+    "id": "main-onboarding",
+    "role": "main",
+    "route": "onboarding",
+    "heading": "멘토 활동 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentor-context",
+        "bounds": {
+          "x": 1116,
+          "y": 308.265625,
+          "width": 292,
+          "height": 526.78125
+        },
+        "title": "초대와 첫 로그인"
+      },
+      {
+        "step": 2,
+        "selector": ".mentor-profile-form",
+        "bounds": {
+          "x": 310,
+          "y": 465.953125,
+          "width": 752,
+          "height": 340.375
+        },
+        "title": "기본 정보 저장"
+      },
+      {
+        "step": 3,
+        "selector": ".mentor-server",
+        "bounds": {
+          "x": 1116,
+          "y": 611.15625,
+          "width": 292,
+          "height": 237.890625
+        },
+        "title": "서버 참여와 인증"
+      },
+      {
+        "step": 4,
+        "selector": "#mentor-guide-mentoring",
+        "bounds": {
+          "x": 310,
+          "y": 514.953125,
+          "width": 752,
+          "height": 162
+        },
+        "title": "업무 안내 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-12"
+  },
+  {
+    "id": "group-mentoring",
+    "role": "group",
+    "route": "mentoring",
+    "heading": "멘토링 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentoring-toolbar",
+        "bounds": {
+          "x": 275,
+          "y": 442.078125,
+          "width": 1132,
+          "height": 116
+        },
+        "title": "예약 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"승인\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 475.828125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "승인과 일정 변경 안내"
+      },
+      {
+        "step": 3,
+        "selector": ".mentoring-session-actions:has(button:has-text(\"완료\"))",
+        "bounds": {
+          "x": 1220,
+          "y": 472.828125,
+          "width": 167,
+          "height": 54
+        },
+        "title": "진행 후 완료 처리"
+      },
+      {
+        "step": 4,
+        "selector": ".mentoring-report",
+        "bounds": {
+          "x": 397,
+          "y": 402.078125,
+          "width": 990,
+          "height": 196.390625
+        },
+        "title": "멘토링 기록 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-12"
+  },
+  {
+    "id": "group-onboarding",
+    "role": "group",
+    "route": "onboarding",
+    "heading": "멘토 활동 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".mentor-context",
+        "bounds": {
+          "x": 1116,
+          "y": 308.265625,
+          "width": 292,
+          "height": 526.78125
+        },
+        "title": "초대와 첫 로그인"
+      },
+      {
+        "step": 2,
+        "selector": ".mentor-profile-form",
+        "bounds": {
+          "x": 310,
+          "y": 465.953125,
+          "width": 752,
+          "height": 340.375
+        },
+        "title": "기본 정보 저장"
+      },
+      {
+        "step": 3,
+        "selector": ".mentor-server",
+        "bounds": {
+          "x": 1116,
+          "y": 502.15625,
+          "width": 292,
+          "height": 237.890625
+        },
+        "title": "서버 참여와 인증"
+      },
+      {
+        "step": 4,
+        "selector": "#mentor-guide-mentoring",
+        "bounds": {
+          "x": 310,
+          "y": 514.953125,
+          "width": 752,
+          "height": 162
+        },
+        "title": "업무 안내 확인"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-12"
+  },
+  {
+    "id": "group-rescheduling",
+    "role": "group",
+    "route": "mentoring",
+    "heading": "멘토링 관리",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\")",
+        "bounds": {
+          "x": 275,
+          "y": 404.078125,
+          "width": 1132,
+          "height": 192
+        },
+        "title": "승인된 본인 예약 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\") .coordination-form",
+        "bounds": {
+          "x": 275,
+          "y": 288.078125,
+          "width": 1132,
+          "height": 424.5
+        },
+        "title": "다른 시간과 사유 입력"
+      },
+      {
+        "step": 3,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\")",
+        "bounds": {
+          "x": 275,
+          "y": 331.578125,
+          "width": 1132,
+          "height": 337.5
+        },
+        "title": "상대방의 응답 기다리기"
+      },
+      {
+        "step": 4,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\")",
+        "bounds": {
+          "x": 275,
+          "y": 331.078125,
+          "width": 1132,
+          "height": 337.5
+        },
+        "title": "상대방 제안 검토와 응답"
+      },
+      {
+        "step": 5,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\")",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 427
+        },
+        "title": "변경된 확정 일정 확인"
+      },
+      {
+        "step": 6,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 멘토\") .coordination-form",
+        "bounds": {
+          "x": 275,
+          "y": 329.078125,
+          "width": 1132,
+          "height": 342
+        },
+        "title": "제안 철회와 예약 취소 구분"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-12"
+  },
+  {
+    "id": "student-rescheduling",
+    "role": "student",
+    "route": "mentoring",
+    "heading": "멘토링 일정",
+    "steps": [
+      {
+        "step": 1,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\")",
+        "bounds": {
+          "x": 275,
+          "y": 301.078125,
+          "width": 1132,
+          "height": 192
+        },
+        "title": "승인된 본인 예약 찾기"
+      },
+      {
+        "step": 2,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\") .coordination-form",
+        "bounds": {
+          "x": 275,
+          "y": 288.078125,
+          "width": 1132,
+          "height": 424.5
+        },
+        "title": "다른 시간과 사유 입력"
+      },
+      {
+        "step": 3,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\")",
+        "bounds": {
+          "x": 275,
+          "y": 320.578125,
+          "width": 1132,
+          "height": 337.5
+        },
+        "title": "상대방의 응답 기다리기"
+      },
+      {
+        "step": 4,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\")",
+        "bounds": {
+          "x": 275,
+          "y": 301.078125,
+          "width": 1132,
+          "height": 337.5
+        },
+        "title": "상대방 제안 검토와 응답"
+      },
+      {
+        "step": 5,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\")",
+        "bounds": {
+          "x": 275,
+          "y": 286.578125,
+          "width": 1132,
+          "height": 427
+        },
+        "title": "변경된 확정 일정 확인"
+      },
+      {
+        "step": 6,
+        "selector": ".coordination-appointment:has-text(\"일정 변경 실습 · 수강생\") .coordination-form",
+        "bounds": {
+          "x": 275,
+          "y": 329.078125,
+          "width": 1132,
+          "height": 342
+        },
+        "title": "제안 철회와 예약 취소 구분"
+      }
+    ],
+    "viewport": "1440×1000",
+    "capturedAt": "2026-10-12"
   }
 ]

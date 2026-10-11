@@ -14,11 +14,18 @@ import { createProvision } from './provision.mjs';
 import { createWorkspaces } from './workspaces.mjs';
 import { createAdmissions } from './admissions.mjs';
 import { createOnboarding } from './onboarding.mjs';
-import { createStaffFlow } from './staff-flow.mjs';
+import { createStaffFlow, mentorGuides } from './staff-flow.mjs';
 import { createOnlineMentoring } from './online-mentoring.mjs';
 const admin = { id: 'admin', username: 'admin', role: 'admin' };
 const guildId = '555456789012345678', discordId = '655456789012345678';
 const secret = 'test-only-token-12345678901234567890';
+test('mentor onboarding explains agreement-based rescheduling, not cancel-and-rebook', () => {
+    const guide = mentorGuides.find(row => row.id === 'mentoring');
+    assert.match(guide.text, /상대방 수락 후 확정/);
+    assert.match(guide.text, /제안 철회는 변경 제안만/);
+    assert.match(guide.text, /예약 취소는 멘토링 자체를 취소할 때만/);
+    assert.doesNotMatch(guide.text, /취소한 뒤 다시 예약|취소.*재예약/);
+});
 async function fixture(t) {
     const folder = mkdtempSync(join(tmpdir(), 'staff-flow-')), dbPath = join(folder, 'main.db');
     let currentTime = Date.now();

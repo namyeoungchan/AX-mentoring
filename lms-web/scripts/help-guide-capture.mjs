@@ -34,7 +34,11 @@ function plans(guide) {
     teams: [plan('.team-controls'), plan('.team-operations table tbody tr'), plan('.team-controls button:has-text("미리보기")')],
     scores: [plan('.operations-toolbar'), plan('dialog .modal-form', openScore), plan('main table')],
     videos: [plan(activeNav), plan('.video-actions button:has-text("업로드")'), plan('.video-catalogue-body')],
-    onboarding: [plan('.mentor-context'), plan('.mentor-profile-form', mentorStage(0)), plan('.mentor-server', mentorStage(1)), plan('.mentor-guide-list', mentorStage(2))],
+    onboarding: [plan('.mentor-context'), plan('.mentor-profile-form', mentorStage(0)), plan('.mentor-server', mentorStage(1)), plan('#mentor-guide-mentoring', async page => {
+      await mentorStage(2)(page);
+      const toggle = page.locator('[aria-controls="mentor-guide-mentoring"]');
+      if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+    })],
   }[feature];
   return {
     dashboard: [plan('[aria-label="워크스페이스 선택"]'), plan('.stats-grid'), plan(nav('멘토링 일정'))],
@@ -61,8 +65,8 @@ function plans(guide) {
   }[feature];
 }
 
-export async function captureGuideSteps(page, guide, { navigate, save }) {
-  const steps = plans(guide);
+export async function captureGuideSteps(page, guide, { navigate, save, plansOverride }) {
+  const steps = plansOverride || plans(guide);
   if (!steps || steps.length !== guide.steps.length) throw new Error(`${guide.id}: capture plan has ${steps?.length} steps; expected ${guide.steps.length}`);
   const result = [];
   for (const [index, item] of steps.entries()) {

@@ -6,7 +6,7 @@ import { onlineAvailability } from './online-mentoring.mjs';
 export const mentorGuides = [
     { id: 'assignments', title: '과제 생성', text: '아래 과제 만들기에서 과정, 제목, 마감일을 입력하세요. 과제는 선택한 과정 전체에 공개됩니다. 생성한 과제는 Discord 과제제출 패널에도 반영되며 수강생이 제출할 수 있습니다.' },
     { id: 'approval', title: '멘토링 예약 승인', text: '온라인 멘토링은 조 담당 멘토에게 예약할 수 있습니다. 조 담당 멘토는 Discord의 가능 시간 입력 버튼 또는 /멘토 설정에서 시간대와 예약 날짜를 등록하세요. 수강생이 신청하면 봇의 개인 메시지로 승인·거절 요청을 받습니다. 서버 개인 메시지를 허용하고 일정과 요청 내용을 확인하세요. 메인 강사는 가능 시간을 등록하지 않아도 됩니다.' },
-    { id: 'mentoring', title: '멘토링 진행', text: '확정된 시간에 담당 조의 음성 채널에서 멘토링을 진행하세요. 시작 전에 질문과 과제 내용을 확인하고, 종료 시 피드백과 다음 할 일을 조별 대화 채널에 남기세요. 일정 변경이 필요하면 수강생과 조율하고 기존 예약을 취소한 뒤 다시 예약하도록 안내하세요.' },
+    { id: 'mentoring', title: '멘토링 진행', text: '확정된 시간에 담당 조의 음성 채널에서 멘토링을 진행하세요. 종료 시 피드백과 다음 할 일을 조별 대화 채널에 남기세요. 승인된 예약의 시간 변경은 해당 조 담당 멘토와 신청 수강생이 LMS의 멘토링 일정 재조율에서 다른 시간을 제안하고, 상대방 수락 후 확정합니다. 메인 강사는 제안·수락을 대신할 수 없습니다. 제안 철회는 변경 제안만 거두며, 예약 취소는 멘토링 자체를 취소할 때만 사용하세요. 도움말의 승인된 멘토링 일정 변경 가이드를 참고하세요.' },
 ];
 export async function createStaffFlow(db, workspaces, onboarding, admissions, { now = Date.now } = {}) {
     await db.exec(`CREATE TABLE IF NOT EXISTS lms_staff_profiles (workspace_id TEXT NOT NULL, user_id TEXT NOT NULL, name TEXT NOT NULL, expertise TEXT NOT NULL, bio TEXT NOT NULL, steps TEXT NOT NULL DEFAULT '[]', updated_at INTEGER NOT NULL, PRIMARY KEY(workspace_id,user_id));
