@@ -1092,6 +1092,9 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .video-progress { display: flex; flex-direction: column; gap: 10px; background: #f3f6ee; padding: 14px; border-radius: 8px; font-size: 12px; }
 .video-progress p { margin: 0; line-height: 1.7; }
 .video-progress progress { width: 100%; accent-color: #648647; }
+.course-videos .video-delete { color: #a74f43; min-height: 44px; }
+.video-removal p { line-height: 1.8; margin: 12px 0; }
+.video-removal strong { overflow-wrap: anywhere; }
 .modal.video-player-modal { width: min(1000px, calc(100vw - 32px)); max-width: 1000px; }
 .video-player-content { padding: 20px 28px 28px; }
 .video-playback-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; color: #6b7d61; font-size: 12px; }
