@@ -2,9 +2,11 @@ import { z } from 'zod';
 import { ApiError } from './store.mjs';
 import { studentEnrollment } from './student.mjs';
 import { createVimeo, safeUploadUrl } from './vimeo.mjs';
+import { VimeoError } from './vimeo-errors.mjs';
 
 const uploadInput = z.object({ requestId: z.uuid(), courseId: z.string().min(1).max(200), title: z.string().trim().min(1).max(150), description: z.string().trim().max(3000).default(''), filename: z.string().min(1).max(255), size: z.number().int().positive(), lastModified: z.number().int().nonnegative() }).strict();
 const editInput = z.object({ revision: z.number().int().positive(), title: z.string().trim().min(1).max(150), description: z.string().trim().max(3000), published: z.boolean() }).strict();
+const removeInput = z.object({ revision: z.number().int().positive() }).strict();
 const kind = 'course-video';
 
 export function createCourseVideos(db, workspaces, env = {}, vimeo = createVimeo(env)) {
@@ -28,10 +30,12 @@ export function createCourseVideos(db, workspaces, env = {}, vimeo = createVimeo
     }
     return { manager, admin: access.role === 'admin', courses: data.courses.map(c => ({ id: c.id, title: c.title })), archived: access.archivedAt !== null };
   }
-  async function read(id, videoId) {
+  async function read(id, videoId, includeDeleted = false) {
     const row = await db.prepare('SELECT data FROM lms_runtime_state WHERE guild_id=? AND kind=? AND record_key=?').get(namespace(id), kind, videoId);
     if (!row) throw new ApiError(404, '영상을 찾을 수 없습니다.');
-    return JSON.parse(row.data);
+    const video = JSON.parse(row.data);
+    if (video.deletedAt && !includeDeleted) throw new ApiError(404, '목록에서 삭제된 영상입니다.');
+    return video;
   }
   async function save(id, before, changes) {
     const next = { ...before, ...changes, revision: before.revision + 1 };
@@ -45,13 +49,14 @@ export function createCourseVideos(db, workspaces, env = {}, vimeo = createVimeo
     if (!c.manager && (!video.published || video.status !== 'ready')) throw new ApiError(404, '게시된 영상을 찾을 수 없습니다.');
   }
   function summary(video, c, user) {
+    const legacyError = video.error === 'Vimeo 토큰 권한·업로드 승인·저장 용량을 확인하세요.';
     return { id: video.id, courseId: video.courseId, title: video.title, description: video.description, status: video.status, published: video.published, duration: video.duration || 0, createdAt: video.createdAt, revision: video.revision,
-      ...(c.manager ? { canEdit: !c.archived && (c.admin || video.ownerId === user.id), error: video.error || '', filename: video.filename, size: video.size, lastModified: video.lastModified } : {}) };
+      ...(c.manager ? { canEdit: !c.archived && (c.admin || video.ownerId === user.id), canDelete: !c.archived && (c.admin || video.ownerId === user.id), error: legacyError ? '이전 업로드에서 Vimeo가 접근을 거부했습니다. 당시 상세 원인이 저장되지 않았습니다. 상태를 다시 확인하거나 불필요한 실패 항목을 목록에서 삭제하세요.' : video.error || '', errorDetails: video.errorDetails || null, filename: video.filename, size: video.size, lastModified: video.lastModified } : {}) };
   }
   async function list(id, user) {
     const c = await context(id, user);
     const rows = (await db.prepare('SELECT data FROM lms_runtime_state WHERE guild_id=? AND kind=?').all(namespace(id), kind)).map(r => JSON.parse(r.data));
-    return { courses: c.courses, canUpload: c.manager && !c.archived, configured: vimeo.configured, maxBytes: vimeo.maxBytes, videos: rows.filter(v => c.courses.some(course => course.id === v.courseId) && (c.manager || v.published && v.status === 'ready')).sort((a,b) => b.createdAt - a.createdAt).map(v => summary(v,c,user)) };
+    return { courses: c.courses, canUpload: c.manager && !c.archived, configured: vimeo.configured, maxBytes: vimeo.maxBytes, videos: rows.filter(v => !v.deletedAt && c.courses.some(course => course.id === v.courseId) && (c.manager || v.published && v.status === 'ready')).sort((a,b) => b.createdAt - a.createdAt).map(v => summary(v,c,user)) };
   }
   async function create(id, body, user) {
     const input = uploadInput.parse(body), c = await context(id, user, true);
@@ -62,6 +67,7 @@ export function createCourseVideos(db, workspaces, env = {}, vimeo = createVimeo
       const previous = await db.prepare('SELECT data FROM lms_runtime_state WHERE guild_id=? AND kind=? AND record_key=?').get(namespace(id), kind, input.requestId);
       if (previous) {
         const v = JSON.parse(previous.data); authorize(c,v,user,true);
+        if (v.deletedAt) throw new ApiError(409, '목록에서 삭제된 업로드 요청입니다. 새로 등록하세요.');
         if (JSON.stringify(v.input) !== JSON.stringify(input)) throw new ApiError(409, '이미 사용한 업로드 요청 번호입니다.');
         return summary(v,c,user);
       }
@@ -76,7 +82,7 @@ export function createCourseVideos(db, workspaces, env = {}, vimeo = createVimeo
         await vimeo.protect(remote.id);
         video = await save(id, video, { status: 'uploading', error: '' });
       } catch (error) {
-        video = await save(id, video, { status: 'error', error: error instanceof ApiError ? error.message : '영상 준비에 실패했습니다. 관리자에게 문의하세요.' });
+        video = await save(id, video, { status: 'error', error: error instanceof ApiError ? error.message : '영상 준비에 실패했습니다. 관리자에게 문의하세요.', errorDetails: error instanceof VimeoError ? error.details : null });
       }
       return summary(video,c,user);
     });
@@ -90,11 +96,18 @@ export function createCourseVideos(db, workspaces, env = {}, vimeo = createVimeo
     return locked(`${id}:${videoId}`, async () => {
       const c = await context(id,user,true); let v = await read(id,videoId); authorize(c,v,user,true);
       if (!v.vimeoId) throw new ApiError(409, 'Vimeo에서 영상 생성 여부를 확인하세요. 확인 후 새 파일로 등록할 수 있습니다.');
-      if (v.status === 'error') await vimeo.protect(v.vimeoId);
-      const remote = await vimeo.read(v.vimeoId);
+      let remote;
+      try {
+        if (v.status === 'error') await vimeo.protect(v.vimeoId);
+        remote = await vimeo.read(v.vimeoId);
+      } catch (error) {
+        if (error instanceof VimeoError) await save(id, v, { error: error.message, errorDetails: error.details });
+        throw error;
+      }
       const ready = remote.upload?.status === 'complete' && remote.transcode?.status === 'complete';
-      const failed = remote.upload?.status === 'error' || remote.transcode?.status === 'error' || String(remote.status).startsWith('error');
-      v = await save(id,v,{ status: failed ? 'error' : ready ? 'ready' : remote.upload?.status === 'complete' ? 'processing' : 'uploading', duration: remote.duration || 0, error: failed ? '영상 변환에 실패했습니다. 원본 파일을 확인하세요.' : '', ...(!ready ? { published: false } : {}) });
+      const uploadFailed = remote.upload?.status === 'error' || remote.status === 'uploading_error';
+      const failed = uploadFailed || remote.transcode?.status === 'error' || String(remote.status).startsWith('error') || remote.status === 'transcoding_error';
+      v = await save(id,v,{ status: failed ? 'error' : ready ? 'ready' : remote.upload?.status === 'complete' ? 'processing' : 'uploading', duration: remote.duration || 0, error: failed ? uploadFailed ? 'Vimeo 영상 전송에 실패했습니다. 원본 파일과 업로드 상태를 확인하세요.' : 'Vimeo 영상 변환에 실패했습니다. 원본 파일의 형식을 확인하세요.' : '', errorDetails: failed ? { code: uploadFailed ? 'upload_failed' : 'transcode_failed', stage: 'status', upstreamStatus: null, upstreamCode: null } : null, ...(!ready ? { published: false } : {}) });
       return summary(v,c,user);
     });
   }
@@ -119,5 +132,21 @@ export function createCourseVideos(db, workspaces, env = {}, vimeo = createVimeo
     if (!/^\d+$/.test(v.vimeoId)) throw new ApiError(409, '영상 연결을 확인하세요.');
     return { title: v.title, url: `https://player.vimeo.com/video/${v.vimeoId}?dnt=1&title=0&byline=0&portrait=0` };
   }
-  return { list, create, upload, refresh, edit, playback };
+  async function remove(id, videoId, body, user) {
+    const input = removeInput.parse(body);
+    return locked(`${id}:${videoId}`, async () => {
+      const c = await context(id, user, true);
+      const v = await read(id, videoId, true); authorize(c, v, user, true);
+      if (v.deletedAt) {
+        if (input.revision !== v.revision - 1) throw new ApiError(409, '영상 정보가 변경되었습니다. 새로고침하세요.');
+        return { id: videoId, deleted: true, vimeoDeleted: false };
+      }
+      if (input.revision !== v.revision) throw new ApiError(409, '영상 정보가 변경되었습니다. 새로고침 후 삭제할 영상을 다시 확인하세요.');
+      // Keep the request ID and remote reference, so retries cannot recreate a
+      // removed upload. No Vimeo call is made, including when its API is down.
+      await save(id, v, { deletedAt: Date.now(), deletedBy: user.id, published: false });
+      return { id: videoId, deleted: true, vimeoDeleted: false };
+    });
+  }
+  return { list, create, upload, refresh, edit, playback, remove };
 }

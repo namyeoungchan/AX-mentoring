@@ -1,5 +1,6 @@
 import { ApiError } from './store.mjs';
 import { configuredOrigins } from './origins.mjs';
+import { VimeoError, vimeoFailure } from './vimeo-errors.mjs';
 
 export function embedDomains(env) {
   const explicit = env.VIMEO_EMBED_DOMAINS?.trim();
@@ -16,24 +17,26 @@ export function createVimeo(env, fetcher = fetch) {
   const maxBytes = Number(env.VIMEO_MAX_UPLOAD_BYTES || 5 * 1024 ** 3);
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 300 * 1024 ** 3) throw new Error('VIMEO_MAX_UPLOAD_BYTES 설정을 확인하세요.');
   let verifiedUntil = 0;
-  async function request(path, method = 'GET', body) {
+  async function request(path, method = 'GET', body, stage = 'status') {
     if (!token) throw new ApiError(503, '영상 서비스가 아직 연결되지 않았습니다. 관리자에게 문의하세요.');
     let response;
     try {
       response = await fetcher(`https://api.vimeo.com${path}`, { method, redirect: 'error', signal: AbortSignal.timeout(20000), headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.vimeo.*+json;version=3.4', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
-    } catch { throw new ApiError(502, 'Vimeo 연결이 지연되고 있습니다. 잠시 후 상태를 확인하세요.'); }
+    } catch { throw new VimeoError('connection', 'Vimeo 연결이 지연되거나 끊겼습니다. 잠시 후 상태를 확인하세요.', stage); }
     if (!response.ok) {
-      const message = response.status === 429 ? 'Vimeo 요청 한도에 도달했습니다. 잠시 후 다시 시도하세요.' : response.status === 401 ? 'Vimeo 인증 설정을 확인하세요.' : response.status === 403 ? 'Vimeo 토큰 권한·업로드 승인·저장 용량을 확인하세요.' : response.status === 404 ? 'Vimeo에서 영상을 찾을 수 없습니다.' : 'Vimeo 작업에 실패했습니다. 잠시 후 다시 시도하세요.';
-      throw new ApiError(response.status === 429 ? 429 : 502, message);
+      const payload = await response.json().catch(() => null);
+      throw vimeoFailure(response.status, payload, stage);
     }
-    return response.status === 204 ? null : response.json();
+    if (response.status === 204) return null;
+    try { return await response.json(); }
+    catch { throw new VimeoError('invalid_response', 'Vimeo 응답을 확인하지 못했습니다. 잠시 후 상태를 확인하세요.', stage, response.status); }
   }
   async function verify() {
     if (!domains.length) throw new ApiError(503, '영상 재생을 허용할 웹 도메인을 설정하세요.');
     if (Date.now() < verifiedUntil) return;
-    const result = await request('/oauth/verify');
+    const result = await request('/oauth/verify', 'GET', undefined, 'verify');
     const scopes = String(result.scope || '').split(/\s+/);
-    if (['private', 'upload', 'edit'].some(scope => !scopes.includes(scope))) throw new ApiError(503, 'Vimeo 토큰에 private, upload, edit 권한이 필요합니다.');
+    if (['private', 'upload', 'edit'].some(scope => !scopes.includes(scope))) throw new VimeoError('permissions', 'Vimeo 토큰에 private, upload, edit 권한이 필요합니다.', 'verify');
     verifiedUntil = Date.now() + 60000;
   }
   const path = id => {
@@ -42,16 +45,16 @@ export function createVimeo(env, fetcher = fetch) {
   };
   async function protect(id) {
     await verify();
-    await request(path(id), 'PATCH', { privacy: { view: 'nobody', embed: 'whitelist', download: false } });
+    await request(path(id), 'PATCH', { privacy: { view: 'nobody', embed: 'whitelist', download: false } }, 'privacy');
     // Remove inherited preset domains as well as adding the configured domains.
-    const existing = await request(`${path(id)}/privacy/domains?per_page=100`);
-    for (const entry of existing.data || []) if (!domains.includes(entry.domain)) await request(`${path(id)}/privacy/domains/${encodeURIComponent(entry.domain)}`, 'DELETE');
-    for (const domain of domains) await request(`${path(id)}/privacy/domains/${encodeURIComponent(domain)}`, 'PUT');
+    const existing = await request(`${path(id)}/privacy/domains?per_page=100`, 'GET', undefined, 'privacy');
+    for (const entry of existing.data || []) if (!domains.includes(entry.domain)) await request(`${path(id)}/privacy/domains/${encodeURIComponent(entry.domain)}`, 'DELETE', undefined, 'privacy');
+    for (const domain of domains) await request(`${path(id)}/privacy/domains/${encodeURIComponent(domain)}`, 'PUT', undefined, 'privacy');
   }
   return {
     configured: Boolean(token && domains.length), maxBytes, domains, verify,
     async create(input) {
-      const result = await request('/me/videos', 'POST', { name: input.title, description: input.description, upload: { approach: 'tus', size: String(input.size) }, privacy: { view: 'nobody', embed: 'whitelist', download: false } });
+      const result = await request('/me/videos', 'POST', { name: input.title, description: input.description, upload: { approach: 'tus', size: String(input.size) }, privacy: { view: 'nobody', embed: 'whitelist', download: false } }, 'create');
       const id = result.uri?.match(/^\/videos\/(\d+)$/)?.[1];
       if (!id) throw new ApiError(502, 'Vimeo 영상 생성 결과를 확인하지 못했습니다.');
       return { id, uploadUrl: result.upload?.upload_link || '' };
@@ -60,7 +63,7 @@ export function createVimeo(env, fetcher = fetch) {
     read: id => request(`${path(id)}?fields=uri,status,upload.status,transcode.status,duration,privacy`),
     async publish(id, published) {
       if (published) await protect(id);
-      await request(path(id), 'PATCH', { privacy: { view: published ? 'disable' : 'nobody', embed: 'whitelist', download: false } });
+      await request(path(id), 'PATCH', { privacy: { view: published ? 'disable' : 'nobody', embed: 'whitelist', download: false } }, 'publish');
     },
   };
 }

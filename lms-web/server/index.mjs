@@ -398,6 +398,10 @@ app.patch('/api/workspaces/:workspaceId/videos/:videoId', async (req, res) => {
     await auth.limit('video-edit', req.account.id, 60, 60000);
     res.json(await runtime.courseVideos.edit(req.workspaceId, req.params.videoId, req.body, req.account));
 });
+app.delete('/api/workspaces/:workspaceId/videos/:videoId', async (req, res) => {
+    await auth.limit('video-delete', req.account.id, 60, 60000);
+    res.json(await runtime.courseVideos.remove(req.workspaceId, req.params.videoId, req.body, req.account));
+});
 app.get('/api/workspaces/:workspaceId/videos/:videoId/playback', async (req, res) => res.json(await runtime.courseVideos.playback(req.workspaceId, req.params.videoId, req.account)));
 app.post('/api/workspaces/:workspaceId/me/verification', async (req, res) => {
     await workspaces.requireRole(req.workspaceId, req.account, ['admin', 'student']);

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Play, Upload, RefreshCw, Film, Search, Clock3, Settings2 } from 'lucide-react'
+import { Play, Upload, RefreshCw, Film, Search, Clock3, Settings2, Trash2 } from 'lucide-react'
 import { workspaceRequest, demoMode } from './api'
 import { Badge, CardHeading, ModalShell } from './components'
 import { uploadVimeo } from './vimeoUpload'
 
-type Video = { id: string; courseId: string; title: string; description: string; status: string; published: boolean; duration: number; revision: number; canEdit?: boolean; error?: string; filename?: string; size?: number; lastModified?: number }
+type Video = { id: string; courseId: string; title: string; description: string; status: string; published: boolean; duration: number; revision: number; canEdit?: boolean; canDelete?: boolean; error?: string; filename?: string; size?: number; lastModified?: number }
 type Catalogue = { courses: { id: string; title: string }[]; videos: Video[]; canUpload: boolean; configured: boolean; maxBytes: number }
 const labels: Record<string, string> = { preparing: '업로드 준비 중', uploading: '업로드 대기', processing: '영상 변환 중', ready: '변환 완료', error: '확인 필요' }
 const durationLabel = (seconds: number) => `${Math.floor(seconds / 60)}분 ${Math.floor(seconds % 60)}초`
@@ -14,6 +14,7 @@ const formats = '.mp4,.mov,.m4v,.webm,.avi,.mkv'
 export default function CourseVideos({ workspaceId }: { workspaceId: string }) {
   const [data, setData] = useState<Catalogue | null>(null), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [adding, setAdding] = useState(false), [editing, setEditing] = useState<Video | null>(null), [playing, setPlaying] = useState<{ url: string; title: string; courseTitle: string; description: string; duration: number } | null>(null)
+  const [removing, setRemoving] = useState<Video | null>(null)
   const [busy, setBusy] = useState(false), [transfer, setTransfer] = useState<{ id: string; percent: number } | null>(null)
   const [query, setQuery] = useState(''), [courseFilter, setCourseFilter] = useState(''), [statusFilter, setStatusFilter] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -38,7 +39,7 @@ export default function CourseVideos({ workspaceId }: { workspaceId: string }) {
   }, [transfer])
   // Poll only unfinished videos owned by the current mentor, while this page is visible.
   useEffect(() => {
-    if (!data?.videos.some(v => v.canEdit && v.status === 'processing') || busy || transfer || editing || adding) return
+    if (!data?.videos.some(v => v.canEdit && v.status === 'processing') || busy || transfer || editing || adding || removing) return
     let inFlight = false
     const timer = setInterval(async () => {
       if (document.hidden || inFlight) return
@@ -50,7 +51,7 @@ export default function CourseVideos({ workspaceId }: { workspaceId: string }) {
       finally { inFlight = false }
     }, 15000)
     return () => clearInterval(timer)
-  }, [data, busy, transfer, editing, adding, load, workspaceId])
+  }, [data, busy, transfer, editing, adding, removing, load, workspaceId])
   async function run(action: () => Promise<void>) {
     if (locked.current) return
     locked.current = true
@@ -97,6 +98,20 @@ export default function CourseVideos({ workspaceId }: { workspaceId: string }) {
       setEditing(null); setPlaying(null); await load(); setNotice('영상 정보를 저장했습니다.')
     })
   }
+  async function remove() {
+    if (!removing) return
+    await run(async () => {
+      try {
+        await workspaceRequest(workspaceId, `videos/${removing.id}`, { method: 'DELETE', body: JSON.stringify({ revision: removing.revision }) })
+      } catch (e) {
+        const latest = await load()
+        setRemoving(latest.videos.find(v => v.id === removing.id) || null)
+        throw e
+      }
+      setRemoving(null); setPlaying(null); await load()
+      setNotice('LMS 목록에서 삭제했습니다. Vimeo 원본은 보존됩니다.')
+    })
+  }
   const courseTitle = (id: string) => data?.courses.find(c => c.id === id)?.title || '강의 과정'
   const visibleVideos = data?.videos.filter(v => (!courseFilter || v.courseId === courseFilter)
     && (!statusFilter || (statusFilter === 'published' ? v.published : !v.published))
@@ -104,7 +119,7 @@ export default function CourseVideos({ workspaceId }: { workspaceId: string }) {
   const filtered = Boolean(query || courseFilter || statusFilter)
   if (demoMode) return <section className="panel student-empty"><h2>강의 영상</h2><p>실제 워크스페이스에 로그인하면 이용할 수 있습니다.</p></section>
   return <>
-    {error && !adding && !editing && <p className="error-note" role="alert">{error}</p>}
+    {error && !adding && !editing && !removing && <p className="error-note" role="alert">{error}</p>}
     {notice && <p className="success-note" role="status">{notice}</p>}
     <section className="panel course-videos" aria-label="강의 영상 목록">
       <CardHeading title="강의 영상" subtitle={data?.canUpload ? '영상을 업로드하고 변환이 완료되면 수강생에게 게시하세요.' : '수강 중인 과정의 게시된 영상을 시청하세요.'}><div className="video-actions"><button className="button secondary" disabled={busy} onClick={() => void run(async () => { await load() })}><RefreshCw size={16} />새로고침</button>{data?.canUpload && <button className="button primary" disabled={busy || !data.configured || !data.courses.length} onClick={() => { setError(''); setSelectedFile(null); setAdding(true) }}><Upload size={16} />영상 업로드</button>}</div></CardHeading>
@@ -135,7 +150,7 @@ export default function CourseVideos({ workspaceId }: { workspaceId: string }) {
                 <button className="button secondary" disabled={busy} onClick={() => { setError(''); setEditing(video) }}><Settings2 size={16} />영상 설정</button>
                 {video.status === 'uploading' && !transfer && <label className={`button secondary video-resume ${busy ? 'disabled' : ''}`}>이어 올리기<input type="file" accept={formats} aria-label={`${video.title} 이어 올리기`} disabled={busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void run(() => send(video,file)) }} /></label>}
               </>}
-            </div>{video.canEdit && <button className="text-button video-refresh" disabled={busy} onClick={() => void run(async () => { await workspaceRequest(workspaceId, `videos/${video.id}/refresh`, { method: 'POST', body: '{}', signal: AbortSignal.timeout(180000) }); await load() })}><RefreshCw size={14} />상태 확인</button>}</div>
+            </div>{video.canEdit && <button className="text-button video-refresh" disabled={busy} onClick={() => void run(async () => { try { await workspaceRequest(workspaceId, `videos/${video.id}/refresh`, { method: 'POST', body: '{}', signal: AbortSignal.timeout(180000) }) } finally { await load() } })}><RefreshCw size={14} />상태 확인</button>}{video.canDelete && <button className="text-button video-delete" disabled={busy} onClick={() => { setError(''); setRemoving(video) }}><Trash2 size={14} />목록에서 삭제</button>}</div>
           </div>
         </article>)}</div>
       </div>
@@ -162,5 +177,12 @@ export default function CourseVideos({ workspaceId }: { workspaceId: string }) {
       <div className="modal-actions"><button type="button" className="button secondary" disabled={busy} onClick={() => setEditing(null)}>취소</button><button className="button primary" disabled={busy}>{busy ? '저장 중…' : '저장'}</button></div>
     </form></ModalShell>}
     {playing && <ModalShell title={playing.title} close={() => setPlaying(null)} className="video-player-modal"><div className="video-player-content"><div className="video-playback-meta"><span>{playing.courseTitle}</span>{playing.duration > 0 && <span><Clock3 size={14} />{durationLabel(playing.duration)}</span>}<Badge tone="green">수강생 전용</Badge></div><iframe className="video-player" src={playing.url} title={playing.title} allow="fullscreen; picture-in-picture; encrypted-media" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /><div className="video-player-details">{playing.description && <p className="video-description">{playing.description}</p>}<details className="video-playback-help"><summary>영상이 재생되지 않나요?</summary><p>인터넷 연결을 확인한 뒤 창을 닫고 다시 시청해 보세요. 계속 제한되면 현재 웹 주소와 영상 제목을 관리자에게 알려 주세요.</p></details></div></div></ModalShell>}
+    {removing && <ModalShell title="강의 영상 목록에서 삭제" close={() => setRemoving(null)} busy={busy}><div className="modal-form video-removal">
+      <strong>{removing.title}</strong><p>{courseTitle(removing.courseId)}의 LMS 목록에서 이 영상을 삭제할까요?</p>
+      {removing.published && <p className="inline-note">게시된 영상입니다. 삭제하면 수강생의 LMS 목록에서도 사라집니다.</p>}
+      <p>Vimeo 원본과 기존 Vimeo 링크는 유지됩니다. Vimeo 저장 용량은 줄어들지 않습니다.</p>
+      {error && <p role="alert" className="error-note">{error}</p>}
+      <div className="modal-actions"><button className="button secondary" disabled={busy} data-modal-autofocus onClick={() => setRemoving(null)}>취소</button><button className="button danger" disabled={busy} onClick={() => void remove()}><Trash2 size={16} />{busy ? '삭제 중…' : '목록에서 삭제'}</button></div>
+    </div></ModalShell>}
   </>
 }
