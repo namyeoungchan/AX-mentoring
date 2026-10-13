@@ -1070,8 +1070,10 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .video-card .video-description { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .video-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; align-items: center; color: #6b7d61; }
 .video-help { font-size: 12px; line-height: 1.8; color: #6b7d61; margin: 0; }
+.video-error { margin: 0; padding: 12px 14px; border-radius: 8px; font-size: 12px; line-height: 1.8; white-space: pre-line; word-break: keep-all; }
 .video-card-footer { margin-top: auto; padding-top: 10px; border-top: 1px solid #edf1e7; }
-.video-refresh { min-height: 44px; margin-top: 4px; gap: 6px; }
+.video-card-controls { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-top: 4px; }
+.video-refresh { min-height: 44px; gap: 6px; }
 .video-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .video-form-intro { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #f3f6ee; border-radius: 10px; margin-bottom: 22px; color: #526c3f; }
 .video-form-intro > svg { flex-shrink: 0; }
@@ -1092,7 +1094,7 @@ ul.membership-removal-effects { list-style: disc; padding-left: 18px; }
 .video-progress { display: flex; flex-direction: column; gap: 10px; background: #f3f6ee; padding: 14px; border-radius: 8px; font-size: 12px; }
 .video-progress p { margin: 0; line-height: 1.7; }
 .video-progress progress { width: 100%; accent-color: #648647; }
-.course-videos .video-delete { color: #a74f43; min-height: 44px; }
+.course-videos .video-delete { color: #a74f43; min-height: 44px; margin-left: auto; }
 .video-removal p { line-height: 1.8; margin: 12px 0; }
 .video-removal strong { overflow-wrap: anywhere; }
 .modal.video-player-modal { width: min(1000px, calc(100vw - 32px)); max-width: 1000px; }

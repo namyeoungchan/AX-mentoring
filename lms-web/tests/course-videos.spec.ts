@@ -139,11 +139,12 @@ test('video upload recovers a TUS offset, requires publication, plays and unpubl
   expect(browserErrors).toEqual([])
 })
 
-test('video cards restrict removal controls and show persisted cause-specific errors after a failed refresh', async ({page}) => {
+test('video cards align removal controls, separate error sentences and show persisted causes after a failed refresh', async ({page}) => {
   await page.request.post('/api/login',{data:{password:'test-only-password-1234'}})
   const ws = await (await page.request.post('/api/workspaces',{data:{name:'영상 오류 '+randomUUID().slice(0,8)}})).json()
   const base = `/api/workspaces/${ws.id}/videos`
-  const errors = ['업로드 준비: Vimeo 주간 업로드 한도에 도달했습니다.','이전 업로드에서 Vimeo가 접근을 거부했습니다. 당시 상세 원인이 저장되지 않았습니다.']
+  const legacyLines = ['이전 업로드에서 Vimeo가 접근을 거부했습니다.', '당시 상세 원인이 저장되지 않았습니다.', '상태를 다시 확인하거나 불필요한 실패 항목을 목록에서 삭제하세요.']
+  const errors = [legacyLines.join(' '),'업로드 준비: Vimeo 주간 업로드 한도에 도달했습니다.']
   let own = {id:'own',courseId:'course',title:'내 실패 항목',description:'',status:'error',published:false,duration:0,revision:1,canEdit:true,canDelete:true,error:errors[0]}
   const peer = {...own,id:'peer',title:'다른 멘토 영상',canEdit:false,canDelete:false,error:errors[1]}
   await page.route(`**${base}**`,async route=>{
@@ -157,6 +158,25 @@ test('video cards restrict removal controls and show persisted cause-specific er
   await expect(peerCard).toContainText(errors[1])
   await expect(ownCard.getByRole('button',{name:'목록에서 삭제',exact:true})).toBeVisible()
   await expect(peerCard.getByRole('button',{name:'목록에서 삭제',exact:true})).toHaveCount(0)
+  const errorNotice = ownCard.locator('.video-error')
+  expect(await errorNotice.textContent()).toBe(legacyLines.join('\n'))
+  await expect(errorNotice).toHaveCSS('white-space','pre-line')
+  for (const width of [1440,390,360]) {
+    await page.setViewportSize({width,height:1000})
+    await ownCard.scrollIntoViewIfNeeded()
+    const bounds = await ownCard.locator('.video-card-controls').evaluate(el=>{
+      const row = el.getBoundingClientRect(), refresh = el.querySelector('.video-refresh')!.getBoundingClientRect(), remove = el.querySelector('.video-delete')!.getBoundingClientRect()
+      return {leftGap:refresh.left-row.left,rightGap:row.right-remove.right,buttonGap:remove.left-refresh.right,sameRow:Math.abs(remove.top-refresh.top)<1,overflow:el.scrollWidth>el.clientWidth}
+    })
+    expect(Math.abs(bounds.leftGap)).toBeLessThan(1)
+    expect(Math.abs(bounds.rightGap)).toBeLessThan(1)
+    expect(bounds.buttonGap).toBeGreaterThanOrEqual(16)
+    expect(bounds.sameRow).toBe(true)
+    expect(bounds.overflow).toBe(false)
+    expect(await errorNotice.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true)
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+    await ownCard.screenshot({animations:'disabled',path:`test-results/video-card-layout-${width}.png`})
+  }
   await ownCard.getByRole('button',{name:'상태 확인',exact:true}).click()
   await expect(ownCard).toContainText('현재 Vimeo 요금제에서 이 설정을 사용할 수 없습니다')
   await expect(page.getByRole('alert')).toContainText('재생 보호 설정')
