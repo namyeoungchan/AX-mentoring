@@ -142,7 +142,7 @@ export default function CourseVideos({ workspaceId }: { workspaceId: string }) {
             <div className="video-meta"><Badge tone={video.published ? 'green' : 'orange'}>{video.published ? '게시됨' : labels[video.status] || video.status}</Badge>{!video.published && video.status === 'ready' && <span>미게시</span>}</div>
             <span className="video-course-name">{courseTitle(video.courseId)}</span><h3>{video.title}</h3><p className="video-description">{video.description || '등록된 영상 설명이 없습니다.'}</p>
             {!video.published && video.canEdit && <p className="video-help">{video.status === 'ready' ? '영상 설정에서 게시하면 수강생이 시청할 수 있습니다.' : video.status === 'processing' ? '영상 변환 중입니다. 완료되면 게시할 수 있습니다.' : video.status === 'uploading' ? '같은 원본 파일을 선택하면 이어서 전송합니다.' : '상태를 확인해 업로드를 진행하세요.'}</p>}
-            {video.error && <p className="error-note">{video.error}</p>}
+            {video.error && <p className="error-note video-error">{video.error.replace(/([.!?])\s+/g, '$1\n')}</p>}
             {transfer?.id === video.id && <div className="video-progress"><label htmlFor={`progress-${video.id}`}>영상 전송 {transfer.percent}%</label><progress id={`progress-${video.id}`} max={100} value={transfer.percent} /><p>전송 중에는 이 화면을 유지하세요.</p><button className="button secondary" onClick={() => controller.current?.abort()}>업로드 일시 중지</button></div>}
             <div className="video-card-footer"><div className="video-actions">
               {video.published && <button className="button primary" disabled={busy} onClick={() => void run(async () => { const playback = await workspaceRequest(workspaceId, `videos/${video.id}/playback`); setPlaying({ ...playback, courseTitle: courseTitle(video.courseId), description: video.description, duration: video.duration }) })}><Play size={16} />시청하기</button>}
@@ -150,7 +150,10 @@ export default function CourseVideos({ workspaceId }: { workspaceId: string }) {
                 <button className="button secondary" disabled={busy} onClick={() => { setError(''); setEditing(video) }}><Settings2 size={16} />영상 설정</button>
                 {video.status === 'uploading' && !transfer && <label className={`button secondary video-resume ${busy ? 'disabled' : ''}`}>이어 올리기<input type="file" accept={formats} aria-label={`${video.title} 이어 올리기`} disabled={busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void run(() => send(video,file)) }} /></label>}
               </>}
-            </div>{video.canEdit && <button className="text-button video-refresh" disabled={busy} onClick={() => void run(async () => { try { await workspaceRequest(workspaceId, `videos/${video.id}/refresh`, { method: 'POST', body: '{}', signal: AbortSignal.timeout(180000) }) } finally { await load() } })}><RefreshCw size={14} />상태 확인</button>}{video.canDelete && <button className="text-button video-delete" disabled={busy} onClick={() => { setError(''); setRemoving(video) }}><Trash2 size={14} />목록에서 삭제</button>}</div>
+            </div>{(video.canEdit || video.canDelete) && <div className="video-card-controls">
+              {video.canEdit && <button className="text-button video-refresh" disabled={busy} onClick={() => void run(async () => { try { await workspaceRequest(workspaceId, `videos/${video.id}/refresh`, { method: 'POST', body: '{}', signal: AbortSignal.timeout(180000) }) } finally { await load() } })}><RefreshCw size={14} />상태 확인</button>}
+              {video.canDelete && <button className="text-button video-delete" disabled={busy} onClick={() => { setError(''); setRemoving(video) }}><Trash2 size={14} />목록에서 삭제</button>}
+            </div>}</div>
           </div>
         </article>)}</div>
       </div>
