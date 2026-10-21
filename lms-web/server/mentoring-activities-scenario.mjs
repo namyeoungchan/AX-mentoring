@@ -39,6 +39,7 @@ export async function mentoringActivitiesScenario(r) {
     await assert.rejects(service.create(w.id, { ...input, date: '2026-10-22' }, mentor), { status: 422 });
     await assert.rejects(service.create(w.id, { ...input, endTime: '13:00' }, mentor), { status: 422 });
     await assert.rejects(service.create(w.id, { ...input, teamId: '', studentIds: [] }, mentor), { status: 422 });
+    await assert.rejects(service.create(w.id, { ...input, studentIds: [] }, mentor), { status: 422 });
     await assert.rejects(service.create(w.id, { ...input, content: '   ' }, mentor));
     await assert.rejects(service.create(w.id, { ...input, createdBy: other.id }, mentor));
     const failedId = randomUUID();
@@ -47,19 +48,21 @@ export async function mentoringActivitiesScenario(r) {
     const created = await service.create(w.id, input, mentor);
     assert.equal(created.mentorName, mentor.name);
     assert.equal(created.revision, 1);
+    assert.deepEqual(created.studentIds, ['learner-one']);
     assert.equal((await service.create(w.id, input, mentor)).id, created.id, 'retry does not create a second activity');
     await assert.rejects(service.create(w.id, { ...input, content: '別内容' }, mentor), { status: 409 });
     assert.equal((await service.list(w.id, other)).records.length, 0);
     const { id: _id, ...edit } = input;
     await assert.rejects(service.edit(w.id, created.id, { ...edit, revision: 1 }, other), { status: 403 });
     await assert.rejects(service.edit(w.id, created.id, { ...edit, revision: 1 }, student), { status: 403 });
+    await assert.rejects(service.edit(w.id, created.id, { ...edit, revision: 1, studentIds: [] }, mentor), { status: 422 });
     const changed = await service.edit(w.id, created.id, { ...edit, revision: 1, content: '멘토 수정' }, mentor);
     assert.equal(changed.revision, 2);
     await assert.rejects(service.edit(w.id, created.id, { ...edit, revision: 1, content: '오래된 화면' }, localAdmin), { status: 409 });
     await assert.rejects(service.edit(w.id, created.id, { ...edit, mentorId: other.id, revision: 2 }, mentor), { status: 403 });
     await service.edit(w.id, created.id, { ...edit, revision: 2, content: '관리자 정정' }, localAdmin);
     // Admin may record on behalf of another mentor; that mentor then owns the record.
-    const second = await service.create(w.id, { ...input, id: randomUUID(), mentorId: other.id, teamId: otherTeam.id, studentIds: [] }, localAdmin);
+    const second = await service.create(w.id, { ...input, id: randomUUID(), mentorId: other.id, teamId: otherTeam.id, studentIds: ['learner-other'] }, localAdmin);
     assert.equal((await service.list(w.id, other)).records[0].canEdit, true);
     await assert.rejects(service.edit(w.id, second.id, { ...edit, revision: 1 }, mentor), { status: 403 });
     assert.equal((await service.list(w.id, localAdmin)).records.length, 2);

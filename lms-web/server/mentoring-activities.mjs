@@ -45,6 +45,8 @@ export function createMentoringActivities(main, workspaces, { now = Date.now } =
         const team = c.data.teams.find(v => v.id === input.teamId && v.courseId === input.courseId);
         if (!course || (input.teamId && !team)) throw new ApiError(403, '담당 범위의 과정과 팀을 선택하세요.');
         if (!input.teamId && !input.studentIds.length) throw new ApiError(422, '대상 팀 또는 참여 학생을 선택하세요.');
+        if (team && !input.studentIds.length && c.data.learners.some(v => v.courseId === input.courseId && v.team === team.name))
+            throw new ApiError(422, '참여 학생을 1명 이상 선택하세요. 전원을 해제한 상태로는 저장할 수 없습니다.');
         if (new Set(input.studentIds).size !== input.studentIds.length) throw new ApiError(422, '참여 학생을 중복 선택할 수 없습니다.');
         const students = input.studentIds.map(studentId => c.data.learners.find(v => v.id === studentId && v.courseId === input.courseId && (!team || v.team === team.name)));
         if (students.some(v => !v)) throw new ApiError(403, '선택한 과정과 팀의 담당 학생만 기록할 수 있습니다.');
