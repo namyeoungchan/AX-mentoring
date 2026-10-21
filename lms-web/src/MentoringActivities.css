@@ -24,9 +24,12 @@
 .mentoring-activity-modal input[readonly] { background: #f1f5f1; color: #4c6053; }
 .mentoring-activity-hint, .mentoring-activity-students p { font-size: 13px; color: #617367; line-height: 1.6; }
 .mentoring-activity-students summary { cursor: pointer; min-height: 32px; }
-.mentoring-activity-students > div { max-height: 170px; overflow: auto; }
-.mentoring-activity-modal .mentoring-activity-students label { display: flex; align-items: center; gap: 10px; min-height: 40px; }
-.mentoring-activity-modal .mentoring-activity-students input { width: 18px; height: 18px; min-height: 18px; margin: 0; }
+.mentoring-activity-students > div { max-height: 180px; overflow: auto; padding: 3px; }
+.mentoring-activity-modal .mentoring-activity-students label { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; min-height: 44px; padding: 8px 4px; border-radius: 4px; cursor: pointer; }
+.mentoring-activity-students label > span { min-width: 0; line-height: 1.5; overflow-wrap: anywhere; text-align: left; }
+.mentoring-activity-students label:hover { background: #f1f5f1; }
+.mentoring-activity-students label:focus-within { outline: 2px solid #315c48; outline-offset: 0; }
+.mentoring-activity-modal .mentoring-activity-students input[type="checkbox"] { flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; accent-color: #315c48; cursor: pointer; }
 .mentoring-activity-error { color: #a13e31; line-height: 1.6; }
 .mentoring-activity-modal .modal-form > .mentoring-activity-error { color: #a13e31; margin-top: 16px; }
 @media (max-width: 520px) {
