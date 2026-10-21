@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 
 test('mentors record their own work in a modal; admins choose mentors; students cannot access records', async ({ page }) => {
+  // This real-API journey provisions accounts, switches three roles, retries a lost
+  // save response and captures three viewports. Keep assertion timeouts unchanged.
+  test.setTimeout(90000)
   const api = page.request, suffix = randomUUID().slice(0, 8)
   const root = await (await api.post('/api/login', { data: { password: 'test-only-password-1234' } })).json()
   const admin = { Authorization: 'Bearer ' + root.token }
