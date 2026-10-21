@@ -1,0 +1,78 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { createMentoringActivities } from './mentoring-activities.mjs';
+
+export async function mentoringActivitiesScenario(r) {
+    const admin = { id: 'admin', role: 'admin', username: 'activity.admin' };
+    const w = await r.workspaces.create({ name: '멘토링 활동 검증' });
+    const db = (await r.workspaces.open(w.id)).db;
+    const groups = await r.staff.setupGroups(w.id, { count: 2, revision: (await r.workspaces.snapshot(w.id)).revision }, admin);
+    const [team, otherTeam] = groups.teams;
+    const makeUser = async (name, role, teamIds = []) => {
+        const user = (await r.auth.signup({ username: `activity.${name}`, name, password: 'test-password-12345' }, () => {})).user;
+        await r.store.db.prepare('INSERT INTO lms_workspace_members VALUES(?,?,?,1)').run(w.id, user.id, role);
+        if (role === 'instructor') await r.store.db.prepare("INSERT INTO lms_mentor_scopes VALUES(?,?,'group',?)").run(w.id, user.id, JSON.stringify(teamIds));
+        return user;
+    };
+    const mentor = await makeUser('mentor', 'instructor', [team.id]);
+    const other = await makeUser('other', 'instructor', [otherTeam.id]);
+    const student = await makeUser('student', 'student');
+    const localAdmin = await makeUser('manager', 'admin');
+    for (const [id, target] of [['learner-one', team], ['learner-other', otherTeam]]) {
+        await db.prepare("INSERT INTO lms_records VALUES('learners',?,?)").run(id, JSON.stringify({ id, name: id, courseId: team.courseId, team: target.name, discordId: '', email: '', status: '정상', progress: 0, color: 'sage' }));
+    }
+    await db.prepare("INSERT INTO mentors(id,discord_id,name) VALUES(901,'273456789012345678','기존 예약 멘토')").run();
+    await db.prepare("INSERT INTO slots(id,mentor_id,start_time,end_time,label) VALUES(901,901,'2026-10-20T10:00:00','2026-10-20T11:00:00','보존할 예약')").run();
+    await db.prepare("INSERT INTO bookings(id,slot_id,user_id,user_name,status) VALUES(901,901,'373456789012345678','기존 멘티','approved')").run();
+    const service = createMentoringActivities(r.store.db, r.workspaces, { now: () => Date.parse('2026-10-21T20:00:00+09:00') });
+    const input = { id: randomUUID(), mentorId: mentor.id, courseId: team.courseId, teamId: team.id, studentIds: ['learner-one'], title: '서버 환경 설정', date: '2026-10-20', time: '14:00', endTime: '15:00', content: '배포 환경 구성\n멘티 요청으로 연동 확인' };
+    const counts = async () => Promise.all(['bookings', 'slots', 'lms_outbox', 'lms_mentoring_feedback_requests', 'lms_mentoring_feedback_responses'].map(async table => [table, await db.prepare(`SELECT * FROM ${table}`).all()]));
+    const before = await counts();
+    assert.deepEqual((await service.list(w.id, mentor)).mentors.map(v => v.id), [mentor.id]);
+    assert.equal((await service.list(w.id, localAdmin)).mentors.length, 2);
+    await assert.rejects(service.list(w.id, student), { status: 403 });
+    await assert.rejects(service.create(w.id, input, student), { status: 403 });
+    await assert.rejects(service.create(w.id, { ...input, mentorId: other.id }, mentor), { status: 403 });
+    await assert.rejects(service.create(w.id, { ...input, teamId: otherTeam.id }, mentor), { status: 403 });
+    await assert.rejects(service.create(w.id, { ...input, studentIds: ['learner-other'] }, mentor), { status: 403 });
+    await assert.rejects(service.create(w.id, { ...input, mentorId: student.id }, localAdmin), { status: 422 });
+    await assert.rejects(service.create(w.id, { ...input, date: '2026-10-22' }, mentor), { status: 422 });
+    await assert.rejects(service.create(w.id, { ...input, endTime: '13:00' }, mentor), { status: 422 });
+    await assert.rejects(service.create(w.id, { ...input, teamId: '', studentIds: [] }, mentor), { status: 422 });
+    await assert.rejects(service.create(w.id, { ...input, content: '   ' }, mentor));
+    await assert.rejects(service.create(w.id, { ...input, createdBy: other.id }, mentor));
+    const failedId = randomUUID();
+    await assert.rejects(service.create(w.id, { ...input, id: failedId }, { ...mentor, username: null }), /NOT NULL|null value/i);
+    assert.equal(await db.prepare('SELECT id FROM lms_records WHERE kind=? AND id=?').get('mentoringActivity', failedId), undefined, 'audit failure rolls back the activity too');
+    const created = await service.create(w.id, input, mentor);
+    assert.equal(created.mentorName, mentor.name);
+    assert.equal(created.revision, 1);
+    assert.equal((await service.create(w.id, input, mentor)).id, created.id, 'retry does not create a second activity');
+    await assert.rejects(service.create(w.id, { ...input, content: '別内容' }, mentor), { status: 409 });
+    assert.equal((await service.list(w.id, other)).records.length, 0);
+    const { id: _id, ...edit } = input;
+    await assert.rejects(service.edit(w.id, created.id, { ...edit, revision: 1 }, other), { status: 403 });
+    await assert.rejects(service.edit(w.id, created.id, { ...edit, revision: 1 }, student), { status: 403 });
+    const changed = await service.edit(w.id, created.id, { ...edit, revision: 1, content: '멘토 수정' }, mentor);
+    assert.equal(changed.revision, 2);
+    await assert.rejects(service.edit(w.id, created.id, { ...edit, revision: 1, content: '오래된 화면' }, localAdmin), { status: 409 });
+    await assert.rejects(service.edit(w.id, created.id, { ...edit, mentorId: other.id, revision: 2 }, mentor), { status: 403 });
+    await service.edit(w.id, created.id, { ...edit, revision: 2, content: '관리자 정정' }, localAdmin);
+    // Admin may record on behalf of another mentor; that mentor then owns the record.
+    const second = await service.create(w.id, { ...input, id: randomUUID(), mentorId: other.id, teamId: otherTeam.id, studentIds: [] }, localAdmin);
+    assert.equal((await service.list(w.id, other)).records[0].canEdit, true);
+    await assert.rejects(service.edit(w.id, second.id, { ...edit, revision: 1 }, mentor), { status: 403 });
+    assert.equal((await service.list(w.id, localAdmin)).records.length, 2);
+    const foreign = await r.workspaces.create({ name: '다른 워크스페이스' });
+    await assert.rejects(service.list(foreign.id, mentor), { status: 403 });
+    await assert.rejects(service.edit(foreign.id, created.id, { ...edit, revision: 3 }, admin), { status: 404 });
+    await assert.rejects(service.create(foreign.id, input, admin), { status: 422 });
+    assert.deepEqual(await counts(), before, 'manual records never modify appointments, slots, feedback or Discord delivery');
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_audit WHERE action LIKE 'mentoring.activity.%'").get()).n, 4);
+    await r.workspaces.setArchived(w.id, true, admin);
+    assert.equal((await service.list(w.id, mentor)).canCreate, false);
+    assert.equal((await service.list(w.id, mentor)).records[0].canEdit, false);
+    await assert.rejects(service.edit(w.id, created.id, { ...edit, revision: 3 }, localAdmin), { status: 409 });
+    await assert.rejects(service.create(w.id, { ...input, id: randomUUID() }, mentor), { status: 409 });
+    return { workspaceId: w.id, records: 2 };
+}
