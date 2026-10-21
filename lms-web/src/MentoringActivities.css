@@ -1,9 +1,12 @@
 .page-actions .mentoring-add-button { width: 44px; min-width: 44px; height: 44px; padding: 0; justify-content: center; }
 .mentoring-page-heading .page-actions { flex-direction: row; align-items: center; }
 .mentoring-activities { margin: 20px 0; padding: 16px 20px; background: #fff; border: 1px solid #dce3de; border-radius: 10px; color: #293e32; font-size: 14px; }
+.role-content > .mentoring-activities { margin: 0; }
 .mentoring-activities-heading, .mentoring-activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .mentoring-activities-heading > button:first-child { display: flex; gap: 12px; align-items: center; min-height: 44px; text-align: left; font-weight: 600; }
 .mentoring-activities-heading small { font-size: 13px; color: #617367; }
+.mentoring-activities-heading > .button { flex-shrink: 0; min-height: 44px; padding: 9px 13px; font-size: 13px; color: #38513f; border-color: #cdd9d0; }
+.mentoring-activities-heading > .button:disabled { opacity: 1; color: #738078; background: #f1f4f1; cursor: not-allowed; }
 .mentoring-activities > p { margin-top: 10px; }
 .mentoring-activity-list article { border-top: 1px solid #e1e7e2; padding: 18px 0; }
 .mentoring-activity-heading h3 { font-size: 16px; margin: 4px 0; overflow-wrap: anywhere; }

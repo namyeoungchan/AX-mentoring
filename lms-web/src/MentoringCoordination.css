@@ -1,17 +1,52 @@
-.mentoring-coordination { margin-bottom: 24px; }
-.coordination-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.coordination-heading h2, .coordination-heading h3 { margin: 0; }
-.coordination-heading p, .coordination-help { color: var(--text-muted, #647067); }
-.coordination-help { margin: 16px 0; }
+.mentoring-coordination.panel { margin: 0; padding: 20px; color: #293e32; font-size: 14px; line-height: 1.65; }
+.mentoring-coordination :is(button, summary, input, select, textarea):focus-visible { outline: 2px solid #315c48; outline-offset: 3px; }
+.mentoring-coordination .button { min-height: 44px; padding: 9px 13px; font-size: 13px; }
+.mentoring-coordination .button.secondary { color: #38513f; border-color: #cdd9d0; }
+.mentoring-coordination .button:disabled { opacity: 1; color: #738078; background: #f1f4f1; border-color: #dce3de; cursor: not-allowed; }
+.coordination-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
+.coordination-heading h2, .coordination-heading h3 { margin: 0; font-weight: 650; overflow-wrap: anywhere; }
+.coordination-heading h2 { font-size: 17px; letter-spacing: -.3px; }
+.coordination-heading h3 { font-size: 15px; }
+.coordination-heading > strong { font-size: 12px; font-weight: 600; color: #315c48; }
+.coordination-intro { align-items: flex-start; flex-wrap: nowrap; }
+.coordination-intro > div { min-width: 0; }
+.coordination-intro p { margin-top: 5px; color: #617367; font-size: 13px; max-width: 52em; word-break: keep-all; overflow-wrap: anywhere; }
+.coordination-refresh { flex-shrink: 0; min-width: 110px; justify-content: center; white-space: nowrap; }
+.coordination-help { margin: 16px 0 0; border-top: 1px solid #e1e7e2; color: #526658; font-size: 13px; }
+.coordination-help summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; color: #315c48; font-weight: 600; }
+.coordination-help summary::-webkit-details-marker { display: none; }
+.coordination-help summary svg { transform: rotate(-90deg); }
+.coordination-help[open] summary svg { transform: rotate(0); }
+.coordination-help ol { padding-left: 22px; list-style: decimal; margin: 0 0 12px; }
+.coordination-help > p { margin-bottom: 16px; }
+.coordination-empty { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; padding: 14px 16px; border-radius: 6px; background: #f5f8f4; color: #607568; font-size: 13px; }
+.coordination-empty svg { color: #7a9381; }
+.coordination-message { margin: 12px 0; padding: 12px 14px; border-radius: 6px; background: #eef5ef; color: #315c48; overflow-wrap: anywhere; }
+.coordination-error { background: #fff0eb; color: #933f32; }
 .coordination-help li, .coordination-appointment details li { margin: 8px 0; }
-.coordination-appointment { border-top: 1px solid var(--border, #dce3dd); padding: 24px 0; overflow-wrap: anywhere; }
+.coordination-appointment { border-top: 1px solid var(--border, #dce3dd); padding: 20px 0; overflow-wrap: anywhere; }
+.coordination-appointment:last-child { padding-bottom: 0; }
+.coordination-appointment > p { margin-top: 8px; }
+.coordination-appointment details > summary { min-height: 44px; align-content: center; cursor: pointer; color: #315c48; font-size: 13px; }
+.coordination-appointment details ol { padding-left: 22px; }
 .coordination-proposal { padding: 16px; margin: 16px 0; background: var(--surface-soft, #f0f5f1); border-left: 3px solid #547b5f; }
 .coordination-warning { color: #815414; }
 .coordination-reason { white-space: pre-wrap; }
 .coordination-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
-.coordination-form { border: 1px solid var(--border, #dce3dd); padding: 20px; margin: 16px 0; display: flex; gap: 14px; flex-wrap: wrap; }
+.coordination-form { border: 1px solid var(--border, #dce3dd); border-radius: 8px; background: #fafcf9; padding: 20px; margin: 16px 0; display: flex; gap: 14px; flex-wrap: wrap; min-width: 0; }
 .coordination-form h4, .coordination-form > p, .coordination-form > label { flex-basis: 100%; margin: 0; }
-.coordination-form label { display: grid; gap: 8px; }
-.coordination-form select, .coordination-form textarea { width: 100%; min-width: 0; padding: 10px; font: inherit; border: 1px solid var(--border, #dce3dd); border-radius: 6px; }
+.coordination-form label { display: grid; gap: 8px; min-width: 0; }
+.coordination-form select, .coordination-form textarea { width: 100%; min-width: 0; min-height: 44px; padding: 10px; font: inherit; border: 1px solid var(--border, #dce3dd); border-radius: 6px; background: white; }
 .coordination-form textarea { min-height: 90px; resize: vertical; }
-@media (max-width: 600px) { .coordination-form { padding: 12px; } .coordination-form select { font-size: 16px; } }
+@media (max-width: 600px) {
+  .mentoring-coordination.panel { padding: 16px; }
+  .coordination-intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+  .coordination-intro > div { display: contents; }
+  .coordination-intro h2 { align-self: center; font-size: 16px; }
+  .coordination-intro p { grid-column: 1 / -1; grid-row: 2; margin: 0; }
+  .coordination-refresh { grid-column: 2; grid-row: 1; min-width: 98px; }
+  .mentoring-coordination .coordination-refresh { padding-inline: 10px; }
+  .coordination-empty { padding: 12px; align-items: flex-start; }
+  .coordination-form { padding: 12px; }
+  .coordination-form select, .coordination-form textarea { font-size: 16px; }
+}

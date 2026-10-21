@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { CalendarDays, ChevronDown, RefreshCw } from 'lucide-react'
 import { workspaceRequest } from './api'
 import './MentoringCoordination.css'
 
@@ -19,13 +20,22 @@ const stamp = (value: number) => new Date(value).toLocaleString('ko-KR', { timeZ
 export default function MentoringCoordination({ workspaceId, onChanged }: { workspaceId: string; onChanged?: () => Promise<void> }) {
   const [sessions, setSessions] = useState<Appointment[]>([]), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [form, setForm] = useState<{ id: string; version: number; action: Action } | null>(null)
   const [slotId, setSlotId] = useState(''), [reason, setReason] = useState(''), [available, setAvailable] = useState('')
   const locked = useRef(false)
+  const refreshLocked = useRef(false)
   const refresh = useCallback(async () => {
     const data = await workspaceRequest(workspaceId, 'mentoring/coordination')
     setSessions(data.sessions)
   }, [workspaceId])
+  async function reload() {
+    if (refreshLocked.current || busy || loading) return
+    refreshLocked.current = true; setRefreshing(true); setError('')
+    try { await refresh() }
+    catch (e) { setError(e instanceof Error ? e.message : '예약을 불러오지 못했습니다. 다시 시도하세요.') }
+    finally { refreshLocked.current = false; setRefreshing(false) }
+  }
   useEffect(() => {
     const controller = new AbortController()
     workspaceRequest(workspaceId, 'mentoring/coordination', { signal: controller.signal })
@@ -61,17 +71,17 @@ export default function MentoringCoordination({ workspaceId, onChanged }: { work
     finally { locked.current = false; setBusy(false) }
   }
   return <section className="mentoring-coordination panel" aria-label="멘토링 일정 재조율">
-    <div className="coordination-heading"><div><h2>멘토링 일정 재조율</h2><p>조 담당 멘토와 수강생이 직접 협의합니다. 모든 시간은 한국시간입니다.</p></div>
-      <button className="button secondary" disabled={busy || loading} onClick={() => { setError(''); void refresh().catch(e => setError(e.message)) }}>새로고침</button></div>
-    <details className="coordination-help"><summary>일정 변경 방법</summary><ol>
+    <div className="coordination-heading coordination-intro"><div><h2>멘토링 일정 재조율</h2><p>조 담당 멘토와 수강생이 직접 협의합니다. 모든 시간은 한국시간입니다.</p></div>
+      <button type="button" className="button secondary coordination-refresh" aria-label="멘토링 일정 새로고침" aria-busy={refreshing} disabled={busy || loading || refreshing} onClick={() => void reload()}><RefreshCw size={16} aria-hidden="true" />{refreshing ? '확인 중…' : '새로고침'}</button></div>
+    <details className="coordination-help"><summary><ChevronDown size={16} aria-hidden="true" />일정 변경 방법</summary><ol>
       <li>승인된 예약에서 ‘다른 시간 제안’을 누르고, 멘토가 등록한 시간과 사유를 입력하세요.</li>
       <li>기존 시간에도 참석할 수 있는지 선택하세요. 기존 시간에 참석할 수 없다면 거절·철회·만료 후에도 ‘재조율 필요’로 남습니다.</li>
       <li>상대방은 수락·거절하거나 다른 시간을 제안합니다. 수락하면 새 일정으로 확정됩니다.</li>
       <li>응답 기한은 최대 24시간이며 기존 또는 제안 일정의 시작 전까지입니다. 응답이 없으면 제안만 만료됩니다.</li>
       <li>‘제안 철회’는 변경 제안을 거두는 기능입니다. 멘토링 자체를 취소하려면 ‘예약 취소’에서 사유를 입력하세요.</li>
     </ol><p>Discord에서는 <code>/reschedule</code> 또는 일정 조율 DM의 버튼을 이용하세요.</p></details>
-    {error && <p className="error-text" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-    {loading ? <p role="status">예약을 불러오는 중입니다.</p> : !sessions.length && <p>재조율할 승인 예약이 없습니다.</p>}
+    {error && <p className="coordination-message coordination-error" role="alert">{error}</p>}{notice && <p className="coordination-message" role="status">{notice}</p>}
+    {loading ? <p className="coordination-empty" role="status">예약을 불러오는 중입니다.</p> : !error && !sessions.length && <div className="coordination-empty"><CalendarDays size={22} aria-hidden="true" /><p>재조율할 승인 예약이 없습니다.</p></div>}
     {sessions.map(session => <article key={session.id} className="coordination-appointment">
       <div className="coordination-heading"><h3>{session.mentor} · {session.student}</h3><strong>{labels[session.status] || session.status}</strong></div>
       <p>{session.title}</p><p><strong>기존/확정 일정</strong> {time(session.start, session.end)}</p>

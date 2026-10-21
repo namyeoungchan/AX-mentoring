@@ -53,6 +53,16 @@
 - 기존 승인 예약을 미리 넣고 기록 추가·수정 전후 예약·슬롯·후기·알림 큐가 동일함을 확인한다.
 - 데스크톱 1440px, 모바일 390px/360px 모달 캡처와 가로 넘침을 확인한다.
 
+### 추가 UI 정리
+
+- 기존 폰트·녹색 톤·버튼·아이콘 체계를 유지한다.
+- 재조율 패널의 누락된 내부 여백, 제목 크기와 섹션 사이의 중복 간격을 수정한다.
+- 새로고침 버튼은 44px 클릭 영역, 오른쪽 정렬, 요청 중 비활성화와 상태 표시를 제공한다.
+- 일정 변경 도움말, 빈 상태, 오류/재시도 표시를 정리하고 360px에서도 버튼이 겹치지 않게 한다.
+- 이 패널은 학생 화면에서도 공유하므로 기존 학생·멘토 일정 제안/수락 흐름을 함께 검증한다.
+  새 활동 기록 기능의 학생 접근 차단은 유지한다.
+- 추가 UI를 포함한 로컬 브라우저 테스트 9개 통과. 1440/768/390/360px 배치 검증 포함.
+
 ```sh
 cd lms-web
 npm run lint
@@ -62,7 +72,8 @@ npm test
 POSTGRES_TEST_URL=postgresql://... npm run test:postgres
 PLAYWRIGHT_DATABASE_URL=postgresql://... npx playwright test \
   tests/mentoring-activities.spec.ts tests/mentoring-layout.spec.ts \
-  tests/mentoring-feedback.spec.ts tests/role-workspaces.spec.ts
+  tests/mentoring-feedback.spec.ts tests/role-workspaces.spec.ts \
+  tests/mentoring-coordination.spec.ts tests/mentoring-coordination-layout.spec.ts
 ```
 
 캡처는 `lms-web/test-results/mentoring-activity-*.png`에 생성된다. 운영 도움말이나

@@ -96,7 +96,7 @@ const card = (page, key = 'flow') => page.locator('.coordination-appointment').f
 async function refresh(page) {
   await Promise.all([
     page.waitForResponse(r => r.url() === origin + '/api/workspaces/default/mentoring/coordination' && r.request().method() === 'GET'),
-    panel(page).getByRole('button', { name: '새로고침', exact: true }).click(),
+    panel(page).getByRole('button', { name: '멘토링 일정 새로고침', exact: true }).click(),
   ]);
   await page.waitForLoadState('networkidle');
 }

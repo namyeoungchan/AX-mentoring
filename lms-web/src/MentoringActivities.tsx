@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Pencil, Plus } from 'lucide-react'
+import { Pencil, Plus, RefreshCw } from 'lucide-react'
 import { ModalShell } from './components'
 import { workspaceRequest } from './api'
 import './MentoringActivities.css'
@@ -15,21 +15,27 @@ export function MentoringAddButton({ onClick, disabled = false }: { onClick: () 
 
 export default function MentoringActivities({ workspaceId, open, close, demo = false }: { workspaceId: string; open: boolean; close: () => void; demo?: boolean }) {
   const [data, setData] = useState<Options | null>(null), [error, setError] = useState(''), [notice, setNotice] = useState('')
+  const [loading, setLoading] = useState(!demo)
   const [editing, setEditing] = useState<Activity | null>(null), [expanded, setExpanded] = useState(false), [limit, setLimit] = useState(10)
   const requestNumber = useRef(0)
+  const refreshLocked = useRef(false)
   const section = useRef<HTMLElement>(null)
   const load = useCallback(async () => {
+    if (refreshLocked.current) return
+    refreshLocked.current = true; setLoading(true)
     const number = ++requestNumber.current
     try {
       const result = await workspaceRequest(workspaceId, 'mentoring/activities') as Options
       if (number === requestNumber.current) { setData(result); setError('') }
     } catch (failure) { if (number === requestNumber.current) setError(message(failure)) }
+    finally { refreshLocked.current = false; setLoading(false) }
   }, [workspaceId])
   useEffect(() => {
     const controller = new AbortController(), number = ++requestNumber.current
     if (!demo) workspaceRequest(workspaceId, 'mentoring/activities', { signal: controller.signal })
       .then(result => { if (number === requestNumber.current && !controller.signal.aborted) { setData(result); setError('') } })
       .catch(failure => { if (number === requestNumber.current && !controller.signal.aborted) setError(message(failure)) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [workspaceId, demo])
   function saved(record: Activity) {
@@ -41,7 +47,7 @@ export default function MentoringActivities({ workspaceId, open, close, demo = f
   }
   const shown = data?.records.slice(0, limit) || []
   return <section ref={section} className="mentoring-activities" aria-label="멘토링 기록">
-    <div className="mentoring-activities-heading"><button type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}><span>멘토링 기록</span><small>{data?.records.length || 0}건</small><span aria-hidden="true">{expanded ? '−' : '+'}</span></button>{!demo && <button className="text-button" aria-label="멘토링 기록 새로고침" onClick={() => void load()}>새로고침</button>}</div>
+    <div className="mentoring-activities-heading"><button type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}><span>멘토링 기록</span><small>{data?.records.length || 0}건</small><span aria-hidden="true">{expanded ? '−' : '+'}</span></button>{!demo && <button className="button secondary" aria-label="멘토링 기록 새로고침" aria-busy={loading} disabled={loading} onClick={() => void load()}><RefreshCw size={16} aria-hidden="true" />{loading ? '확인 중…' : '새로고침'}</button>}</div>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert">{error}</p>}
     {expanded && <div className="mentoring-activity-list">

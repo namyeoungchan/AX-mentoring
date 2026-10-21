@@ -15,6 +15,7 @@ test('students and group mentors negotiate through the same UI; main instructors
     if (path === '/api/workspaces') return route.fulfill({ json: { workspaces: [{ id: 'coord-ui', name: '일정 조율 검증', role, discordVerified: true, archivedAt: null, guildIds: ['123456789012345678'] }] } })
     if (path.endsWith('/me/learning')) return route.fulfill({ json: { enrollment: null, courses: [], attendance: [], scores: [], assignments: [] } })
     if (path.endsWith('/teaching')) return route.fulfill({ json: { workspaceId: 'coord-ui', name: '일정 조율 검증', mentorType, mode: 'api', onboardingComplete: true, courses: [], sessions: [], assignments: [], learners: [], mentors: [], teams: [], attendance: [], scores: [], notices: [], files: [], submissions: [], servers: [], logs: [] } })
+    if (path.endsWith('/mentoring/activities')) return route.fulfill({ json: { admin: false, canCreate: true, mentors: [{ id: 'instructor', name: '김멘토', username: 'instructor' }], courses: [], teams: [], students: [], records: [] } })
     if (path.endsWith('/mentoring/coordination')) return route.fulfill({ json: { sessions: [{ ...appointment, role: role === 'student' ? 'student' : 'mentor' }] } })
     if (path.endsWith('/mentoring/1/coordination') && route.request().method() === 'POST') {
       const body = route.request().postDataJSON()
@@ -38,6 +39,12 @@ test('students and group mentors negotiate through the same UI; main instructors
   await panel.getByLabel('변경할 시간').selectOption('2')
   await panel.getByLabel('기존 일정 참석 가능 여부').selectOption('no')
   await panel.getByLabel('사유', { exact: true }).fill('프로젝트 발표 일정이 변경되었습니다.')
+  for (const width of [1440, 390, 360]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    expect(await panel.locator('.coordination-actions button, .coordination-form button').evaluateAll(buttons => buttons.every(button => button.getBoundingClientRect().height >= 44))).toBe(true)
+    await page.screenshot({ path: `test-results/mentoring-coordination-form-${width}.png`, fullPage: true, animations: 'disabled' })
+  }
   await panel.getByRole('button', { name: '다른 시간 제안 저장' }).click()
   await expect(panel).toContainText('변경 응답 대기')
   expect(submissions[0]).toMatchObject({ action: 'propose', version: 0, slotId: '2', originalAvailable: false })
