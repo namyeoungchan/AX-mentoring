@@ -23,8 +23,14 @@ test('mentors record their own work in a modal; admins choose mentors; students 
     users.push({ ...account, username, password })
   }
   const [mentor, other] = users
+  // The participant picker uses the course roster, not newly issued accounts
+  // whose onboarding has not created a roster entry yet.
+  const roster = await (await api.get(base + '/workspace', { headers: admin })).json()
+  expect((await api.patch(base + '/workspace', { headers: admin, data: { revision: roster.revision, changes: [1, 2].map(index => ({ kind: 'learners', value: { id: `participant-${index}`, name: `참여 학생 ${index}`, courseId: groups.courseId, team: groups.teams[0].name, email: '', discordId: '', status: '정상' } })) } })).status()).toBe(200)
   const before = await (await api.get(base + '/workspace', { headers: admin })).json()
   expect((await api.post('/api/auth/login', { data: { username: mentor.username, password: mentor.password } })).status()).toBe(200)
+  const offered = await (await api.get(base + '/mentoring/activities')).json()
+  expect(offered.students).toHaveLength(2)
   await page.goto('/?workspace=' + ws.id + '#mentoring')
   const add = page.getByRole('button', { name: '멘토링 기록 추가', exact: true })
   await expect(add).toBeVisible()
@@ -37,6 +43,12 @@ test('mentors record their own work in a modal; admins choose mentors; students 
   await expect(dialog.locator('input[type=file]')).toHaveCount(0)
   await dialog.getByLabel('제목', { exact: true }).fill('서버 환경 설정 지원')
   await dialog.getByRole('combobox', { name: '대상 팀', exact: true }).selectOption(groups.teams[0].id)
+  const participants = dialog.locator('.mentoring-activity-students')
+  await expect(participants.locator('summary')).toContainText('2명')
+  await participants.locator('summary').click()
+  await expect(participants.locator('input:checked')).toHaveCount(2)
+  await participants.getByRole('checkbox').first().uncheck()
+  await expect(participants.locator('summary')).toContainText('1명')
   await dialog.getByLabel('진행일', { exact: true }).fill('2026-10-01')
   await dialog.getByLabel('시작 시간', { exact: true }).fill('14:00')
   await dialog.getByLabel('종료 시간', { exact: true }).fill('13:00')
@@ -69,6 +81,10 @@ test('mentors record their own work in a modal; admins choose mentors; students 
   await expect(records.locator('article')).toHaveCount(1)
   await records.getByRole('button', { name: '서버 환경 설정 지원 수정' }).click()
   const edit = page.getByRole('dialog', { name: '멘토링 기록 수정', exact: true })
+  await expect(edit.locator('.mentoring-activity-students summary')).toContainText('1명')
+  await edit.locator('.mentoring-activity-students summary').click()
+  await expect(edit.getByRole('checkbox').first()).not.toBeChecked()
+  await expect(edit.getByRole('checkbox').last()).toBeChecked()
   await edit.getByLabel('진행 내용').fill('본인 수정: 서버 접속 확인 완료')
   await edit.getByRole('button', { name: '저장', exact: true }).click()
   await expect(records).toContainText('본인 수정: 서버 접속 확인 완료')
@@ -80,6 +96,7 @@ test('mentors record their own work in a modal; admins choose mentors; students 
   const saved = await (await api.get(base + '/mentoring/activities')).json()
   expect(saved.records).toHaveLength(1)
   const record = saved.records[0]
+  expect(record.studentIds).toEqual([offered.students[1].id])
   const payload = { id: randomUUID(), mentorId: other.user.id, courseId: record.courseId, teamId: record.teamId, studentIds: [], title: '위조', date: '2026-10-01', time: '14:00', endTime: '15:00', content: '위조 시도' }
   expect((await api.post(base + '/mentoring/activities', { data: payload })).status()).toBe(403)
   const otherRecords = await (await api.get(base + '/mentoring/activities', { headers: { Authorization: 'Bearer ' + other.token } })).json()

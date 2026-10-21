@@ -76,11 +76,17 @@ function ActivityForm({ options, record, workspaceId, close, saved }: { options:
   function restoreFocus() { requestAnimationFrame(() => { if (opener?.isConnected) opener.focus({ preventScroll: true }) }) }
   function dismiss() { close(); restoreFocus() }
   function field<K extends keyof Fields>(key: K, value: Fields[K]) { setFields(previous => ({ ...previous, [key]: value })); setError('') }
+  function selectTeam(teamId: string) {
+    const selected = options.teams.find(v => v.id === teamId && v.courseId === fields.courseId)
+    const studentIds = selected ? options.students.filter(v => v.courseId === fields.courseId && v.team === selected.name).map(v => v.id) : []
+    setFields(previous => ({ ...previous, teamId, studentIds })); setError('')
+  }
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (locked.current || !canSave) return
     const values = uncertain && submitted.current ? submitted.current : fields
     if (!values.teamId && !values.studentIds.length) { setError('대상 팀 또는 참여 학생을 선택하세요.'); return }
+    if (values.teamId && students.length > 0 && !values.studentIds.length) { setError('참여 학생을 1명 이상 선택하세요. 전원을 해제한 상태로는 저장할 수 없습니다.'); return }
     if (values.endTime <= values.time) { setError('종료 시간은 같은 날의 시작 시간 이후로 입력하세요.'); return }
     locked.current = true; setBusy(true); setError(''); submitted.current = values
     try {
@@ -101,8 +107,8 @@ function ActivityForm({ options, record, workspaceId, close, saved }: { options:
       <fieldset disabled={busy || uncertain || !canSave}>
         <label>멘토{options.admin ? <select required value={fields.mentorId} onChange={e => field('mentorId', e.target.value)}><option value="">멘토 선택</option>{options.mentors.map(v => <option key={v.id} value={v.id}>{v.name} ({v.username})</option>)}</select> : <input value={options.mentors[0]?.name || record?.mentorName || ''} readOnly />}</label>
         <label>제목<input data-modal-autofocus required maxLength={150} value={fields.title} onChange={e => field('title', e.target.value)} placeholder="예: 팀 프로젝트 서버 환경 설정" /></label>
-        <div className="mentoring-activity-grid"><label>학습 과정<select required value={fields.courseId} onChange={e => setFields(v => ({ ...v, courseId: e.target.value, teamId: '', studentIds: [] }))}><option value="">과정 선택</option>{options.courses.map(v => <option key={v.id} value={v.id}>{v.title}</option>)}</select></label><label>대상 팀<select value={fields.teamId} onChange={e => setFields(v => ({ ...v, teamId: e.target.value, studentIds: [] }))}><option value="">팀 대신 학생 선택</option>{options.teams.filter(v => v.courseId === fields.courseId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label></div>
-        <details className="mentoring-activity-students"><summary>참여 학생 선택 · {fields.studentIds.length}명</summary><p>팀을 선택하면 학생을 따로 선택하지 않아도 됩니다.</p><div>{students.map(v => <label key={v.id}><input type="checkbox" checked={fields.studentIds.includes(v.id)} onChange={e => field('studentIds', e.target.checked ? [...fields.studentIds, v.id] : fields.studentIds.filter(id => id !== v.id))} /><span>{v.name}{v.team && ` · ${v.team}`}</span></label>)}{!students.length && <p>선택 가능한 학생이 없습니다.</p>}</div></details>
+        <div className="mentoring-activity-grid"><label>학습 과정<select required value={fields.courseId} onChange={e => { setFields(v => ({ ...v, courseId: e.target.value, teamId: '', studentIds: [] })); setError('') }}><option value="">과정 선택</option>{options.courses.map(v => <option key={v.id} value={v.id}>{v.title}</option>)}</select></label><label>대상 팀<select value={fields.teamId} onChange={e => selectTeam(e.target.value)}><option value="">팀 대신 학생 선택</option>{options.teams.filter(v => v.courseId === fields.courseId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label></div>
+        <details className="mentoring-activity-students"><summary>참여 학생 선택 · {fields.studentIds.length}명</summary><p>팀을 선택하면 소속 학생이 모두 선택됩니다. 참여하지 않은 학생은 체크를 해제하세요.</p><div>{students.map(v => <label key={v.id}><input type="checkbox" checked={fields.studentIds.includes(v.id)} onChange={e => field('studentIds', e.target.checked ? [...fields.studentIds, v.id] : fields.studentIds.filter(id => id !== v.id))} /><span>{v.name}{v.team && ` · ${v.team}`}</span></label>)}{!students.length && <p>{team ? '이 팀에 등록된 학생이 없습니다. 학생 명단 없이 팀 단위로만 기록됩니다.' : '선택 가능한 학생이 없습니다.'}</p>}</div></details>
         <label>진행일<input type="date" required value={fields.date} max={new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })} onChange={e => field('date', e.target.value)} /></label>
         <div className="mentoring-activity-grid"><label>시작 시간<input type="time" required value={fields.time} onChange={e => field('time', e.target.value)} /></label><label>종료 시간<input type="time" required value={fields.endTime} onChange={e => field('endTime', e.target.value)} /></label></div>
         <label>진행 내용<textarea required rows={5} maxLength={4000} value={fields.content} onChange={e => field('content', e.target.value)} placeholder="요청받은 내용, 진행한 작업, 결과와 다음 할 일을 적어 주세요." /></label>
