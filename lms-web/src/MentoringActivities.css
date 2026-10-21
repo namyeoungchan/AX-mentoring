@@ -1,0 +1,36 @@
+.page-actions .mentoring-add-button { width: 44px; min-width: 44px; height: 44px; padding: 0; justify-content: center; }
+.mentoring-page-heading .page-actions { flex-direction: row; align-items: center; }
+.mentoring-activities { margin: 20px 0; padding: 16px 20px; background: #fff; border: 1px solid #dce3de; border-radius: 10px; color: #293e32; font-size: 14px; }
+.role-content > .mentoring-activities { margin: 0; }
+.mentoring-activities-heading, .mentoring-activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mentoring-activities-heading > button:first-child { display: flex; gap: 12px; align-items: center; min-height: 44px; text-align: left; font-weight: 600; }
+.mentoring-activities-heading small { font-size: 13px; color: #617367; }
+.mentoring-activities-heading > .button { flex-shrink: 0; min-height: 44px; padding: 9px 13px; font-size: 13px; color: #38513f; border-color: #cdd9d0; }
+.mentoring-activities-heading > .button:disabled { opacity: 1; color: #738078; background: #f1f4f1; cursor: not-allowed; }
+.mentoring-activities > p { margin-top: 10px; }
+.mentoring-activity-list article { border-top: 1px solid #e1e7e2; padding: 18px 0; }
+.mentoring-activity-heading h3 { font-size: 16px; margin: 4px 0; overflow-wrap: anywhere; }
+.mentoring-activity-heading .button { flex-shrink: 0; min-height: 44px; }
+.mentoring-activity-list p { line-height: 1.7; overflow-wrap: anywhere; }
+.mentoring-activity-heading p, .mentoring-activity-list article > p:first-of-type { color: #617367; font-size: 13px; }
+.mentoring-activity-content { white-space: pre-wrap; margin-top: 12px; }
+.mentoring-activity-modal { width: min(640px, calc(100vw - 24px)); }
+.mentoring-activity-modal .modal-form { gap: 16px; }
+.mentoring-activity-modal fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 16px; min-width: 0; }
+.mentoring-activity-modal .modal-form label { margin-bottom: 0; font-size: 13px; }
+.mentoring-activity-modal .modal-form > p { color: #617367; font-size: 13px; margin-bottom: 16px; }
+.mentoring-activity-modal .mentoring-activity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mentoring-activity-modal :is(input, select, textarea) { min-height: 44px; min-width: 0; font-size: 14px; }
+.mentoring-activity-modal input[readonly] { background: #f1f5f1; color: #4c6053; }
+.mentoring-activity-hint, .mentoring-activity-students p { font-size: 13px; color: #617367; line-height: 1.6; }
+.mentoring-activity-students summary { cursor: pointer; min-height: 32px; }
+.mentoring-activity-students > div { max-height: 170px; overflow: auto; }
+.mentoring-activity-modal .mentoring-activity-students label { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.mentoring-activity-modal .mentoring-activity-students input { width: 18px; height: 18px; min-height: 18px; margin: 0; }
+.mentoring-activity-error { color: #a13e31; line-height: 1.6; }
+.mentoring-activity-modal .modal-form > .mentoring-activity-error { color: #a13e31; margin-top: 16px; }
+@media (max-width: 520px) {
+  .mentoring-activity-modal :is(input, select, textarea) { font-size: 16px; }
+  .mentoring-activity-modal .mentoring-activity-grid { grid-template-columns: minmax(0, 1fr); }
+  .mentoring-activities { padding: 12px; }
+}

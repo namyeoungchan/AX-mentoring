@@ -12,9 +12,9 @@ type Props = {
   role: 'mentor' | 'student'; name: string; username?: string; title: string; pages: RolePage[]; page: string; go: (page: string) => void;
   workspaces: WorkspaceMetadata[]; activeId: string; selectWorkspace: (id: string) => Promise<void>;
   setWorkspaceArchived?: (id: string, archived: boolean) => Promise<boolean>; saving?: boolean; error: string;
-  refresh: () => Promise<void>; logout: () => Promise<void>; children: ReactNode; status?: ReactNode;
+  refresh: () => Promise<void>; logout: () => Promise<void>; children: ReactNode; status?: ReactNode; actions?: ReactNode;
 }
-export default function RoleWorkspace({ role, name, username, title, pages, page, go, workspaces, activeId, selectWorkspace, setWorkspaceArchived, saving, error, refresh, logout, children, status }: Props) {
+export default function RoleWorkspace({ role, name, username, title, pages, page, go, workspaces, activeId, selectWorkspace, setWorkspaceArchived, saving, error, refresh, logout, children, status, actions }: Props) {
   const [open, setOpen] = useState(false), [refreshing, setRefreshing] = useState(false)
   const [mobile, setMobile] = useState(() => matchMedia('(max-width: 760px)').matches)
   const menuButton = useRef<HTMLButtonElement>(null), sidebar = useRef<HTMLElement>(null), focusPage = useRef(false)
@@ -73,7 +73,7 @@ export default function RoleWorkspace({ role, name, username, title, pages, page
     </aside>
     <div className="main-shell" inert={mobile && open}>
       <header className="topbar"><div className="role-breadcrumb"><button ref={menuButton} className="icon-button mobile-menu" aria-label="메뉴 열기" aria-expanded={open} onClick={() => setOpen(true)}><Menu size={22} /></button><span className="breadcrumb">{active?.name || '워크스페이스 참여'}</span><ChevronRight size={13} className="breadcrumb" /><strong>{current.name}</strong></div><div className="header-tools"><AccountMenu name={name} role={roleName} refresh={reload} disabled={saving || refreshing} status={status} /><LogoutButton logout={logout} /></div></header>
-      <main id="role-main"><div className="page-heading"><div><div className="eyebrow">{role === 'mentor' ? 'TEACHING' : 'MY LEARNING'}</div><h1 ref={heading} tabIndex={-1}>{title}</h1><p>{current.description}</p></div></div>
+      <main id="role-main"><div className={`page-heading${page === 'mentoring' ? ' mentoring-page-heading' : ''}`}><div><div className="eyebrow">{role === 'mentor' ? 'TEACHING' : 'MY LEARNING'}</div><h1 ref={heading} tabIndex={-1}>{title}</h1><p>{current.description}</p></div>{actions && <div className="page-actions">{actions}</div>}</div>
         {error && <div className="inline-note error-note" role="alert">{error}<button className="text-button" disabled={refreshing} onClick={() => void reload()}>다시 불러오기</button></div>}
         <div className="role-content">{children}</div>
       <footer><span>© {new Date().getFullYear()} {active?.name || 'AX 학습관리시스템'} · {roleName}</span><button onClick={() => navigate('help')}>도움말 <ArrowUpRight size={12} /></button></footer>

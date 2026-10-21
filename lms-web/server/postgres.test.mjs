@@ -1,6 +1,7 @@
 import { helpGuidesScenario } from './help-guides-scenario.mjs';
 import { discordIdentitiesScenario } from './discord-identities-scenario.mjs';
 import { mentoringFeedbackScenario } from './mentoring-feedback-scenario.mjs';
+import { mentoringActivitiesScenario } from './mentoring-activities-scenario.mjs';
 import { mentoringCoordinationScenario } from './mentoring-coordination-scenario.mjs';
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
 import { superAdminScenario } from './super-admin-scenario.mjs';
@@ -32,6 +33,13 @@ import { assignmentCourseScenario } from './assignment-course-scenario.mjs'
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL manual mentoring records preserve permissions, retries, edits and backups', async t => {
+  const f = await fixture(t), result = await mentoringActivitiesScenario(f.runtime)
+  const backup = decodeBackup(await exportPostgres(f.connection))
+  await importPostgres(f.connection, backup)
+  const db = (await f.runtime.workspaces.open(result.workspaceId)).db
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_records WHERE kind='mentoringActivity'").get()).n, result.records)
+})
 pgTest('PostgreSQL mentoring coordination isolates participants and atomically replaces agreed appointments', async t => {
   const f = await fixture(t)
   const result = await mentoringCoordinationScenario(f.runtime)
