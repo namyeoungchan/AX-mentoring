@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { ApiError } from './store.mjs';
 
 const snowflake = z.string().regex(/^\d{17,20}$/);
+const editKind = 'mentoringFeedbackEdit';
+const editInput = z.object({ content: z.string().trim().min(1).max(4000), revision: z.number().int().nonnegative() }).strict();
 const endMillis = value => Date.parse(/(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}+09:00`);
 export function createMentoringFeedback(main, workspaces, { now = Date.now } = {}) {
     async function prepare(id) {
@@ -41,16 +43,56 @@ export function createMentoringFeedback(main, workspaces, { now = Date.now } = {
         const data = await workspaces.role(id, user) === 'admin' ? await workspaces.snapshot(id) : await workspaces.teaching(id, user);
         const booking = data.sessions.find(session => session.id === bookingId);
         if (!booking) throw new ApiError(404, '담당 범위에서 멘토링 일정을 찾을 수 없습니다.');
-        return { db: (await workspaces.open(id)).db, booking };
+        return { db: (await workspaces.open(id)).db, booking, meta: await workspaces.requireAccess(id, user) };
+    }
+    function canEdit(meta, request, user) {
+        return meta.archivedAt === null && meta.discordVerified && request.role === 'mentor'
+            && Boolean(user.discordId) && request.discord_id === user.discordId;
+    }
+    function response(row, role) {
+        const edited = role === 'mentor' && row.edit ? JSON.parse(row.edit) : null;
+        return { id: row.id, content: edited?.content ?? row.content, submittedAt: row.submittedAt,
+            revision: edited?.revision ?? 0, updatedAt: edited?.updatedAt ?? null };
     }
     async function read(id, bookingId, user) {
-        const { db, booking } = await access(id, bookingId, user);
+        const { db, booking, meta } = await access(id, bookingId, user);
         const requests = await db.prepare(`SELECT r.*,o.state,o.error,o.attempts,o.message_id,o.completed_at FROM lms_mentoring_feedback_requests r
             JOIN lms_outbox o ON o.id=r.id WHERE r.booking_id=? ORDER BY r.role`).all(bookingId);
         const { activated_at: activatedAt } = await db.prepare('SELECT activated_at FROM lms_mentoring_feedback_control WHERE id=1').get();
         return { activatedAt, endAt: booking.endDate && booking.endTime ? `${booking.endDate}T${booking.endTime}:00+09:00` : null,
             requests: await Promise.all(requests.map(async row => ({ id: row.id, role: row.role, name: row.name, state: row.state, error: row.error,
-                sentAt: row.completed_at, responses: await db.prepare('SELECT event_id AS id,content,submitted_at AS submittedAt FROM lms_mentoring_feedback_responses WHERE request_id=? ORDER BY submitted_at,event_id').all(row.id) }))) };
+                sentAt: row.completed_at, canEdit: canEdit(meta, row, user),
+                responses: (await db.prepare(`SELECT r.event_id AS id,r.content,r.submitted_at AS submittedAt,e.data AS edit
+                    FROM lms_mentoring_feedback_responses r LEFT JOIN lms_records e ON e.kind=? AND e.id=r.event_id
+                    WHERE r.request_id=? ORDER BY r.submitted_at,r.event_id`).all(editKind, row.id)).map(value => response(value, row.role)) }))) };
+    }
+    async function edit(id, bookingId, requestId, responseId, body, user) {
+        const { db, meta } = await access(id, bookingId, user);
+        if (meta.archivedAt !== null) throw new ApiError(409, '보관된 워크스페이스의 기록은 변경할 수 없습니다.');
+        const input = editInput.parse(body);
+        await db.exec('BEGIN IMMEDIATE');
+        try {
+            const request = await db.prepare('SELECT * FROM lms_mentoring_feedback_requests WHERE id=? AND booking_id=?').get(requestId, bookingId);
+            if (!request) throw new ApiError(404, '멘토링 요청을 찾을 수 없습니다.');
+            if (!canEdit(meta, request, user)) throw new ApiError(403, 'Discord 인증을 마친 작성자 본인의 멘토 응답만 수정할 수 있습니다.');
+            const row = await db.prepare(`SELECT r.event_id AS id,r.content,r.submitted_at AS submittedAt,e.data AS edit
+                FROM lms_mentoring_feedback_responses r LEFT JOIN lms_records e ON e.kind=? AND e.id=r.event_id
+                WHERE r.event_id=? AND r.request_id=?`).get(editKind, responseId, requestId);
+            if (!row) throw new ApiError(404, '멘토링 응답을 찾을 수 없습니다.');
+            const before = response(row, request.role);
+            if (before.revision !== input.revision) throw new ApiError(409, '다른 창에서 기록이 수정되었습니다. 작성 내용을 보관하고 최신 기록을 다시 확인해 주세요.');
+            // Keep the Discord submission immutable, including its delivery retry identity.
+            // Existing generic records/audit tables also participate in both database backups.
+            const after = { content: input.content, revision: before.revision + 1, updatedAt: now(), updatedBy: user.id };
+            const changed = row.edit
+                ? await db.prepare('UPDATE lms_records SET data=? WHERE kind=? AND id=? AND data=?').run(JSON.stringify(after), editKind, responseId, row.edit)
+                : await db.prepare('INSERT OR IGNORE INTO lms_records(kind,id,data) VALUES(?,?,?)').run(editKind, responseId, JSON.stringify(after));
+            if (!changed.changes) throw new ApiError(409, '기록이 변경되었습니다. 작성 내용을 보관하고 최신 기록을 다시 확인해 주세요.');
+            await db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)')
+                .run(user.username, 'mentoring.feedback.update', responseId, JSON.stringify(before), JSON.stringify({ ...before, ...after, requestId, bookingId }));
+            await db.exec('COMMIT');
+        } catch (error) { await db.exec('ROLLBACK'); throw error; }
+        return read(id, bookingId, user);
     }
     async function submit(body) {
         const input = z.object({ guildId: snowflake, requestId: z.uuid(), discordId: snowflake, eventId: snowflake, content: z.string().trim().min(1).max(4000) }).strict().parse(body);
@@ -82,5 +124,5 @@ export function createMentoringFeedback(main, workspaces, { now = Date.now } = {
         if (!result.changes) throw new ApiError(409, '실패하거나 발송 결과 확인이 필요한 DM만 재시도할 수 있습니다.');
         return read(id, bookingId, user);
     }
-    return { prepare, read, submit, retry };
+    return { prepare, read, edit, submit, retry };
 }
