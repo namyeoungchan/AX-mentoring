@@ -63,6 +63,10 @@ pgTest('PostgreSQL mentoring end-time DM requests, replies and backup restoratio
   await importPostgres(f.connection,backup)
   const db=(await f.runtime.workspaces.open(result.workspaceId)).db
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM lms_mentoring_feedback_responses').get()).n,result.responses)
+  const edited = JSON.parse((await db.prepare("SELECT data FROM lms_records WHERE kind='mentoringFeedbackEdit' AND id=?").get(result.editedId)).data)
+  assert.equal(edited.content,'최종 보완 기록')
+  assert.equal(edited.revision,2)
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_audit WHERE action='mentoring.feedback.update'").get()).n,2)
 })
 pgTest('PostgreSQL pre-migration backup and upgrade preserve existing version 2 data', async t => {
   const f=await fixture(t), db=f.runtime.store.db

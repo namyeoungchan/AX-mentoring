@@ -382,6 +382,7 @@ app.get('/api/workspaces/:workspaceId/mentoring/activities', async (req, res) =>
 app.post('/api/workspaces/:workspaceId/mentoring/activities', async (req, res) => res.status(201).json(await runtime.mentoringActivities.create(req.workspaceId, req.body, req.account)));
 app.patch('/api/workspaces/:workspaceId/mentoring/activities/:recordId', async (req, res) => res.json(await runtime.mentoringActivities.edit(req.workspaceId, req.params.recordId, req.body, req.account)));
 app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback', async (req, res) => res.json(await runtime.mentoringFeedback.read(req.workspaceId, req.params.bookingId, req.account)));
+app.patch('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback/:requestId/responses/:responseId', async (req, res) => res.json(await runtime.mentoringFeedback.edit(req.workspaceId, req.params.bookingId, req.params.requestId, req.params.responseId, req.body, req.account)));
 app.get('/api/workspaces/:workspaceId/mentoring/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.list(req.workspaceId, req.account)));
 app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.read(req.workspaceId, req.params.bookingId, req.account)));
 app.post('/api/workspaces/:workspaceId/mentoring/:bookingId/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.act(req.workspaceId, req.params.bookingId, req.account, req.body)));

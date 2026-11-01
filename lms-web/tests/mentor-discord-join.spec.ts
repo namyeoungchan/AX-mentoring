@@ -55,8 +55,12 @@ test('mentor sees an automatically prepared server invitation before completing 
   const invite = await json(await request.post(`${base}/invitations`, { headers, data: { username, role: 'instructor' } }))
   await json(await page.request.post('/api/auth/register', { data: { invitationToken: invite.token, username, name: '새 멘토', password: 'mentor-join-password-1234' } }))
   await json(await page.request.post('/api/invitations/accept', { data: { token: invite.token } }))
+  // The loading state precedes the invite transaction; wait for the actual
+  // enqueue response before the bot tries to claim it (especially on Postgres).
+  const preparedInvitation = page.waitForResponse(response => response.url().endsWith(`${base}/staff/invite`) && response.request().method() === 'POST')
   await page.goto(`/?workspace=${workspace.id}#onboarding`)
   await expect(page.getByRole('status').filter({ hasText: '서버 초대 링크를 준비하고 있습니다' })).toBeVisible()
+  expect((await preparedInvitation).ok()).toBeTruthy()
   expect((await json(await page.request.get(`${base}/staff/onboarding`))).profile).toBeNull()
   const botHeaders = { Authorization: 'Bearer test-only-provision-token-12345678901234567890' }
   const { job } = await json(await request.post('/api/integrations/discord/admissions/poll', { headers: botHeaders, data: { guildIds: [guildId] } }))

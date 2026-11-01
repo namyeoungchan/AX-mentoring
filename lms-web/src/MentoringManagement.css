@@ -156,6 +156,15 @@
 .mentoring-report-grid time { font-size: 12px; color: #52625a; }
 .mentoring-report-grid article p { white-space: pre-wrap; overflow-wrap: anywhere; color: #24352b; line-height: 1.7; margin: 8px 0 0; }
 .mentoring-report-empty { color: #5b6962; line-height: 1.6; }
+.mentoring-response-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.mentoring-response-heading > div { min-width: 0; }
+.mentoring-response-heading small { display: block; margin-top: 4px; font-size: 12px; color: #52625a; }
+.mentoring-response-heading button { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; flex-shrink: 0; }
+.mentoring-response-modal { width: min(720px, calc(100vw - 32px)); }
+.mentoring-response-modal .modal-form > p { margin: 0 0 16px; font-size: 13px; color: #52625a; line-height: 1.6; overflow-wrap: anywhere; }
+.mentoring-response-modal .modal-form > .error-note { color: #9d302a; padding: 10px 12px; border-radius: 6px; }
+.mentoring-response-modal textarea { min-height: 240px; resize: vertical; }
+.mentoring-response-modal small { color: #52625a; }
 @media (max-width: 700px) {
   .mentoring-report { grid-column: 1 / -1; }
   .mentoring-report-grid { grid-template-columns: minmax(0,1fr); gap: 12px; }

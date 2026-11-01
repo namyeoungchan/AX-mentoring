@@ -53,12 +53,67 @@ export async function mentoringFeedbackScenario(runtime) {
     await store.db.prepare("INSERT INTO lms_workspace_members VALUES(?,?,'instructor',1)").run(workspace.id,mentor.id);
     await store.db.prepare("INSERT INTO lms_mentor_scopes VALUES(?,?,'group','[]')").run(workspace.id,mentor.id);
     assert.equal((await feedback.read(workspace.id,'1',mentor)).requests.length,2);
+    const edit = { content: '  GPU 없는 교육 서버에서 Ollama 소형 모델 테스트 권고\n후속: 메모리·근거 정확도 확인  ', revision: 0 };
+    assert.equal((await feedback.read(workspace.id,'1',mentor)).requests.find(r=>r.role==='mentor').canEdit,false,'unverified Discord ID cannot claim authorship');
+    await assert.rejects(feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,edit,mentor),{status:403});
+    await store.db.prepare('INSERT INTO lms_workspace_verifications VALUES(?,?,?,?,?)').run(workspace.id,mentor.id,guildId,mentorId,clock);
+    const original = await db.prepare('SELECT * FROM lms_mentoring_feedback_responses ORDER BY event_id').all();
+    const before = (await feedback.read(workspace.id,'1',mentor)).requests;
+    assert.equal(before.find(r=>r.role==='mentor').canEdit,true);
+    assert.equal(before.find(r=>r.role==='mentee').canEdit,false);
+    assert.equal(before.find(r=>r.role==='mentor').responses[0].revision,0);
+    for (const invalid of [{...edit,content:'  '},{...edit,content:'x'.repeat(4001)},{...edit,revision:-1},{...edit,revision:0.5},{content:'no revision'},{...edit,role:'mentor'},{...edit,discordId:mentorId}])
+        await assert.rejects(feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,invalid,mentor));
+    await assert.rejects(feedback.edit(workspace.id,'1',menteeJob.id,'873456789012345678',edit,mentor),{status:403});
+    await assert.rejects(feedback.edit(workspace.id,'1',mentorJob.id,'873456789012345678',edit,mentor),{status:404},'cannot pair a mentor request with a student response');
+    await assert.rejects(feedback.edit(workspace.id,'2',mentorJob.id,input.eventId,edit,mentor),{status:404},'booking and request must match');
+    await assert.rejects(feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,edit,admin),{status:403},'administrators cannot edit another author');
+    const changed = await feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,edit,mentor);
+    const firstEdit = changed.requests.find(r=>r.role==='mentor').responses.find(r=>r.id===input.eventId);
+    assert.equal(firstEdit.content,edit.content.trim());
+    assert.equal(firstEdit.revision,1);
+    assert.equal(firstEdit.updatedAt,clock);
+    assert.equal(firstEdit.submittedAt,original.find(r=>r.event_id===input.eventId).submitted_at);
+    assert.deepEqual(changed.requests.find(r=>r.role==='mentee').responses,before.find(r=>r.role==='mentee').responses);
+    assert.deepEqual(changed.requests.find(r=>r.role==='mentor').responses.find(r=>r.id==='773456789012345678'),before.find(r=>r.role==='mentor').responses.find(r=>r.id==='773456789012345678'));
+    await assert.rejects(feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,edit,mentor),{status:409},'stale edits cannot overwrite newer content');
+    assert.equal((await feedback.submit(input)).alreadyRecorded,true,'Discord transport retry still recognizes original submission');
+    assert.deepEqual(await db.prepare('SELECT * FROM lms_mentoring_feedback_responses ORDER BY event_id').all(),original,'original submissions including all student rows remain unchanged');
+    const audit = await db.prepare("SELECT * FROM lms_audit WHERE action='mentoring.feedback.update'").all();
+    assert.equal(audit.length,1);
+    assert.equal(audit[0].actor,mentor.username);
+    assert.equal(JSON.parse(audit[0].before_json).content,input.content);
+    assert.equal(JSON.parse(audit[0].after_json).content,edit.content.trim());
+    clock += 1000;
+    await feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,{content:'최종 보완 기록',revision:1},mentor);
+    const reloaded = await createMentoringFeedback(store.db,workspaces).read(workspace.id,'1',mentor);
+    assert.equal(reloaded.requests.find(r=>r.role==='mentor').responses[0].revision,2);
+    assert.equal(reloaded.requests.find(r=>r.role==='mentor').responses[0].content,'최종 보완 기록');
+    const failingAudit = createMentoringFeedback(store.db,{...workspaces,open:async id=>{
+        const opened = await workspaces.open(id);
+        return {...opened,db:{exec:sql=>opened.db.exec(sql),prepare:sql=>sql.startsWith('INSERT INTO lms_audit')
+            ? {run:()=>{throw new Error('audit write failed');}} : opened.db.prepare(sql)}};
+    }});
+    await assert.rejects(failingAudit.edit(workspace.id,'1',mentorJob.id,input.eventId,{content:'must roll back',revision:2},mentor),/audit write failed/);
+    assert.equal(JSON.parse((await db.prepare("SELECT data FROM lms_records WHERE kind='mentoringFeedbackEdit' AND id=?").get(input.eventId)).data).revision,2,'audit and edit are atomic');
+    const other = await workspaces.create({name:'다른 기록 워크스페이스',guildId:'193456789012345678'});
+    await assert.rejects(feedback.edit(other.id,'1',mentorJob.id,input.eventId,edit,mentor),{status:403});
     const stranger = (await auth.signup({username:'feedback.stranger',password:'test-password-12345',name:'다른 멘토',discordId:'983456789012345678'},()=>{})).user;
     await store.db.prepare("INSERT INTO lms_workspace_members VALUES(?,?,'instructor',1)").run(workspace.id,stranger.id);
     await store.db.prepare("INSERT INTO lms_mentor_scopes VALUES(?,?,'group','[]')").run(workspace.id,stranger.id);
     await assert.rejects(feedback.read(workspace.id,'1',stranger),{status:404});
+    await assert.rejects(feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,edit,stranger),{status:404});
+    await store.db.prepare("UPDATE lms_mentor_scopes SET kind='main' WHERE subject_id=?").run(stranger.id);
+    await store.db.prepare('INSERT INTO lms_workspace_verifications VALUES(?,?,?,?,?)').run(workspace.id,stranger.id,guildId,stranger.discordId,clock);
+    assert.equal((await feedback.read(workspace.id,'1',stranger)).requests.find(r=>r.role==='mentor').canEdit,false,'read scope is not edit ownership');
+    await assert.rejects(feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,edit,stranger),{status:403});
     await store.db.prepare("UPDATE lms_workspace_members SET role='student' WHERE user_id=?").run(stranger.id);
     await assert.rejects(feedback.read(workspace.id,'1',stranger),{status:403});
+    await assert.rejects(feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,edit,stranger),{status:403});
+    const mentee = (await auth.signup({username:'feedback.mentee',password:'test-password-12345',name:'멘티',discordId:menteeId},()=>{})).user;
+    await store.db.prepare("INSERT INTO lms_workspace_members VALUES(?,?,'instructor',1)").run(workspace.id,mentee.id);
+    await store.db.prepare('INSERT INTO lms_workspace_verifications VALUES(?,?,?,?,?)').run(workspace.id,mentee.id,guildId,menteeId,clock);
+    await assert.rejects(feedback.edit(workspace.id,'1',menteeJob.id,'873456789012345678',edit,mentee),{status:403},'even its own recipient cannot edit a student response');
     // A completed appointment still requests both accounts when the scheduled end arrives.
     await db.prepare("UPDATE bookings SET status='completed' WHERE id=2").run();
     clock += 3600000;
@@ -71,5 +126,8 @@ export async function mentoringFeedbackScenario(runtime) {
     await assert.rejects(feedback.submit({...input,requestId:cancelled.id,discordId:cancelled.discord_id,eventId:'993456789012345678'}),{status:409});
     await workspaces.setArchived(workspace.id,true,admin);
     await assert.rejects(feedback.submit({...input,eventId:'994456789012345678'}),{status:404});
-    return { workspaceId:workspace.id, responses:3 };
+    assert.equal((await feedback.read(workspace.id,'1',mentor)).requests.find(r=>r.role==='mentor').canEdit,false);
+    await assert.rejects(feedback.edit(workspace.id,'1',mentorJob.id,input.eventId,{content:'archived',revision:2},mentor),{status:409});
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_audit WHERE action='mentoring.feedback.update'").get()).n,2,'denied writes never add audit entries');
+    return { workspaceId:workspace.id, responses:3, editedId:input.eventId };
 }
