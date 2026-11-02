@@ -526,8 +526,8 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
             throw new ApiError(422, '대상 계정의 아이디를 정확히 입력하세요.');
         return row;
     }
-    async function resetAccount(user, id, body) {
-        const actor = await platformAdmin(user);
+    async function resetAccount(user, id, body, authorize = () => platformAdmin(user)) {
+        const actor = await authorize();
         const target = await confirmedAccount(id, body);
         if (target.is_super_admin) throw new ApiError(403, '슈퍼계정 비밀번호는 본인 변경 또는 서버 콘솔 복구만 가능합니다.');
         await limit('admin-account-reset', actor.id, 30, 3600000);
@@ -535,7 +535,7 @@ export async function createAuth(db, { adminPassword = '', allowLegacyAdmin = fa
         const passwordHash = await hashPassword(initialPassword);
         await db.exec('BEGIN IMMEDIATE');
         try {
-            if ((await platformAdmin(user)).password_hash !== actor.password_hash)
+            if ((await authorize()).password_hash !== actor.password_hash)
                 throw new ApiError(409, '관리자 인증이 변경되었습니다. 다시 로그인하세요.');
             const row = await confirmedAccount(id, body);
             if (row.is_super_admin) throw new ApiError(403, '슈퍼계정 비밀번호는 본인 변경 또는 서버 콘솔 복구만 가능합니다.');
