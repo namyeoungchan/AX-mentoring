@@ -172,8 +172,8 @@
         "selector": ".student-account-form button[type=\"submit\"]",
         "bounds": {
           "x": 295,
-          "y": 538.15625,
-          "width": 176.09375,
+          "y": 516.15625,
+          "width": 176.109375,
           "height": 52.5
         },
         "title": "계정 안내"
@@ -183,15 +183,26 @@
         "selector": ".student-account-panel table",
         "bounds": {
           "x": 275,
-          "y": 729.65625,
+          "y": 707.65625,
           "width": 1132,
-          "height": 57
+          "height": 143.5
         },
         "title": "최초 설정·인증 확인"
+      },
+      {
+        "step": 5,
+        "selector": "dialog .modal-form",
+        "bounds": {
+          "x": 460,
+          "y": 413.5,
+          "width": 520,
+          "height": 279
+        },
+        "title": "비밀번호 초기화"
       }
     ],
     "viewport": "1440×1000",
-    "capturedAt": "2026-10-03"
+    "capturedAt": "2026-11-02"
   },
   {
     "id": "admin-teams",

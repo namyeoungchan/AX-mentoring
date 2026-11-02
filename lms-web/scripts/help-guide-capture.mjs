@@ -44,7 +44,7 @@ function plans(guide) {
     dashboard: [plan('[aria-label="워크스페이스 선택"]'), plan('.stats-grid'), plan(nav('멘토링 일정'))],
     discord: [plan('.membership-invite .modal-form', click('.quick-steps li:nth-child(1) button')), plan('.quick-stage-content', click('.quick-steps li:nth-child(2) button')), plan('.quick-stage-content', click('.quick-steps li:nth-child(3) button'))],
     members: [plan('.membership-form .form-row'), plan('.mentor-team-picker', async page => { await page.locator('.invite-role-section select').selectOption('group'); }), plan('.membership-actions button.primary'), plan('main .panel:has(.card-heading :text-is("구성원")) table')],
-    'student-accounts': [plan('.student-account-form'), plan('.student-account-form'), plan('.student-account-form button[type="submit"]'), plan('.student-account-panel table')],
+    'student-accounts': [plan('.student-account-form'), plan('.student-account-form'), plan('.student-account-form button[type="submit"]'), plan('.student-account-panel table'), plan('dialog .modal-form', click('.student-account-panel button:has-text("비밀번호 초기화"):enabled'))],
     courses: [plan('.courses-grid'), plan('dialog .modal-form', click('main .page-actions .button.primary')), plan('.course-schedule-form', async page => { await courseDetails(page); await page.locator('.course-management-tabs button:has-text("일정")').click(); }), plan('.course-summary', courseDetails)],
     teams: [plan('.team-controls'), plan('dialog .modal-form', openScore), plan('.team-operations table')],
     attendance: [plan('.attendance-context'), plan('.attendance-code', issueCode('in')), plan('.attendance-code-controls', issueCode('out')), plan('.attendance-finalize')],

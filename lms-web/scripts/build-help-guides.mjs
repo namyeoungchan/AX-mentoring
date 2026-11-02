@@ -41,6 +41,11 @@ const mentor = await db.prepare('SELECT id FROM mentors WHERE discord_id=?').get
 await put('teams', { id: 'team-1', name: '1조', code: 'TEAM-1', courseId: 'course-1', mentorId: String(mentor.id) });
 await put('teams', { id: 'team-2', name: '2조', code: 'TEAM-2', courseId: 'course-1', mentorId: '' });
 await db.prepare('INSERT INTO lms_group_setup VALUES(?,?)').run('default', 'course-1');
+await runtime.auth.createStudentAccount(
+  { username: 'guide.issued-student', name: '한수강' }, users.admin.user,
+  () => runtime.admissions.validateStudentIssue('default', 'team-1', users.admin.user),
+  user => runtime.admissions.assignStudent('default', 'team-1', user, users.admin.user),
+);
 for (const [i, name] of ['최학습', '정실습', '윤탐구'].entries()) {
   const id = `student-${i + 1}`;
   await put('learners', { id, name, email: '', courseId: 'course-1', team: i < 2 ? '1조' : '2조', discordId: i === 0 ? users.student.user.discordId : `70000000000000002${i}`, status: '정상', progress: 38, color: 'sage' });
