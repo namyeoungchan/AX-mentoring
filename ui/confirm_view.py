@@ -29,7 +29,10 @@ class BookingConfirmView(WorkspaceView):
             user_name=interaction.user.display_name,
         )
         if not success:
-            await interaction.response.edit_message(embed=embeds.booking_taken_embed(), view=None)
+            await interaction.response.edit_message(
+                embed=embeds.error_embed("이미 예약되었거나 더 이상 신청할 수 없는 시간입니다. 예약 목록을 다시 열어 주세요."),
+                view=None,
+            )
             return
 
         # Show user: request sent

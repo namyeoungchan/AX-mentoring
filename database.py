@@ -3,6 +3,12 @@ import hashlib
 import json
 from config import DB_PATH
 from contextvars import ContextVar
+from datetime import datetime, timedelta, timezone
+
+
+def _kst_now_iso() -> str:
+    # Slot timestamps are stored as ISO strings in Korean local time, without an offset.
+    return datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%dT%H:%M:%S")
 
 # Set by the authenticated web storage worker for each request. Legacy local mode
 # has no LMS membership registry; managed storage always supplies an explicit set.
@@ -337,7 +343,7 @@ async def get_all_bookings(mentor_id: int | None = None) -> list[dict]:
 
 
 async def create_booking(slot_id: int, user_id: str, user_name: str) -> bool:
-    """Creates a pending booking. Returns True on success, False if slot already taken."""
+    """Creates a pending booking only while the slot is active, future and untaken."""
     allowed = online_mentor_ids.get()
     condition = '' if allowed is None else ' AND m.id IN (' + ','.join('?' for _ in allowed) + ')'
     if allowed is not None and not allowed:
@@ -347,8 +353,9 @@ async def create_booking(slot_id: int, user_id: str, user_name: str) -> bool:
             cur = await db.execute(
                 """INSERT INTO bookings (slot_id, user_id, user_name, status)
                    SELECT s.id, ?, ?, 'pending' FROM slots s JOIN mentors m ON m.id=s.mentor_id
-                   WHERE s.id=? AND s.is_active=1 AND m.is_active=1""" + condition,
-                (user_id, user_name, slot_id, *(allowed or [])),
+                   WHERE s.id=? AND s.is_active=1 AND m.is_active=1
+                     AND s.start_time > ?""" + condition,
+                (user_id, user_name, slot_id, _kst_now_iso(), *(allowed or [])),
             )
             await db.commit()
         return cur.rowcount > 0
@@ -433,18 +440,19 @@ async def get_dates_with_available_slots(mentor_id: int) -> list[str]:
             """SELECT DISTINCT substr(start_time, 1, 10) AS date
                FROM slots
                WHERE mentor_id = ? AND is_active = 1
+                 AND start_time > ?
                  AND id NOT IN (
                      SELECT slot_id FROM bookings
                      WHERE status IN ('pending','approved')
                  )
                ORDER BY date""",
-            (mentor_id,),
+            (mentor_id, _kst_now_iso()),
         ) as cur:
             return [row[0] for row in await cur.fetchall()]
 
 
 async def get_slots_for_mentor_date(mentor_id: int, date: str) -> list[dict]:
-    """Returns all active slots for mentor on date, with booking status attached."""
+    """Returns future active slots on date, with booking status attached."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
@@ -457,8 +465,9 @@ async def get_slots_for_mentor_date(mentor_id: int, date: str) -> list[dict]:
                  ON s.id = b.slot_id AND b.status IN ('pending','approved')
                WHERE s.mentor_id = ? AND s.is_active = 1
                  AND substr(s.start_time, 1, 10) = ?
+                 AND s.start_time > ?
                ORDER BY s.start_time""",
-            (mentor_id, date),
+            (mentor_id, date, _kst_now_iso()),
         ) as cur:
             return [dict(r) for r in await cur.fetchall()]
 

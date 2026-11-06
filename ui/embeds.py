@@ -4,6 +4,7 @@ import discord
 
 
 KST = timezone(timedelta(hours=9))
+DATE_PAGE_SIZE = 25
 
 
 def fmt_kst(ts: str, suffix: bool = True) -> str:
@@ -114,20 +115,23 @@ def slot_list_embed(mentor: dict, slots: list[dict], bookings_map: dict[int, dic
 
 # ── Date / time select embeds ─────────────────────────────────────────────────
 
-def date_select_embed(mentor: dict, dates: list[str]) -> discord.Embed:
+def date_select_embed(mentor: dict, dates: list[str], page: int = 0) -> discord.Embed:
     embed = discord.Embed(
         title=f"01  ·  {mentor['name']} 멘토와 만날 날짜",
         color=BRAND_COLOR,
     )
     embed.description = mentor["bio"] or "날짜와 시간을 선택해 멘토링을 신청하세요."
     if dates:
+        total_pages = (len(dates) + DATE_PAGE_SIZE - 1) // DATE_PAGE_SIZE
+        page = max(0, min(page, total_pages - 1))
+        visible_dates = dates[page * DATE_PAGE_SIZE:(page + 1) * DATE_PAGE_SIZE]
         embed.add_field(
-            name="📅 예약 가능 날짜",
-            value="\n".join(f"• {_date_label(d)}" for d in dates[:10])
-                  + ("\n..." if len(dates) > 10 else ""),
+            name=f"📅 예약 가능 날짜 · {page + 1}/{total_pages}페이지",
+            value="\n".join(f"• {_date_label(d)}" for d in visible_dates),
             inline=False,
         )
-        embed.set_footer(text="아래 메뉴에서 날짜를 선택하세요 · AX 학습관리시스템 멘토링")
+        embed.set_footer(text="한국 시간(KST) · 아래 메뉴에서 선택하고 이전/다음으로 다른 날짜를 확인하세요" if total_pages > 1
+                         else "한국 시간(KST) · 아래 메뉴에서 날짜를 선택하세요")
     else:
         embed.add_field(name="예약 가능한 날짜 없음", value="현재 신청 가능한 날짜가 없습니다.", inline=False)
     return embed
@@ -139,7 +143,7 @@ def time_slot_embed(mentor: dict, selected_date: str, slots: list[dict]) -> disc
         color=BRAND_COLOR,
     )
     if not slots:
-        embed.description = "이 날짜에 등록된 슬롯이 없습니다."
+        embed.description = "이 날짜에 선택 가능한 시간이 없습니다. 날짜를 다시 선택해 주세요."
         return embed
 
     lines = []

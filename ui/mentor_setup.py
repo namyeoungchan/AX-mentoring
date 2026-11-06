@@ -331,7 +331,8 @@ async def build_setup_embed(mentor: dict, template: dict | None) -> discord.Embe
     slots = await database.get_slots_for_mentor(mentor["id"], active_only=True)
     slot_ids = [s["id"] for s in slots]
     bookings_map = await database.get_bookings_by_slot_ids(slot_ids)
-    available = sum(1 for s in slots if s["id"] not in bookings_map)
+    now = datetime.now(KST).strftime("%Y-%m-%dT%H:%M:%S")
+    available = sum(1 for s in slots if s["id"] not in bookings_map and s["start_time"] > now)
     pending = sum(1 for b in bookings_map.values() if b.get("status") == "pending")
     approved = sum(1 for b in bookings_map.values() if b.get("status") == "approved")
 
