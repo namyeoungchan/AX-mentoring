@@ -77,11 +77,17 @@ test('web-owned legacy operations preserve transactions, retry receipts and revi
     assert.deepEqual(await call('add_mentor', ['555456789012345678', '한글 멘토', '소개'], { requestId }), first);
     assert.equal((await storage.table(workspace.id, 'mentors')).total, 1);
     const revision = (await storage.state(workspace.id)).revision;
-    await call('add_slot', [first.result, '2026-10-01T10:00:00', '2026-10-01T10:50:00', '예약 시간']);
+    const bookingDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    await call('add_slot', [first.result, `${bookingDate}T10:00:00`, `${bookingDate}T10:50:00`, '예약 시간']);
     await assert.rejects(call('add_mentor', ['777456789012345678', '오래된 요청'], { revision }), { status: 409 });
     const slot = (await storage.table(workspace.id, 'slots')).rows[0];
+    const pastSlot = (await call('add_slot', [first.result, '2020-10-01T10:00:00', '2020-10-01T10:50:00', '지난 시간'])).result;
+    assert.deepEqual((await call('get_dates_with_available_slots', [first.result])).result, [bookingDate]);
+    assert.deepEqual((await call('get_slots_for_mentor_date', [first.result, '2020-10-01'])).result, []);
+    assert.equal((await call('create_booking', [pastSlot, '777456789012345678', '수강생'])).result, false);
     assert.equal((await call('create_booking', [slot.id, '777456789012345678', '수강생'])).result, true);
     assert.equal((await call('create_booking', [slot.id, '888456789012345678', '중복'])).result, false);
+    assert.deepEqual((await call('get_dates_with_available_slots', [first.result])).result, []);
     assert.equal((await storage.table(workspace.id, 'bookings')).total, 1);
     await assert.rejects(call('init_db'), { status: 422 });
     await assert.rejects(call('create_onboarding', ['777456789012345678', '888456789012345678']), { status: 422 });

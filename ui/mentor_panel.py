@@ -84,8 +84,8 @@ async def build_panel_embed(mentors: list[dict]) -> discord.Embed:
     for mentor in mentors[:MAX_MENTOR_BUTTONS]:
         slots = await database.get_slots_for_mentor(mentor["id"], active_only=True)
         bookings = await database.get_bookings_by_slot_ids([slot["id"] for slot in slots])
-        today = datetime.now(embeds.KST).date().isoformat()
-        available = sum(1 for slot in slots if slot["id"] not in bookings and slot["start_time"][:10] >= today)
+        now = datetime.now(embeds.KST).strftime("%Y-%m-%dT%H:%M:%S")
+        available = sum(1 for slot in slots if slot["id"] not in bookings and slot["start_time"] > now)
         status = f"예약 가능 **{available}개**" if available else "새 일정 준비 중"
         expertise = (mentor.get("bio") or "").split("\n", 1)[0][:100]
         embeds.panel_field(embed, mentor["name"], f"{expertise}\n{status}".strip(), inline=True)
