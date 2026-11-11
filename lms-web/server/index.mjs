@@ -465,6 +465,10 @@ for (const action of ['groups', 'accounts']) app.post(`/api/workspaces/:workspac
 app.patch('/api/workspaces/:workspaceId/student-accounts/:userId/team', async (req, res) => res.json(await admissions.changeStudentTeam(req.workspaceId, req.params.userId, req.body, req.account)));
 app.patch('/api/workspaces/:workspaceId/student-accounts/:userId', async (req, res) => res.json(await admissions.manageStudent(req.workspaceId, req.params.userId, req.body, req.account)));
 app.delete('/api/workspaces/:workspaceId/student-accounts/:userId', async (req, res) => res.json(await admissions.manageStudent(req.workspaceId, req.params.userId, req.body, req.account, true)));
+app.post('/api/workspaces/:workspaceId/student-accounts/:userId/reset-password', maintenance.track(async (req, res) => {
+    const authorize = () => admissions.authorizeStudentPasswordReset(req.workspaceId, req.params.userId, req.account);
+    res.json(await auth.resetAccount(req.account, req.params.userId, req.body, authorize));
+}));
 app.post('/api/workspaces/:workspaceId/student-accounts', maintenance.track(async (req, res) => {
     await auth.limit('student-account-issue', req.account.id, 100, 3600000);
     const { teamId, ...input } = req.body || {};

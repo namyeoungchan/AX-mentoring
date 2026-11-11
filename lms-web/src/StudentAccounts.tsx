@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { workspaceRequest, demoMode } from './api'
 import { CardHeading, ModalShell } from './components'
 import StudentRosterImport from './StudentRosterImport'
+import StudentPasswordReset from './StudentPasswordReset'
 
-type Data = { revision: string; teams: { id: string; name: string; courseId: string; courseTitle: string }[]; guildIds: string[]; archived: boolean; accounts: { id: string; username: string; name: string; email?: string; phone?: string; school?: string; department?: string; profileRevision: string; setupPending: number; passwordPending: number; teamId: string; courseId: string; state: string }[] }
+type Data = { revision: string; teams: { id: string; name: string; courseId: string; courseTitle: string }[]; guildIds: string[]; archived: boolean; accounts: { id: string; username: string; name: string; email?: string; phone?: string; school?: string; department?: string; profileRevision: string; setupPending: number; passwordPending: number; teamId: string; courseId: string; state: string; canResetPassword: boolean; resetBlockedReason: string }[] }
 type Delivery = { username: string; name: string; initialPassword: string; workspaceName: string; courseTitle: string; teamName: string }
 export default function StudentAccounts({ workspaceId, refreshWorkspace }: { workspaceId: string; refreshWorkspace?: () => Promise<void> }) {
   const [data, setData] = useState<Data | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false), [query, setQuery] = useState('')
@@ -11,6 +12,7 @@ export default function StudentAccounts({ workspaceId, refreshWorkspace }: { wor
   const [editing, setEditing] = useState<{ account: Data['accounts'][number]; revision: string } | null>(null)
   const [teamId, setTeamId] = useState(''), [notice, setNotice] = useState('')
   const [manage, setManage] = useState<{ kind: 'edit' | 'delete'; account: Data['accounts'][number]; revision: string } | null>(null)
+  const [resetAccount, setResetAccount] = useState<Data['accounts'][number] | null>(null)
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (demoMode) return
     try { const next = await workspaceRequest(workspaceId, 'student-accounts', { signal }); if (!signal?.aborted) { setData(next); setError('') } }
@@ -51,7 +53,7 @@ export default function StudentAccounts({ workspaceId, refreshWorkspace }: { wor
   const credential = delivery ? ['워크스페이스: ' + delivery.workspaceName, '아이디: ' + delivery.username, '초기 비밀번호: ' + delivery.initialPassword, '배정: ' + delivery.courseTitle + ' · ' + delivery.teamName, '로그인 후 본인 이름과 새 비밀번호를 설정하세요.'].join('\n') : ''
   const accounts = (data?.accounts || []).filter(a => (a.name + ' ' + a.username).toLowerCase().includes(query.toLowerCase().trim()))
   return <section className="panel student-account-panel">
-    <CardHeading title="학생 계정 발급" subtitle="엑셀 명단 등록 · 개별 추가 · 수강생 정보 수정 · 조 변경 · 명단 삭제" />
+    <CardHeading title="학생 계정 발급" subtitle="엑셀 명단 등록 · 개별 추가 · 정보 수정 · 조 변경 · 비밀번호 초기화" />
     <StudentRosterImport workspaceId={workspaceId} mode="accounts" onSaved={async () => { await refresh(); await refreshWorkspace?.() }} />
     <form className="modal-form student-account-form" onSubmit={issue}><fieldset disabled={busy || demoMode || !data || data.archived || data.guildIds.length !== 1 || !data.teams.length}>
       <div className="form-row"><label>발급할 아이디<input name="username" required pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{3,31}" minLength={4} maxLength={32} autoComplete="off" autoCapitalize="none" placeholder="영문·숫자 4~32자" /></label><label>이름 (선택)<input name="name" maxLength={50} autoComplete="off" placeholder="학생이 첫 로그인에서 확인합니다" /></label></div>
@@ -63,8 +65,24 @@ export default function StudentAccounts({ workspaceId, refreshWorkspace }: { wor
     {error && !editing && !manage && <p className="inline-note error-note" role="alert">{error}</p>}
     {notice && <p className="inline-note" role="status">{notice}</p>}
     <div className="student-account-tools"><label>학생 계정 검색<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="이름 또는 아이디" /></label><button className="button secondary" disabled={busy} onClick={() => void refresh()}>계정 상태 새로고침</button></div>
-    <div className="table-scroll"><table><thead><tr><th>이름 · 아이디</th><th>과정 · 조</th><th>계정 설정</th><th>Discord 참여</th><th>수강생 관리</th></tr></thead><tbody>{accounts.map(a => <tr key={a.id}><td><strong>{a.name}</strong><small>{a.username}</small><small>{[a.school, a.department].filter(Boolean).join(' · ')}</small><small>{[a.email, a.phone].filter(Boolean).join(' · ')}</small></td><td>{data?.teams.find(t => t.id === a.teamId)?.courseTitle} · {data?.teams.find(t => t.id === a.teamId)?.name || '배정 확인 필요'}</td><td>{a.setupPending ? '첫 로그인 설정 대기' : a.passwordPending ? '비밀번호 변경 대기' : '설정 완료'}</td><td>{a.state === 'joined' ? '인증 완료' : a.state === 'approved' ? '참여·인증 대기' : a.state === 'pending' ? '기존 가입 신청' : '반려'}</td><td><button className="button secondary" aria-label={`${a.name} (${a.username}) 조 변경`} disabled={busy || demoMode || data?.archived || !['approved', 'joined'].includes(a.state)} onClick={() => { setEditing({ account: a, revision: data!.revision }); setTeamId(a.teamId); setError(''); setNotice('') }}>조 변경</button><button className="button secondary" disabled={busy || demoMode || data?.archived} onClick={() => { setManage({ kind: 'edit', account: a, revision: data!.revision }); setError('') }}>정보 수정</button><button className="button danger" disabled={busy || demoMode || data?.archived} onClick={() => { setManage({ kind: 'delete', account: a, revision: data!.revision }); setError('') }}>수강생 삭제</button></td></tr>)}</tbody></table>{!accounts.length && <p className="calendar-empty">표시할 학생 계정이 없습니다.</p>}</div>
-    <p className="inline-note">기존 계정의 비밀번호 재발급이나 계정 삭제는 총관리자에게 요청하세요.</p>
+    <div className="table-scroll"><table>
+      <thead><tr><th>이름 · 아이디</th><th>과정 · 조</th><th>계정 설정</th><th>Discord 참여</th><th>수강생 관리</th></tr></thead>
+      <tbody>{accounts.map(a => <tr key={a.id}>
+        <td><strong>{a.name}</strong><small>{a.username}</small><small>{[a.school, a.department].filter(Boolean).join(' · ')}</small><small>{[a.email, a.phone].filter(Boolean).join(' · ')}</small></td>
+        <td>{data?.teams.find(t => t.id === a.teamId)?.courseTitle} · {data?.teams.find(t => t.id === a.teamId)?.name || '배정 확인 필요'}</td>
+        <td>{a.setupPending ? '첫 로그인 설정 대기' : a.passwordPending ? '비밀번호 변경 대기' : '설정 완료'}</td>
+        <td>{a.state === 'joined' ? '인증 완료' : a.state === 'approved' ? '참여·인증 대기' : a.state === 'pending' ? '기존 가입 신청' : '반려'}</td>
+        <td>
+          <button className="button secondary" aria-label={`${a.name} (${a.username}) 조 변경`} disabled={busy || demoMode || data?.archived || !['approved', 'joined'].includes(a.state)} onClick={() => { setEditing({ account: a, revision: data!.revision }); setTeamId(a.teamId); setError(''); setNotice('') }}>조 변경</button>
+          <button className="button secondary" disabled={busy || demoMode || data?.archived} onClick={() => { setManage({ kind: 'edit', account: a, revision: data!.revision }); setError('') }}>정보 수정</button>
+          <button className="button secondary" disabled={busy || demoMode || data?.archived || !a.canResetPassword} title={a.resetBlockedReason || undefined} onClick={() => { setResetAccount(a); setError(''); setNotice('') }}>비밀번호 초기화</button>
+          <button className="button danger" disabled={busy || demoMode || data?.archived} onClick={() => { setManage({ kind: 'delete', account: a, revision: data!.revision }); setError('') }}>수강생 삭제</button>
+          {a.resetBlockedReason && <small>{a.resetBlockedReason}</small>}
+        </td>
+      </tr>)}</tbody>
+    </table>{!accounts.length && <p className="calendar-empty">표시할 학생 계정이 없습니다.</p>}</div>
+    <p className="inline-note">비밀번호를 분실한 학생은 ‘비밀번호 초기화’로 임시 비밀번호를 재발급할 수 있습니다. 여러 워크스페이스에 소속되거나 관리자·멘토 권한이 있는 계정은 총관리자에게 요청하세요.</p>
+    {resetAccount && <StudentPasswordReset workspaceId={workspaceId} account={resetAccount} close={() => setResetAccount(null)} onReset={() => { setNotice('임시 비밀번호를 재발급했습니다. 학생에게 전달해 주세요.'); void refresh() }} />}
     {editing && <ModalShell title="수강생 조 변경" busy={busy} close={() => { if (!busy) { setEditing(null); setError('') } }}>
       <form className="modal-form" onSubmit={changeTeam}><fieldset disabled={busy}>
         <p><strong>{editing.account.name}</strong> · {editing.account.username}</p>

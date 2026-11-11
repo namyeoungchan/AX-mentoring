@@ -58,15 +58,40 @@ export async function createAdmissions(db, workspaces, { token = '', now = Date.
         await (db.prepare('INSERT INTO lms_audit(actor,action,target,after_json) VALUES(?,?,?,?)')).run(actor.username || actor.id, 'student.assign', `${id}/${user.id}`, JSON.stringify({ teamId: team.id, courseId: team.courseId }));
         return { applicationId, workspaceName, teamName: team.name, courseTitle: team.courseTitle };
     }
+    function studentPasswordResetRestriction(id, account, memberships) {
+        if (account.platform_role === 'admin' || account.is_super_admin || memberships.some(member => member.role !== 'student'))
+            return '관리자·멘토 권한이 있는 계정은 총관리자에게 비밀번호 재발급을 요청하세요.';
+        if (!['approved', 'joined'].includes(account.state) || !memberships.some(member => member.workspace_id === id && member.role === 'student'))
+            return '이 워크스페이스에서 승인된 학생 계정만 초기화할 수 있습니다.';
+        if (memberships.some(member => member.workspace_id !== id))
+            return '여러 워크스페이스에 소속된 계정은 총관리자에게 비밀번호 재발급을 요청하세요.';
+        return '';
+    }
+    async function authorizeStudentPasswordReset(id, userId, actor) {
+        const administrator = await db.prepare('SELECT * FROM lms_users WHERE id=?').get(actor.id);
+        if (!administrator || administrator.must_change_password || administrator.must_complete_profile)
+            throw new ApiError(403, '관리자 계정으로 다시 로그인하세요.');
+        await workspaces.requireRole(id, { ...actor, role: administrator.platform_role }, ['admin']);
+        if ((await workspaces.metadata(id)).archivedAt !== null)
+            throw new ApiError(409, '보관된 워크스페이스에서는 비밀번호를 초기화할 수 없습니다.');
+        const account = await db.prepare("SELECT u.platform_role,u.is_super_admin,a.state FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.user_id=? AND a.purpose='student'").get(id, userId);
+        if (!account) throw new ApiError(404, '이 워크스페이스의 학생 계정을 찾을 수 없습니다.');
+        const memberships = await db.prepare('SELECT workspace_id,role FROM lms_workspace_members WHERE user_id=?').all(userId);
+        const restriction = studentPasswordResetRestriction(id, account, memberships);
+        if (restriction) throw new ApiError(403, restriction);
+        return administrator;
+    }
     async function studentAccounts(id, actor) {
         await workspaces.requireRole(id, actor, ['admin']);
         const data = await workspaces.snapshot(id);
+        const memberships = await db.prepare("SELECT user_id,workspace_id,role FROM lms_workspace_members WHERE user_id IN (SELECT user_id FROM lms_admissions WHERE workspace_id=? AND purpose='student')").all(id);
         return { revision: data.revision, teams: await availableTeams(id, actor), guildIds: (await workspaces.metadata(id)).guildIds, archived: (await workspaces.metadata(id)).archivedAt !== null,
-            accounts: await Promise.all((await (db.prepare("SELECT u.id,u.username,u.name,u.must_complete_profile AS setupPending,u.must_change_password AS passwordPending,a.id AS applicationId,a.team_id AS teamId,a.state FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.purpose='student' ORDER BY a.created_at DESC")).all(id)).map(async ({ applicationId, ...account }) => {
+            accounts: await Promise.all((await (db.prepare("SELECT u.id,u.username,u.name,u.platform_role,u.is_super_admin,u.must_complete_profile AS setupPending,u.must_change_password AS passwordPending,a.id AS applicationId,a.team_id AS teamId,a.state FROM lms_admissions a JOIN lms_users u ON u.id=a.user_id WHERE a.workspace_id=? AND a.purpose='student' ORDER BY a.created_at DESC")).all(id)).map(async ({ applicationId, platform_role, is_super_admin, ...account }) => {
                 const row = { id: applicationId, user_id: account.id, team_id: account.teamId };
                 const learner = await assignedLearner(row, data), team = await assignedTeam(row, data);
                 const profile = await studentProfile(id, account.id);
-                return { ...account, ...profile, name: learner?.name || profile.name || account.name, email: learner?.email || profile.email || '', profileRevision: digest(JSON.stringify(profile)), teamId: team?.id || '', courseId: learner?.courseId || team?.courseId || '' };
+                const resetBlockedReason = studentPasswordResetRestriction(id, { ...account, platform_role, is_super_admin }, memberships.filter(member => member.user_id === account.id));
+                return { ...account, ...profile, name: learner?.name || profile.name || account.name, email: learner?.email || profile.email || '', profileRevision: digest(JSON.stringify(profile)), teamId: team?.id || '', courseId: learner?.courseId || team?.courseId || '', canResetPassword: !resetBlockedReason, resetBlockedReason };
             })) };
     }
     // Once a roster record exists it owns the assignment. This also reflects moves
@@ -365,5 +390,5 @@ export async function createAdmissions(db, workspaces, { token = '', now = Date.
             throw error;
         }
     }
-    return { catalogue, validateStudentIssue, assignStudent, studentAccounts, changeStudentTeam, manageStudent, learnerRemovalPlan, removeLearner, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete };
+    return { catalogue, validateStudentIssue, assignStudent, studentAccounts, authorizeStudentPasswordReset, changeStudentTeam, manageStudent, learnerRemovalPlan, removeLearner, apply, own, staffInvite, reviewList, review, bulkReview, approved, renew, activate, authorized, poll, complete };
 }
