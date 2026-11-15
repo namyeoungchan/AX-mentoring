@@ -45,6 +45,19 @@ test('one immutable notice delivery survives repeated requests and records a cla
     await assert.rejects(async () => await f.complete(job), { status: 409 });
     assert.equal((await f.read()).attempts.length, 2);
 });
+
+test('availability notifications wait for a capable bot and failed retry keeps its DM destination', async t => {
+    const f = await fixture(t);
+    await f.db.prepare('INSERT INTO lms_outbox(id,event_key,kind,source_id,guild_id,channel_id,payload,actor,created_at) VALUES(?,?,?,?,?,?,?,?,?)')
+        .run('availability-1', 'availability:user', 'mentor_availability', 'user', guildId, `dm:${messageId}`, JSON.stringify({ title: '입력', description: '시간 입력', audience: 'individual', targetId: messageId }), 'scheduler', 1000);
+    assert.equal(await f.poll(), null);
+    const poll = async () => (await f.outbox.poll({ guildIds: [guildId], capabilities: ['mentor_availability'] })).job;
+    const job = await poll();
+    assert.equal(job.kind, 'mentor_availability');
+    await f.complete(job, 'failed', 'permissions', '');
+    await f.outbox.retry(f.workspace.id, job.id, admin);
+    assert.equal((await poll()).channelId, `dm:${messageId}`);
+});
 test('lost completion and restart reconcile the original channel, never blindly resend', async (t) => {
     const f = await fixture(t);
     await f.send();

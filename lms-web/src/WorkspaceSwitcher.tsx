@@ -58,6 +58,14 @@ export default function WorkspaceSwitcher({ workspaces, activeId, selectWorkspac
         <div className="modal-actions"><button className="button secondary" disabled={saving} onClick={() => setArchiving(null)}>취소</button><button className="button primary" disabled={saving} onClick={async () => { if (await setWorkspaceArchived?.(archiving.id, true)) { setArchiving(null); setShowArchived(true); setOpen(true) } }}>{saving ? '보관 중…' : '보관하기'}</button></div>
       </div>
     </ModalShell>}
-    {creating && <ModalShell title="워크스페이스 만들기" close={() => { if (!saving) setCreating(false) }}><form className="modal-form" onSubmit={submit}><fieldset disabled={saving}>{error && <p className="inline-note error-note" role="alert">{error}</p>}<label>워크스페이스 이름<input name="name" required maxLength={60} pattern=".*\S.*" placeholder="예: 세종 AX" autoFocus /></label><label>설명<textarea name="description" maxLength={300} placeholder="선택 입력" /></label><label>Discord 서버 ID<input name="guildId" pattern="[0-9]{17,20}" placeholder="선택 입력 · 입력하면 기본 구성 자동 구축" /></label><div className="modal-actions"><button type="button" className="button secondary" disabled={saving} onClick={() => setCreating(false)}>취소</button><button className="button primary" type="submit">{saving ? '만드는 중…' : '워크스페이스 만들기'}</button></div></fieldset></form></ModalShell>}
+    {creating && <ModalShell title="워크스페이스 만들기" busy={saving} close={() => { if (!saving) setCreating(false) }}><form className="modal-form workspace-create-form" onSubmit={submit}><fieldset disabled={saving}>
+      <p className="workspace-create-intro">함께 운영할 과정과 사람들을 모아두는 공간입니다.<br />지금은 이름만 정하면 됩니다.</p>
+      {error && <p className="inline-note error-note" role="alert">{error}</p>}
+      <label>워크스페이스 이름<input name="name" required maxLength={60} pattern=".*\S.*" placeholder="예: 세종 AX 3기" autoFocus /><small>멘토와 수강생에게 표시되는 이름입니다.</small></label>
+      <label>설명<textarea name="description" maxLength={300} placeholder="선택 · 어떤 교육을 위한 공간인지 적어주세요" rows={2} /></label>
+      <details className="workspace-optional"><summary>Discord 서버도 지금 연결할까요? <span>선택</span></summary><p>서버가 준비되지 않았다면 비워 두세요. 생성 후 ‘봇 · 서버 관리’에서 조 구성과 서버 연결을 안내합니다.</p><label>Discord 서버 ID<input name="guildId" pattern="[0-9]{17,20}" placeholder="17~20자리 서버 ID" /><small>입력하면 기본 채널과 역할의 자동 구축을 준비합니다.</small></label></details>
+      <div className="workspace-after-create"><strong>만든 다음에는</strong><p>대시보드의 ‘워크스페이스 시작하기’에서 조를 구성하고 멘토를 초대할 수 있습니다. 혼자 운영한다면 관리자 초대는 건너뛰세요.</p></div>
+      <div className="modal-actions"><button type="button" className="button secondary" disabled={saving} onClick={() => setCreating(false)}>취소</button><button className="button primary" type="submit">{saving ? '만드는 중…' : '워크스페이스 만들기'}</button></div>
+    </fieldset></form></ModalShell>}
   </div>
 }

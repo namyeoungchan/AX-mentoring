@@ -53,7 +53,9 @@ test('team moves invalidate attendance drafts and Discord failures preserve all 
   await page.reload()
   const assignment = (await get('assignment-alerts')).assignments[0]
   expect(assignment.targets.find((t: { name: string }) => t.name === setup.teams[1].name).completed).toBe(true)
-  expect((await get('assignment-alerts')).deliveries[0].state).toBe('failed')
+  const deliveries = (await get('assignment-alerts')).deliveries
+  expect(deliveries.find((d: { kind: string }) => d.kind === 'submission').state).toBe('failed')
+  expect(deliveries.filter((d: { kind: string }) => d.kind === 'publication')).toHaveLength(2)
   expect((await get('notices')).notices[0].delivery.state).toBe('failed')
   const after = await get(rosterPath)
   expect(after.state).toBe('마감')

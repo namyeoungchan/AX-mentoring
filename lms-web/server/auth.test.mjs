@@ -7,9 +7,38 @@ import { join } from 'node:path';
 import { createAuth } from './auth.mjs';
 import { createStore } from './store.mjs';
 import { studentLearning } from './student.mjs';
+import { superAdminScenario } from './super-admin-scenario.mjs';
 const options = { adminPassword: 'test-admin-password-1234', allowLegacyAdmin: true, botToken: 'test-discord-auth-token-123456789012345', guildId: '123456789012345678' };
 const member = { username: 'student.test', name: '테스트 학생', password: 'test-password-1234', discordId: '555456789012345678' };
 const verify = (code, overrides = {}) => ({ code, discordId: member.discordId, guildId: options.guildId, ...overrides });
+
+test('console super account works alongside the first administrator and is protected from web management', async () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+        const auth = await createAuth(db, options);
+        const owner = await auth.setup({ username: 'owner.test', name: 'Owner', password: 'owner-test-password', setupKey: options.adminPassword });
+        assert.equal(owner.user.isSuperAdmin, false);
+        await superAdminScenario(auth, db, owner.user);
+        assert.ok(await auth.session(owner.token));
+        assert.equal((await auth.login({ username: 'owner.test', password: 'owner-test-password' })).user.isSuperAdmin, false);
+    } finally { db.close(); }
+});
+
+test('super account can bootstrap without a setup key; public signup cannot set its privilege', async () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+        const auth = await createAuth(db);
+        await assert.rejects(auth.signup({ ...member, isSuperAdmin: true }, () => {}), { name: 'ZodError' });
+        const student = await auth.signup(member, () => {});
+        await assert.rejects(auth.createSuperAdmin({ ...member }), { name: 'ZodError' });
+        await assert.rejects(auth.createSuperAdmin({ username: member.username, name: member.name, password: member.password }), { status: 409 });
+        assert.equal((await auth.session(student.token)).role, 'student');
+        const user = await auth.createSuperAdmin({ username: 'root.test', name: 'Root', password: 'bootstrap-test-password' });
+        assert.equal(user.isSuperAdmin, true);
+        const reopened = await createAuth(db);
+        assert.equal((await reopened.login({ username: user.username, password: 'bootstrap-test-password' })).user.isSuperAdmin, true);
+    } finally { db.close(); }
+});
 test('80 classroom logins queue safely; successful login clears attempts while wrong passwords stay limited', async () => {
     const db = new DatabaseSync(':memory:');
     try {
@@ -311,11 +340,37 @@ test('student data uses verified identity and hides other students, courses, and
         const data = await studentLearning(db, { discordId: member.discordId }, true);
         assert.equal(data.courses[0].title, '본인 과정');
         assert.deepEqual(data.scores.map(row => row.item), ['내 점수']);
+        await put('teams', { id: 'team-one', courseId: 'c1', name: '1조' });
+        await db.prepare("UPDATE lms_records SET data=json_set(data,'$.team','1조') WHERE kind='learners' AND id='u1'").run();
+        for (const [id, type, courseId] of [[1, 'team', 'c1'], [2, 'individual', 'c1'], [3, 'individual', 'c2'], [4, 'team', 'c1']]) {
+            await db.prepare('INSERT INTO assignments(id,week,title,description,due_date,type,fields) VALUES(?,?,?,?,?,?,?)').run(id, 1, `과제 ${id}`, '과제 설명', '2099-09-30', type, '["실습 내용","결과 링크"]');
+            await db.prepare('INSERT INTO lms_assignment_courses VALUES(?,?)').run(id, courseId);
+        }
+        await db.prepare("INSERT INTO submissions(id,assignment_id,user_id,user_name,team,content,link) VALUES(1,1,'666456789012345678','팀원','이전 조명','팀원 비공개 답변','https://private.example/team')").run();
+        await db.prepare("INSERT INTO lms_submission_targets VALUES(1,'team:team-one')").run();
+        await db.prepare("INSERT INTO submissions(id,assignment_id,user_id,user_name,team,content,link) VALUES(2,2,?,'나','1조','나의 답변','https://example.com/mine')").run(member.discordId);
+        await db.prepare("INSERT INTO submissions(id,assignment_id,user_id,user_name,team,content,link) VALUES(3,2,'666456789012345678','다른 학생','1조','다른 개인 답변','https://private.example/individual')").run();
+        await db.prepare("INSERT INTO submissions(id,assignment_id,user_id,user_name,team,content,link) VALUES(4,4,'666456789012345678','다른 조','1조','이름만 같은 조의 답변','')").run();
+        await db.prepare("UPDATE lms_submission_targets SET target_key='team:another-team' WHERE submission_id=4").run();
+        const detailed = await studentLearning(db, { discordId: member.discordId }, true, '123456789012345678');
+        assert.deepEqual(detailed.assignments.map(a => a.id), [4, 2, 1]);
+        assert.equal(detailed.assignments.find(a => a.id === 1).teamSubmitted, true);
+        assert.equal(detailed.assignments.find(a => a.id === 1).submission, null);
+        assert.equal(detailed.assignments.find(a => a.id === 4).teamSubmitted, false);
+        assert.equal(detailed.assignments.find(a => a.id === 2).submission.content, '나의 답변');
+        assert.deepEqual(detailed.assignments[0].fields, ['실습 내용', '결과 링크']);
+        assert.equal(detailed.assignmentDiscordUrl, 'https://discord.com/channels/123456789012345678');
+        for (const privateValue of ['팀원 비공개 답변', '다른 개인 답변', '이름만 같은 조의 답변', 'private.example', '과제 3']) assert.ok(!JSON.stringify(detailed).includes(privateValue));
+        assert.deepEqual((await studentLearning(db, { discordId: member.discordId }, false)).assignments, []);
+        await db.exec('CREATE TABLE lms_bot_settings(guild_id TEXT PRIMARY KEY,data TEXT NOT NULL)');
+        await db.prepare('INSERT INTO lms_bot_settings VALUES(?,?)').run('123456789012345678', JSON.stringify({ channels: { ASSIGNMENT_SUBMIT_CHANNEL_ID: '223456789012345678' } }));
+        assert.equal((await studentLearning(db, { discordId: member.discordId }, true, '123456789012345678')).assignmentDiscordUrl, 'https://discord.com/channels/123456789012345678/223456789012345678');
         for (const privateValue of ['다른 학생', '다른 과정', 'private@example.com', '운영자 메모'])
             assert.ok(!JSON.stringify(data).includes(privateValue));
         assert.deepEqual((await studentLearning(db, { discordId: '777456789012345678' }, true)).courses, []);
         await db.prepare("UPDATE lms_records SET data=json_set(data,'$.status','비활성') WHERE kind='learners' AND id='u1'").run();
         assert.deepEqual((await studentLearning(db, { discordId: member.discordId }, true)).scores, []);
+        assert.deepEqual((await studentLearning(db, { discordId: member.discordId }, true)).assignments, []);
     }
     finally {
         db.close();

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { ApiError } from './store.mjs';
 import { createOperationQueue } from './operation-queue.mjs';
 import { createPythonStorageExecutor } from './python-storage-executor.mjs';
+import { onlineMentors } from './online-mentoring.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const source = readFileSync(resolve(root, '../database.py'), 'utf8');
 const operations = new Set([...source.matchAll(/^async def (\w+)\(/gm)].map(m => m[1]).filter(n => n !== 'init_db' && !n.startsWith('_')));
@@ -130,7 +131,8 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
         const { guildIds } = z.object({ guildIds: z.array(snowflake).max(10000) }).strict().parse(body);
         const result = { workspaces: [], unavailable: [] };
         for (const guildId of new Set(guildIds)) {
-            if (!await (main.prepare('SELECT 1 FROM lms_workspace_guilds WHERE guild_id=?')).get(guildId))
+            const binding = await main.prepare('SELECT workspace_id FROM lms_workspace_guilds WHERE guild_id=?').get(guildId);
+            if (!binding || (await workspaces.metadata(binding.workspace_id)).archivedAt !== null)
                 continue;
             try {
                 result.workspaces.push({ guildId, ...await status(guildId) });
@@ -223,7 +225,7 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
         return await state(id);
     }
     async function bindPanels(body) {
-        const input = z.object({ guildId: snowflake, channels: z.partialRecord(z.enum(['ASSIGNMENT_DASHBOARD_CHANNEL_ID', 'ASSIGNMENT_SUBMIT_CHANNEL_ID', 'MENTORING_CHANNEL_ID']), snowflake) }).strict().parse(body);
+        const input = z.object({ guildId: snowflake, channels: z.partialRecord(z.enum(['ONBOARDING_CHANNEL_ID', 'ASSIGNMENT_DASHBOARD_CHANNEL_ID', 'ASSIGNMENT_SUBMIT_CHANNEL_ID', 'MENTORING_CHANNEL_ID']), snowflake) }).strict().parse(body);
         const db = await open(await owner(input.guildId));
         const previous = await (db.prepare('SELECT data FROM lms_bot_settings WHERE guild_id=?')).get(input.guildId);
         const value = previous ? JSON.parse(previous.data) : { channels: {}, teams: [], qaUnansweredHours: 24 };
@@ -262,7 +264,7 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
             throw new ApiError(422, '최신 화면에서 작업을 요청하세요.');
         if (!operations.has(input.operation))
             throw new ApiError(422, '지원하지 않는 작업입니다.');
-        return { result: await execute(id, input, actor) };
+        return { result: await execute(id, { ...input, autoPublishAssignment: workspaceId === null }, actor) };
     }
     async function execute(id, input, actor) {
         if (!readOnly.has(input.operation) && (await workspaces.metadata(id)).archivedAt !== null)
@@ -270,7 +272,9 @@ export async function createBotStorage(main, workspaces, onboarding, { env = pro
         const db = await open(id);
         const location = db.dialect === 'postgres' ? { schema: db.schema } : { filename: (await db.prepare('PRAGMA database_list').all()).find(r => r.name === 'main').file };
         // Reads use enforced read-only transactions; writes retain one writer per workspace.
-        return await queue.run(id, readOnly.has(input.operation), { ...location, request: { ...input, actor } });
+        const onlineMentorIds = ['get_online_mentors', 'get_online_mentor_by_id', 'get_online_mentor_by_discord_id', 'create_booking', 'set_slot_template', 'generate_slots_for_range'].includes(input.operation)
+            ? (await onlineMentors(main, workspaces, id)).map(mentor => mentor.id) : [];
+        return await queue.run(id, readOnly.has(input.operation), { ...location, request: { ...input, actor, onlineMentorIds } });
     }
     async function assignmentDeletion(id, assignmentId, body, user) {
         await workspaces.requireRole(id, user, ['admin']);

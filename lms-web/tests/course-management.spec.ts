@@ -1,7 +1,18 @@
 import { test, expect } from '@playwright/test'
 
 test('course starts despite external assignment writes and weekly schedules persist, validate and preserve conflicting drafts', async ({ page }) => {
-  await page.request.post('/api/login', { data: { password: 'test-only-password-1234' } })
+  test.setTimeout(90000)
+  // The full rehearsal shares one IP; honor the real admin-login throttle.
+  const login = () => page.request.post('/api/login', { data: { password: 'test-only-password-1234' } })
+  let authenticated = await login()
+  if (authenticated.status() === 429) {
+    const seconds = Number(authenticated.headers()['retry-after'])
+    expect(seconds).toBeGreaterThan(0)
+    expect(seconds).toBeLessThanOrEqual(60)
+    await new Promise(resolve => setTimeout(resolve, seconds * 1000))
+    authenticated = await login()
+  }
+  expect(authenticated.status()).toBe(200)
   const w = await (await page.request.post('/api/workspaces', { data: { name: '과정 일정 검증' } })).json(), base = `/api/workspaces/${w.id}`
   const course = { id: 'schedule-course', title: '주차별 실습 과정', category: 'AX', description: 'AI 프로젝트 실습', progress: 0, learners: 0, weeks: '4주', mentor: '', theme: 'green', status: '모집 중', code: 'WEEKLY', cohort: '1기', startDate: '2026-09-01', endDate: '2026-09-30' }
   const state = await (await page.request.get(`${base}/workspace`)).json()

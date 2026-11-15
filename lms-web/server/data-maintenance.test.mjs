@@ -30,6 +30,28 @@ function modify(bytes, action) {
     envelope.sha256 = createHash('sha256').update(envelope.payload).digest('hex');
     return gzipSync(JSON.stringify(envelope));
 }
+test('backups preserve super accounts and accept older accounts without the super flag', async (t) => {
+    const f = await fixture(t), m = f.maintenance;
+    const user = await f.runtime.auth.createSuperAdmin({ username: 'backup.super', name: 'Super', password: 'backup-test-password' });
+    const bytes = await m.exclusive(() => m.backup());
+    const preview = await m.exclusive(() => m.preview(bytes, f.login.user.id));
+    await m.exclusive(() => m.replace('restore', preview.token, f.login.user.id));
+    assert.equal((await f.runtime.auth.login({ username: user.username, password: 'backup-test-password' })).user.isSuperAdmin, true);
+    const old = modify(bytes, data => {
+        for (const entry of data.databases) {
+            const table = entry.tables.find(table => table.name === 'lms_users');
+            const index = table?.columns.indexOf('is_super_admin') ?? -1;
+            if (index >= 0) {
+                table.columns.splice(index, 1);
+                for (const row of table.rows) row.splice(index, 1);
+            }
+        }
+    });
+    const oldPreview = await m.exclusive(() => m.preview(old, f.login.user.id));
+    await m.exclusive(() => m.replace('restore', oldPreview.token, f.login.user.id));
+    assert.equal((await f.runtime.auth.login({ username: user.username, password: 'backup-test-password' })).user.isSuperAdmin, false);
+});
+
 test('backup/reset/restore covers archived workspaces, credentials, sequences, WAL and automatic recovery downloads', async (t) => {
     const f = await fixture(t), m = f.maintenance;
     const extra = await f.runtime.workspaces.create({ name: '보관 과정' });

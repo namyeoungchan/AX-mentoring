@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { ApiError } from './store.mjs';
 import { workspaceVerified } from './workspace-verification.mjs';
+import { onlineAvailability } from './online-mentoring.mjs';
 export const mentorGuides = [
     { id: 'assignments', title: '과제 생성', text: '아래 과제 만들기에서 과정, 제목, 마감일을 입력하세요. 과제는 선택한 과정 전체에 공개됩니다. 생성한 과제는 Discord 과제제출 패널에도 반영되며 수강생이 제출할 수 있습니다.' },
-    { id: 'approval', title: '멘토링 예약 승인', text: 'Discord에서 /멘토 설정을 실행하고 시간대와 예약 슬롯을 만드세요. 수강생이 멘토링예약 채널에서 신청하면 봇의 개인 메시지로 승인·거절 요청을 받습니다. 서버 개인 메시지를 허용하고, 일정과 요청 내용을 확인한 뒤 승인하거나 사유를 적어 거절하세요.' },
-    { id: 'mentoring', title: '멘토링 진행', text: '확정된 시간에 담당 조의 음성 채널에서 멘토링을 진행하세요. 시작 전에 질문과 과제 내용을 확인하고, 종료 시 피드백과 다음 할 일을 조별 대화 채널에 남기세요. 일정 변경이 필요하면 수강생과 조율하고 기존 예약을 취소한 뒤 다시 예약하도록 안내하세요.' },
+    { id: 'approval', title: '멘토링 예약 승인', text: '온라인 멘토링은 조 담당 멘토에게 예약할 수 있습니다. 조 담당 멘토는 Discord의 가능 시간 입력 버튼 또는 /멘토 설정에서 시간대와 예약 날짜를 등록하세요. 수강생이 신청하면 봇의 개인 메시지로 승인·거절 요청을 받습니다. 서버 개인 메시지를 허용하고 일정과 요청 내용을 확인하세요. 메인 강사는 가능 시간을 등록하지 않아도 됩니다.' },
+    { id: 'mentoring', title: '멘토링 진행', text: '확정된 시간에 담당 조의 음성 채널에서 멘토링을 진행하세요. 종료 시 피드백과 다음 할 일을 조별 대화 채널에 남기세요. 승인된 예약의 시간 변경은 해당 조 담당 멘토와 신청 수강생이 LMS의 멘토링 일정 재조율에서 다른 시간을 제안하고, 상대방 수락 후 확정합니다. 메인 강사는 제안·수락을 대신할 수 없습니다. 제안 철회는 변경 제안만 거두며, 예약 취소는 멘토링 자체를 취소할 때만 사용하세요. 도움말의 승인된 멘토링 일정 변경 가이드를 참고하세요.' },
 ];
 export async function createStaffFlow(db, workspaces, onboarding, admissions, { now = Date.now } = {}) {
     await db.exec(`CREATE TABLE IF NOT EXISTS lms_staff_profiles (workspace_id TEXT NOT NULL, user_id TEXT NOT NULL, name TEXT NOT NULL, expertise TEXT NOT NULL, bio TEXT NOT NULL, steps TEXT NOT NULL DEFAULT '[]', updated_at INTEGER NOT NULL, PRIMARY KEY(workspace_id,user_id));
@@ -96,8 +97,10 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
         const verified = Boolean(guildId && await workspaceVerified(db, id, user.id, guildId));
         const invitation = (await admissions.own(user)).find(a => a.workspaceId === id) || null;
         const steps = profile ? JSON.parse(profile.steps) : [];
+        const availability = await onlineAvailability(db, workspaces, id, user.id, now());
         return { profile: profile ? { ...profile, steps } : null, guildId, verified, invitation,
-            completed: Boolean(profile && verified && mentorGuides.every(guide => steps.includes(guide.id))),
+            availability,
+            completed: Boolean(profile && verified && (!availability.required || availability.configured) && mentorGuides.every(guide => steps.includes(guide.id))),
             ...await workspaces.mentorScope(id, user.id), teams: (await workspaces.snapshot(id)).teams.map(t => ({ id: t.id, name: t.name })), guides: mentorGuides };
     }
     async function profile(id, body, user) {
@@ -114,9 +117,10 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
     async function invite(id, user) {
         await workspaces.requireRole(id, user, ['admin', 'instructor']);
         await active(id);
-        if (!(await read(id, user)).profile)
-            throw new ApiError(422, '기본 정보를 먼저 입력하세요.');
-        await admissions.staffInvite(id, user);
+        // Membership authorizes joining the server. Profile completion is still
+        // required for identity verification, not for preparing the invitation.
+        if (!(await read(id, user)).verified)
+            await admissions.staffInvite(id, user);
         return await read(id, user);
     }
     async function step(id, body, user) {
@@ -150,6 +154,60 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
         // Preserve bookings and mentor identity for history; close future booking access.
         await (target.prepare('UPDATE slots SET is_active=0 WHERE mentor_id IN (SELECT id FROM mentors WHERE discord_id=?)')).run(discordId);
         await (target.prepare('UPDATE mentors SET is_active=0 WHERE discord_id=?')).run(discordId);
+    }
+    async function managedAccount(id, userId, actor) {
+        // Read authority from the database; client-supplied role flags grant nothing.
+        const administrator = await db.prepare('SELECT platform_role,must_change_password,must_complete_profile FROM lms_users WHERE id=?').get(actor?.id || '');
+        if (administrator?.platform_role !== 'admin' || administrator.must_change_password || administrator.must_complete_profile)
+            throw new ApiError(403, '총관리자 계정으로 로그인하세요.');
+        await active(id);
+        const account = await db.prepare('SELECT id,username,name,discord_id,platform_role,is_super_admin FROM lms_users WHERE id=?').get(userId);
+        if (!account) throw new ApiError(404, '계정을 찾을 수 없습니다.');
+        if (account.platform_role === 'admin' || account.is_super_admin)
+            throw new ApiError(403, '총관리자·슈퍼계정은 워크스페이스 역할을 변경할 수 없습니다. 별도 테스트 계정을 사용하세요.');
+        return account;
+    }
+    async function accountRole(id, userId, actor) {
+        await managedAccount(id, userId, actor);
+        const membership = await db.prepare('SELECT role FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').get(id, userId);
+        return { workspaceId: id, workspaceName: (await workspaces.metadata(id)).name, role: membership?.role || null,
+            ...await workspaces.mentorScope(id, userId), teams: (await workspaces.snapshot(id)).teams.map(team => ({ id: team.id, name: team.name })) };
+    }
+    async function changeAccountRole(id, userId, body, actor) {
+        const input = z.object({ role: z.enum(['admin', 'instructor', 'student']), expectedRole: z.enum(['admin', 'instructor', 'student']).nullable(), mentorType: z.enum(['main', 'group']).default('main'), teamIds: z.array(z.string()).max(50).default([]) }).strict().parse(body);
+        await managedAccount(id, userId, actor);
+        const target = (await workspaces.open(id)).db;
+        await db.exec('BEGIN IMMEDIATE');
+        try {
+            if (target !== db) await target.exec('BEGIN IMMEDIATE');
+            const account = await managedAccount(id, userId, actor);
+            const previous = await db.prepare('SELECT role FROM lms_workspace_members WHERE workspace_id=? AND user_id=?').get(id, userId);
+            if ((previous?.role || null) !== input.expectedRole)
+                throw new ApiError(409, '역할이 이미 변경되었습니다. 창을 닫고 다시 열어 확인하세요.');
+            const before = { role: previous?.role || null, ...await workspaces.mentorScope(id, userId) };
+            const scope = await workspaces.validateScope(id, input.role === 'instructor' ? { mentorType: input.mentorType, teamIds: input.teamIds } : {});
+            await db.prepare('INSERT INTO lms_workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=excluded.role').run(id, userId, input.role, now());
+            if (input.role === 'instructor') {
+                await db.prepare('INSERT INTO lms_mentor_scopes VALUES(?,?,?,?) ON CONFLICT(workspace_id,subject_id) DO UPDATE SET kind=excluded.kind,team_ids=excluded.team_ids').run(id, userId, scope.mentorType, JSON.stringify(scope.teamIds));
+                await db.prepare("INSERT OR IGNORE INTO lms_staff_profiles(workspace_id,user_id,name,expertise,bio,updated_at) VALUES(?,?,?,'','',?)").run(id, userId, account.name, now());
+                await syncMentor(id, userId);
+            } else {
+                await db.prepare('DELETE FROM lms_mentor_scopes WHERE workspace_id=? AND subject_id=?').run(id, userId);
+                await disableMentor(target, account.discord_id);
+            }
+            // Preserve enrollment, profile, verification and learning history across role tests.
+            await db.prepare('UPDATE lms_admissions SET purpose=? WHERE workspace_id=? AND user_id=?').run(input.role === 'student' ? 'student' : 'staff', id, userId);
+            await db.prepare('UPDATE lms_workspace_invitations SET revoked_at=? WHERE workspace_id=? AND username=? AND accepted_at IS NULL AND revoked_at IS NULL').run(now(), id, account.username);
+            await db.prepare('DELETE FROM lms_auth_sessions WHERE user_id=?').run(userId);
+            await db.prepare('INSERT INTO lms_audit(actor,action,target,before_json,after_json) VALUES(?,?,?,?,?)').run(actor.username || actor.id, 'account.workspace-role', `${id}/${userId}`, JSON.stringify(before), JSON.stringify({ role: input.role, ...scope }));
+            if (target !== db) await target.exec('COMMIT');
+            await db.exec('COMMIT');
+        } catch (error) {
+            if (target !== db && target.isTransaction) await target.exec('ROLLBACK');
+            if (db.isTransaction) await db.exec('ROLLBACK');
+            throw error;
+        }
+        return { ...await accountRole(id, userId, actor), sessionsRevoked: true };
     }
     async function editMember(id, memberId, body, user) {
         const member = await managedMember(id, memberId, user);
@@ -211,5 +269,5 @@ export async function createStaffFlow(db, workspaces, onboarding, admissions, { 
         }
         return await members(id, user);
     }
-    return { groups, setupGroups, enableTeams, read, profile, invite, step, syncDiscord, members, editMember, removeMember };
+    return { groups, setupGroups, enableTeams, read, profile, invite, step, syncDiscord, members, editMember, removeMember, accountRole, changeAccountRole };
 }

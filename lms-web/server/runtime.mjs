@@ -1,3 +1,4 @@
+import { createDiscordIdentities } from './discord-identities.mjs';
 import { createCourseManagement } from './course-management.mjs';
 import { createStore } from './store.mjs';
 import { postgresConnection } from './postgres/database.mjs';
@@ -11,11 +12,17 @@ import { createBotStorage } from './bot-storage.mjs';
 import { createStaffFlow } from './staff-flow.mjs';
 import { createOutbox } from './outbox.mjs';
 import { createAssignmentAlerts } from './assignment-alerts.mjs';
+import { createOnlineMentoring } from './online-mentoring.mjs';
+import { createMentoringFeedback } from './mentoring-feedback.mjs';
+import { createMentoringCoordination } from './mentoring-coordination.mjs';
+import { createMentoringActivities } from './mentoring-activities.mjs';
+import { createMentoringExport } from './mentoring-export.mjs';
 import { createTeamOperations } from './team-operations.mjs';
 import { createAttendance } from './attendance.mjs';
 import { createAttendanceCodes } from './attendance-codes.mjs';
 import { createStudentRoster } from './student-roster.mjs';
 import { createCourseVideos } from './course-videos.mjs';
+import { createHelpGuides } from './help-guides.mjs';
 // All database handles belong to one generation and are replaced together.
 export async function createRuntime(dbPath, env = process.env) {
     const store = await createStore(dbPath, { postgres: postgresConnection(env) });
@@ -36,11 +43,23 @@ export async function createRuntime(dbPath, env = process.env) {
         const teamOperations = createTeamOperations(workspaces, onboarding);
         const botStorage = await createBotStorage(store.db, workspaces, onboarding, { env });
         const assignmentAlerts = createAssignmentAlerts(store.db, workspaces);
-        const outbox = createOutbox(store.db, workspaces, { prepare: assignmentAlerts.prepare });
+        const onlineMentoring = createOnlineMentoring(store.db, workspaces);
+        const mentoringFeedback = createMentoringFeedback(store.db, workspaces);
+        const mentoringCoordination = createMentoringCoordination(store.db, workspaces);
+        const mentoringActivities = createMentoringActivities(store.db, workspaces);
+        const mentoringExport = createMentoringExport(store.db, workspaces);
+        const outbox = createOutbox(store.db, workspaces, { prepare: async (id, channel) => {
+            await assignmentAlerts.prepare(id, channel);
+            await onlineMentoring.prepare(id);
+            await mentoringCoordination.prepare(id);
+            await mentoringFeedback.prepare(id);
+        } });
         const attendance = createAttendance(workspaces, { outbox });
         const attendanceCodes = createAttendanceCodes(store.db, workspaces, attendance, { enabled: auth.enabled });
         const attendancePresence = attendanceCodes.presence;
-        return { store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, outbox, attendance, attendanceCodes, attendancePresence,
+        const discordIdentities = createDiscordIdentities(store.db, auth);
+        const helpGuides = createHelpGuides(workspaces);
+        return { mentoringActivities, mentoringExport, mentoringCoordination, helpGuides, discordIdentities, store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, onlineMentoring, mentoringFeedback, outbox, attendance, attendanceCodes, attendancePresence,
             close() { botStorage.close(); workspaces.close(); store.db.close(); } };
     }
     catch (error) {

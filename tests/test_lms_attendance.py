@@ -28,7 +28,7 @@ class AttendanceCommandTests(unittest.IsolatedAsyncioTestCase):
         session.__aenter__ = AsyncMock(return_value=session)
         session.__aexit__ = AsyncMock(return_value=False)
         session.post.return_value = response
-        with patch.object(attendance.aiohttp, 'ClientSession', return_value=session):
+        with patch.object(cog.transport, 'session', return_value=session):
             await attendance.LMSAttendance.check_in.callback(cog, interaction, ' 001234 ')
         self.assertEqual(session.post.call_args.args[0], 'http://127.0.0.1:3002/api/integrations/discord/attendance/checkin')
         self.assertEqual(session.post.call_args.kwargs['json'], {'code': '001234', 'discordId': str(interaction.user.id), 'guildId': str(interaction.guild_id)})
@@ -58,5 +58,13 @@ class AttendanceCommandTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_network_timeout_returns_unknown_result_without_exposing_connection_details(self):
         cog = self.cog()
-        with patch.object(attendance.aiohttp, 'ClientSession', side_effect=TimeoutError('secret connection')):
+        with patch.object(cog.transport, 'session', side_effect=TimeoutError('secret connection')):
             self.assertEqual(await cog.request('123456', 1, 2), (503, None))
+
+    async def test_presence_retry_payload_cannot_override_invoking_identity(self):
+        cog = self.cog()
+        cog.transport.post_json = AsyncMock(return_value=(200, {'alreadyRecorded': True}))
+        await cog.presence('mark', 123, 456, {'code': '123456', 'action': 'in', 'discordId': 'other', 'guildId': 'other'})
+        call = cog.transport.post_json.call_args
+        self.assertEqual(call.kwargs['body'], {'code': '123456', 'action': 'in', 'discordId': '123', 'guildId': '456'})
+        self.assertTrue(call.kwargs['retry'])

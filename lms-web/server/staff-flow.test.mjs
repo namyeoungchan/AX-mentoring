@@ -1,4 +1,7 @@
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
+import { accountRoleScenario } from './account-role-scenario.mjs';
+import { issueStaffAccounts, previewStaffAccounts } from './staff-import.mjs';
+import { issueMentorAccount } from './mentor-accounts.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -11,10 +14,18 @@ import { createProvision } from './provision.mjs';
 import { createWorkspaces } from './workspaces.mjs';
 import { createAdmissions } from './admissions.mjs';
 import { createOnboarding } from './onboarding.mjs';
-import { createStaffFlow } from './staff-flow.mjs';
+import { createStaffFlow, mentorGuides } from './staff-flow.mjs';
+import { createOnlineMentoring } from './online-mentoring.mjs';
 const admin = { id: 'admin', username: 'admin', role: 'admin' };
 const guildId = '555456789012345678', discordId = '655456789012345678';
 const secret = 'test-only-token-12345678901234567890';
+test('mentor onboarding explains agreement-based rescheduling, not cancel-and-rebook', () => {
+    const guide = mentorGuides.find(row => row.id === 'mentoring');
+    assert.match(guide.text, /상대방 수락 후 확정/);
+    assert.match(guide.text, /제안 철회는 변경 제안만/);
+    assert.match(guide.text, /예약 취소는 멘토링 자체를 취소할 때만/);
+    assert.doesNotMatch(guide.text, /취소한 뒤 다시 예약|취소.*재예약/);
+});
 async function fixture(t) {
     const folder = mkdtempSync(join(tmpdir(), 'staff-flow-')), dbPath = join(folder, 'main.db');
     let currentTime = Date.now();
@@ -42,6 +53,129 @@ async function fixture(t) {
     t.after(() => { workspaces.close(); store.db.close(); rmSync(folder, { recursive: true, force: true }); });
     return { store, auth, workspaces, workspace, staff, admissions, onboarding, signup, setup, connect, verify };
 }
+test('global account management switches workspace roles without granting platform authority or losing history', async (t) => {
+    const f = await fixture(t);
+    const administrator = await f.auth.createSuperAdmin({ username: 'role.owner', name: 'Owner', password: 'test-role-admin-password' });
+    await accountRoleScenario(f, administrator);
+});
+
+test('verified group mentors need published future availability and receive only one durable input reminder', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    await f.setup(1); await f.connect();
+    const user = await f.signup('availability.mentor', 'instructor', { mentorType: 'group', teamIds: [(await f.staff.groups(id)).teams[0].id] });
+    await f.staff.profile(id, { name: '조 담당', expertise: 'AI' }, user);
+    const service = createOnlineMentoring(f.store.db, f.workspaces), db = (await f.workspaces.open(id)).db;
+    await service.prepare(id);
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_outbox WHERE kind='mentor_availability'").get()).n, 0);
+    await f.verify(user); await f.staff.syncDiscord(discordId, guildId);
+    for (const step of ['assignments', 'approval', 'mentoring']) await f.staff.step(id, { step }, user);
+    const state = await f.staff.read(id, user);
+    assert.deepEqual(state.availability, { required: true, configured: false, futureSlots: 0 });
+    assert.equal(state.completed, false);
+    await service.prepare(id); await service.prepare(id);
+    const jobs = await db.prepare("SELECT * FROM lms_outbox WHERE kind='mentor_availability'").all();
+    assert.equal(jobs.length, 1); assert.equal(jobs[0].channel_id, `dm:${discordId}`);
+    assert.equal(JSON.parse(jobs[0].payload).targetId, discordId);
+    const mentor = await db.prepare('SELECT id FROM mentors WHERE discord_id=?').get(discordId);
+    await db.prepare('INSERT INTO slot_templates(mentor_id,start_hour,start_minute,end_hour,end_minute,interval_minutes) VALUES(?,19,0,21,0,30)').run(mentor.id);
+    assert.equal((await f.staff.read(id, user)).availability.configured, false);
+    await db.prepare('INSERT INTO slots(mentor_id,start_time,end_time,label) VALUES(?,?,?,?)').run(mentor.id, '2099-01-01T19:00:00', '2099-01-01T19:30:00', '예약 시간');
+    assert.equal((await f.staff.read(id, user)).availability.configured, true);
+    assert.equal((await f.staff.read(id, user)).completed, true);
+    await service.prepare(id);
+    assert.equal((await db.prepare('SELECT state FROM lms_outbox WHERE id=?').get(jobs[0].id)).state, 'cancelled');
+    await f.store.db.prepare("UPDATE lms_mentor_scopes SET kind='main' WHERE workspace_id=? AND subject_id=?").run(id, user.id);
+    await db.prepare('DELETE FROM slots WHERE mentor_id=?').run(mentor.id);
+    assert.equal((await f.staff.read(id, user)).availability.required, false);
+    await service.prepare(id);
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_outbox WHERE kind='mentor_availability'").get()).n, 1);
+});
+
+test('reissuing an expired mentor invitation rotates only its token and preserves account and scope', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    const owner = await f.signup('renew.owner', 'admin'), groups = await f.setup(2);
+    const issued = await issueMentorAccount(f.auth, f.workspaces, id, { username: 'renew.mentor', name: '재초대 멘토', mentorType: 'group', teamIds: [groups.teams[1].id] }, owner);
+    const before = await f.store.db.prepare('SELECT * FROM lms_users WHERE username=?').get(issued.username);
+    await f.store.db.prepare('UPDATE lms_workspace_invitations SET expires_at=0 WHERE id=?').run(issued.id);
+    const renewed = await f.workspaces.reissueInvitation(id, issued.id, owner);
+    assert.notEqual(renewed.token, issued.token); assert.equal(renewed.id, issued.id);
+    assert.ok(renewed.expiresAt > Date.now() + 6 * 86400000);
+    await assert.rejects(f.workspaces.previewInvitation(issued.token), { status: 410 });
+    const preview = await f.workspaces.previewInvitation(renewed.token);
+    assert.equal(preview.role, 'instructor'); assert.equal(preview.mentorType, 'group'); assert.deepEqual(preview.teamIds, [groups.teams[1].id]);
+    assert.deepEqual(await f.store.db.prepare('SELECT * FROM lms_users WHERE username=?').get(issued.username), before);
+    for (const table of ['lms_workspace_invitations', 'lms_audit']) assert.ok(!JSON.stringify(await f.store.db.prepare(`SELECT * FROM ${table}`).all()).includes(renewed.token));
+    const login = await f.auth.login({ username: issued.username, password: issued.initialPassword });
+    const changed = await f.auth.changePassword(login.user, { currentPassword: issued.initialPassword, newPassword: 'renew-personal-password' });
+    await f.workspaces.acceptInvitation(renewed.token, changed.user);
+    assert.equal(await f.workspaces.role(id, changed.user), 'instructor');
+    await assert.rejects(f.workspaces.reissueInvitation(id, issued.id, owner), { status: 409 });
+});
+
+test('invitation renewal enforces workspace and administrator boundaries, cancellation and archival', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    const owner = await f.signup('renew.boundary.owner', 'admin'), mentor = await f.signup('renew.boundary.teacher');
+    const invitation = await f.workspaces.invite(id, { username: 'renew.pending', role: 'instructor' }, owner);
+    const adminInvite = await f.workspaces.invite(id, { username: 'renew.admin', role: 'admin' }, admin);
+    await assert.rejects(f.workspaces.reissueInvitation('default', invitation.id, admin), { status: 404 });
+    await assert.rejects(f.workspaces.reissueInvitation(id, invitation.id, mentor), { status: 403 });
+    await assert.rejects(f.workspaces.reissueInvitation(id, adminInvite.id, owner), { status: 403 });
+    assert.ok((await f.workspaces.reissueInvitation(id, adminInvite.id, admin)).token);
+    await f.workspaces.revokeInvitation(id, invitation.id, owner);
+    await assert.rejects(f.workspaces.reissueInvitation(id, invitation.id, owner), { status: 409 });
+    const pending = await f.workspaces.invite(id, { username: 'renew.archived', role: 'instructor' }, owner);
+    await f.workspaces.setArchived(id, true, admin);
+    await assert.rejects(f.workspaces.reissueInvitation(id, pending.id, admin), { status: 409 });
+    assert.ok(await f.workspaces.previewInvitation(pending.token));
+});
+
+test('bulk staff issuance maps categories, rejects invalid batches and never overwrites passwords', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    const groups = await f.setup(2);
+    const rows = ['PM', '강의', '기술멘토', '자문/운영'].map((category, i) => ({ row: i + 2, category, name: `구성원 ${i}`, username: `bulk.person${i}`, teamIds: category === '기술멘토' ? [groups.teams[0].id] : [] }));
+    const preview = body => previewStaffAccounts(f.store.db, f.workspaces, id, body, admin);
+    const issue = (body, actor = admin) => issueStaffAccounts(f.store.db, f.auth, f.workspaces, id, body, actor);
+    assert.equal((await preview({ rows })).valid, true);
+    assert.equal((await preview({ rows: [rows[0], { ...rows[0], row: 20 }] })).valid, false);
+    assert.equal((await preview({ rows: [{ ...rows[2], teamIds: [] }] })).valid, false);
+    assert.equal((await preview({ rows: [{ ...rows[2], teamIds: ['foreign-team'] }] })).valid, false);
+    assert.equal((await preview({ rows: [{ ...rows[0], category: 'superadmin' }] })).valid, false);
+    const owner = await f.signup('bulk.owner', 'admin');
+    await assert.rejects(issue({ rows }, owner), { status: 422 });
+    assert.equal(await f.store.db.prepare('SELECT id FROM lms_users WHERE username=?').get(rows[0].username), undefined);
+    const result = await issue({ rows }); assert.equal(result.results.length, 4);
+    for (const [index, issued] of result.results.entries()) {
+        assert.ok(issued.token); assert.ok(issued.initialPassword);
+        const invitation = await f.workspaces.previewInvitation(issued.token);
+        assert.equal(invitation.role, index === 3 ? 'admin' : 'instructor');
+        assert.equal(invitation.mentorType, index === 2 ? 'group' : 'main');
+        const login = await f.auth.login({ username: issued.username, password: issued.initialPassword });
+        assert.equal(login.user.mustChangePassword, true); assert.equal(login.user.role, 'student');
+        for (const table of ['lms_users', 'lms_audit', 'lms_workspace_invitations']) assert.ok(!JSON.stringify(await f.store.db.prepare(`SELECT * FROM ${table}`).all()).includes(issued.initialPassword));
+    }
+    assert.equal((await preview({ rows })).valid, false);
+    await assert.rejects(issue({ rows }), { status: 422 });
+    const same = await f.auth.login({ username: result.results[0].username, password: result.results[0].initialPassword });
+    assert.ok(same.user.id);
+    await assert.rejects(issue({ rows: [{ ...rows[0], username: 'unauthorized.new' }] }, same.user), { status: 403 });
+    await f.workspaces.setArchived(id, true, admin);
+    await assert.rejects(issue({ rows: [{ ...rows[0], username: 'archived.new' }] }), { status: 409 });
+});
+
+test('bulk issuance reports partial failures and preserves successful credentials on retry', async t => {
+    const f = await fixture(t), id = f.workspace.id;
+    const rows = ['bulk.first', 'bulk.failed', 'bulk.last'].map((username, i) => ({ row: i + 2, category: 'PM', name: username, username, teamIds: [] }));
+    const flaky = { createInvitationAccount: async (...args) => {
+        if (args[0].username === 'bulk.failed') throw new Error('simulated database failure');
+        return f.auth.createInvitationAccount(...args);
+    } };
+    const result = await issueStaffAccounts(f.store.db, flaky, f.workspaces, id, { rows }, admin);
+    assert.ok(result.results[0].token); assert.ok(result.results[1].error); assert.ok(result.results[2].token);
+    const retried = await issueStaffAccounts(f.store.db, f.auth, f.workspaces, id, { rows: [rows[1]] }, admin);
+    assert.ok(retried.results[0].token);
+    assert.ok((await f.auth.login({ username: rows[0].username, password: result.results[0].initialPassword })).user.id);
+});
+
 test('workspace administrator joins before a Discord server exists and invites scoped mentors without platform privileges', async (t) => {
     const { workspaces, workspace, signup, setup } = await fixture(t);
     const owner = await signup('workspace.owner', 'admin');
@@ -77,8 +211,13 @@ test('mentor profile queues only their guild invite, verified identity registers
     await setup(2);
     await connect();
     const user = await signup('main.mentor');
-    await assert.rejects(async () => await staff.invite(workspace.id, user), { status: 422 });
+    const prepared = await staff.invite(workspace.id, user);
+    assert.equal(prepared.profile, null);
+    assert.equal(prepared.invitation.inviteState, 'queued');
+    const repeated = await staff.invite(workspace.id, user);
+    assert.equal(repeated.invitation.id, prepared.invitation.id);
     const result = await staff.profile(workspace.id, { name: '강사', expertise: 'AI', bio: '자기소개' }, user);
+    assert.equal(result.invitation.id, prepared.invitation.id);
     assert.equal(result.invitation.inviteState, 'queued');
     assert.equal((await admissions.reviewList(workspace.id, admin)).applications.length, 0);
     assert.equal((await admissions.poll({ guildIds: ['755456789012345678'] })).job, null);
@@ -86,6 +225,7 @@ test('mentor profile queues only their guild invite, verified identity registers
     assert.equal(job.guildId, guildId);
     await admissions.complete({ id: job.id, claim: job.claim, success: true, code: 'MentorTest' });
     assert.equal((await staff.read(workspace.id, user)).invitation.inviteUrl, 'https://discord.gg/MentorTest');
+    assert.equal((await staff.invite(workspace.id, user)).invitation.inviteUrl, 'https://discord.gg/MentorTest');
     await assert.rejects(async () => await staff.step(workspace.id, { step: 'assignments' }, user), { status: 409 });
     assert.equal((await staff.read(workspace.id, user)).completed, false);
     const verification = await auth.issueVerification(user, guildId);
@@ -100,6 +240,8 @@ test('mentor profile queues only their guild invite, verified identity registers
     assert.equal(updated.profile.bio, '자기소개');
     assert.equal((await onboarding.poll({ guildIds: [guildId] })).configs[0].participants[0].name, '변경된 활동명');
     assert.equal((await staff.read(workspace.id, user)).verified, true);
+    assert.equal((await staff.invite(workspace.id, user)).invitation.state, 'joined');
+    assert.equal((await admissions.poll({ guildIds: [guildId] })).job, null);
     await assert.rejects(async () => await staff.step(workspace.id, { step: 'mentoring' }, user), { status: 409 });
     for (const step of ['assignments', 'approval', 'mentoring', 'mentoring'])
         await staff.step(workspace.id, { step }, user);
@@ -134,6 +276,48 @@ test('changing mentor teams changes bot roles and LMS scope; foreign teams and o
     assert.equal((await workspaces.teaching(workspace.id, user)).learners.length, 2);
     assert.equal((await onboarding.poll({ guildIds: [guildId] })).configs[0].participants[0].teamIds.length, 2);
 });
+test('mentors manage existing bookings within their scope without creating or reassigning bookings', async t => {
+    const { store, workspace, workspaces, auth, staff, signup, setup, connect, verify } = await fixture(t);
+    const { teams } = await setup(1);
+    await connect();
+    const account = await signup('booking.mentor', 'instructor', { mentorType: 'group', teamIds: [teams[0].id] });
+    await staff.profile(workspace.id, { name: '예약 멘토', expertise: 'AI' }, account);
+    await verify(account);
+    await staff.syncDiscord(discordId, guildId);
+    const user = (await auth.login({ username: account.username, password: 'test-staff-password-1234' })).user;
+    const id = workspace.id, db = (await workspaces.open(id)).db;
+    const own = (await db.prepare('SELECT id FROM mentors WHERE discord_id=?').get(discordId)).id;
+    const other = Number((await db.prepare("INSERT INTO mentors(discord_id,name,bio) VALUES('other-mentor','다른 멘토','')").run()).lastInsertRowid);
+    for (const mentorId of [own, own, other]) {
+        const slot = await db.prepare("INSERT INTO slots(mentor_id,start_time,end_time,label) VALUES(?,'2030-01-01T12:00:00','2030-01-01T12:50:00','멘토링')").run(mentorId);
+        await db.prepare("INSERT INTO bookings(slot_id,user_id,user_name,status) VALUES(?,?,'학생','pending')").run(Number(slot.lastInsertRowid), `student-${slot.lastInsertRowid}`);
+    }
+    const visible = await workspaces.teaching(id, user);
+    assert.equal(visible.sessions.length, 2);
+    const [first, second] = visible.sessions;
+    const foreign = (await workspaces.snapshot(id)).sessions.find(s => s.mentorId === String(other));
+    const change = async (value, actor = user, revision) => workspaces.teach(id, { revision: revision || (await workspaces.snapshot(id)).revision, changes: [{ kind: 'sessions', value }] }, actor);
+    const before = (await workspaces.snapshot(id)).revision;
+    await assert.rejects(change({ ...foreign, status: '예약 확정' }), { status: 403 });
+    await assert.rejects(change({ ...first, id: 'new-booking' }), { status: 403 });
+    await assert.rejects(change({ ...first, mentorId: String(other), status: '예약 확정' }), { status: 422 });
+    await assert.rejects(change({ ...first, status: '완료' }), { status: 422 });
+    const { user: student } = await auth.signup({ username: 'booking.student', name: '학생', password: 'test-student-password-1234' }, () => {});
+    await store.db.prepare("INSERT INTO lms_workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,'student',?)").run(id, student.id, Date.now());
+    await assert.rejects(change({ ...first, status: '예약 확정' }, student), { status: 403 });
+    assert.equal((await workspaces.snapshot(id)).revision, before);
+    assert.equal((await change({ ...first, status: '예약 확정' })).sessions.find(s => s.id === first.id).status, '예약 확정');
+    await assert.rejects(change({ ...second, status: '취소' }, user, before), { status: 409 });
+    assert.equal((await change({ ...first, status: '완료' })).sessions.find(s => s.id === first.id).status, '완료');
+    await assert.rejects(change({ ...first, status: '취소' }), { status: 422 });
+    const cancelled = await change({ ...second, status: '취소' });
+    assert.equal(cancelled.sessions.filter(s => s.status === '취소').length, 1);
+    assert.equal((await db.prepare('SELECT status FROM bookings WHERE id=?').get(foreign.id)).status, 'pending');
+    const main = await signup('booking.main');
+    assert.equal((await workspaces.teaching(id, main)).sessions.length, 3);
+    assert.equal((await change({ ...foreign, status: '예약 확정' }, main)).sessions.find(s => s.id === foreign.id).status, '예약 확정');
+});
+
 test('member editing is workspace scoped, updates mentor identity, and prevents administrator escalation', async (t) => {
     const { store, staff, workspace, workspaces, signup, setup, connect, verify } = await fixture(t);
     const { teams } = await setup(2);

@@ -9,7 +9,7 @@ test('administrator pages remain usable on desktop and narrow mobile screens', a
   await page.getByLabel('관리자 비밀번호').fill('test-only-password-1234')
   await page.getByRole('button', { name: '로그인', exact: true }).click()
   await expect(page.getByRole('heading', { name: '운영 대시보드' })).toBeVisible()
-  const pages = ['dashboard', 'courses', 'learners', 'teams', 'attendance', 'scores', 'mentoring', 'assignments', 'submissions', 'notices', 'files', 'members', 'admissions', 'student-accounts', 'discord', 'onboarding', 'connection', 'bot-data', 'bots', 'logs', 'settings']
+  const pages = ['dashboard', 'courses', 'teams', 'attendance', 'scores', 'mentoring', 'assignments', 'submissions', 'notices', 'files', 'members', 'student-accounts', 'discord', 'onboarding', 'connection', 'bot-data', 'bots', 'logs', 'settings']
   for (const route of pages) {
     await page.evaluate(route => { location.hash = route }, route)
     await expect(page.locator('main h1').first()).toBeVisible()

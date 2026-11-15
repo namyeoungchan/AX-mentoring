@@ -39,13 +39,24 @@ export function createAttendancePresence(identityDb, workspaces, { now = Date.no
         try {
             const timestamp = now();
             const code = await db.prepare('SELECT * FROM lms_attendance_codes WHERE code_hash=?').get(createHash('sha256').update(request.code).digest('hex'));
-            if (!code || code.revoked_at !== null || code.expires_at <= timestamp) throw new ApiError(410, '만료되었거나 사용할 수 없는 코드입니다. 강사에게 새 코드를 확인하세요.');
+            if (!code) throw new ApiError(410, '만료되었거나 사용할 수 없는 코드입니다. 강사에게 새 코드를 확인하세요.');
             const metadata = await db.prepare("SELECT data FROM lms_records WHERE kind='attendanceCode' AND id=?").get(code.id);
             if (!metadata) throw new ApiError(410, '이전 방식의 출석 코드입니다. 시작 또는 종료 코드를 새로 발급받으세요.');
             const phase = JSON.parse(metadata.data).phase;
             if (request.action && phase !== request.action) throw new ApiError(422, phase === 'in' ? '입실용 시작 코드입니다. 입실에서 등록하세요.' : '퇴실용 종료 코드입니다. 퇴실에서 등록하세요.');
             const selected = { courseId: code.course_id, date: code.date, period: code.period, action: phase };
             if (course.id !== selected.courseId || !JSON.parse(code.student_ids).includes(learner.id)) throw new ApiError(403, '이 코드의 출석 대상 수강생이 아닙니다.');
+            const existing = await record(db, learner, selected);
+            const currentStatus = async () => {
+                const row = await db.prepare("SELECT data FROM lms_records WHERE kind='attendance' AND json_extract(data,'$.studentId')=? AND json_extract(data,'$.courseId')=? AND json_extract(data,'$.date')=? AND json_extract(data,'$.period')=?").get(learner.id, course.id, selected.date, selected.period);
+                return row ? JSON.parse(row.data).status : '미처리';
+            };
+            const at = selected.action === 'in' ? 'checkInAt' : 'checkOutAt';
+            // A committed mark may lose its HTTP response. Return only this verified
+            // student's existing evidence before checking whether a NEW mark is allowed.
+            // This never changes timestamps, staff corrections, or the round revision.
+            if (existing?.[at]) { const status = await currentStatus(); await db.exec('COMMIT'); return { ...existing, action: phase, status, alreadyRecorded: true }; }
+            if (code.revoked_at !== null || code.expires_at <= timestamp) throw new ApiError(410, '만료되었거나 사용할 수 없는 코드입니다. 강사에게 새 코드를 확인하세요.');
             const issuer = await identityDb.prepare('SELECT id,username,platform_role AS role FROM lms_users WHERE id=?').get(code.actor_id);
             if (!issuer) throw new ApiError(410, '코드 발급자의 권한이 변경되었습니다.');
             const roster = await attendance.view(id, selected, issuer);
@@ -53,13 +64,6 @@ export function createAttendancePresence(identityDb, workspaces, { now = Date.no
             if (roster.state !== '진행 중' || selected.date !== koreanDate(timestamp)) throw new ApiError(409, '오늘 진행 중인 회차에서만 코드를 등록할 수 있습니다.');
             const session = await readSession(db, selected);
             if (!session || (phase === 'in' && session.endedAt) || (phase === 'out' && !session.endedAt)) throw new ApiError(409, '현재 강의 단계에 맞는 코드를 입력하세요.');
-            const existing = await record(db, learner, selected);
-            const currentStatus = async () => {
-                const row = await db.prepare("SELECT data FROM lms_records WHERE kind='attendance' AND json_extract(data,'$.studentId')=? AND json_extract(data,'$.courseId')=? AND json_extract(data,'$.date')=? AND json_extract(data,'$.period')=?").get(learner.id, course.id, selected.date, selected.period);
-                return row ? JSON.parse(row.data).status : '미처리';
-            };
-            const at = selected.action === 'in' ? 'checkInAt' : 'checkOutAt';
-            if (existing?.[at]) { const status = await currentStatus(); await db.exec('COMMIT'); return { ...existing, action: phase, status, alreadyRecorded: true }; }
             if (selected.action === 'out' && !existing?.checkInAt) throw new ApiError(409, '시작 코드로 등록한 입실 기록이 없습니다. 강사에게 확인을 요청하세요.');
             const after = { ...(existing || { id: presenceKey(learner.id, selected), studentId: learner.id, courseId: selected.courseId, date: selected.date, period: selected.period, checkInAt: null, checkOutAt: null, checkInSource: '', checkOutSource: '' }), [at]: timestamp, [selected.action === 'in' ? 'checkInSource' : 'checkOutSource']: source };
             await db.prepare("INSERT INTO lms_records(kind,id,data) VALUES('attendancePresence',?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data").run(after.id, JSON.stringify(after));

@@ -1,14 +1,13 @@
 """Register attendance using the invoking student's verified Discord identity."""
-import asyncio
 import logging
 import os
 import re
 
-import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
 from cogs.lms_auth import validate_auth_endpoint
+from web_transport import WebTransport
 
 log = logging.getLogger('asanAX.lms_attendance')
 MESSAGES = {
@@ -24,6 +23,7 @@ MESSAGES = {
 class LMSAttendance(commands.Cog):
     def __init__(self, bot):
         self.bot, self.url = bot, ''
+        self.transport = WebTransport(timeout=15, connections=8)
         self.token = os.getenv('LEARNINGOPS_AUTH_TOKEN', '').strip()
         candidate = os.getenv('LEARNINGOPS_AUTH_URL', '').strip()
         if candidate and len(self.token) >= 32:
@@ -37,23 +37,20 @@ class LMSAttendance(commands.Cog):
         self.bot.add_view(AttendancePanelView(self.bot))
 
     async def presence(self, operation, member_id, guild_id, extra=None):
-        try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
-                async with session.post(self.url.rsplit('/', 1)[0] + '/presence/' + operation,
-                                        json={'discordId': str(member_id), 'guildId': str(guild_id), **(extra or {})},
-                                        headers={'Authorization': f'Bearer {self.token}'}, allow_redirects=False) as response:
-                    return response.status, await response.json()
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+        if not self.url:
             return 503, None
+        return await self.transport.post_json(self.url.rsplit('/', 1)[0] + '/presence/' + operation,
+                                             body={**(extra or {}), 'discordId': str(member_id), 'guildId': str(guild_id)},
+                                             token=self.token, retry=True)
+
+    async def cog_unload(self):
+        await self.transport.close()
 
     async def request(self, code, member_id, guild_id):
-        try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
-                async with session.post(self.url, json={'code': code, 'discordId': str(member_id), 'guildId': str(guild_id)},
-                                        headers={'Authorization': f'Bearer {self.token}'}, allow_redirects=False) as response:
-                    return response.status, await response.json() if response.status == 200 else None
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+        if not self.url:
             return 503, None
+        return await self.transport.post_json(self.url, body={'code': code, 'discordId': str(member_id), 'guildId': str(guild_id)},
+                                             token=self.token, retry=True)
 
     @app_commands.command(name='출석', description='시작·종료 코드로 강의 입실·퇴실 출석을 기록합니다.')
     @app_commands.describe(코드='강사가 안내한 6자리 시작 또는 종료 코드')

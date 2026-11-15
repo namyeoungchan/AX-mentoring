@@ -23,7 +23,7 @@ def _next_n_dates(n: int = 30) -> list[date]:
 
 
 async def _get_mentor(discord_id: str) -> dict | None:
-    return await database.get_mentor_by_discord_id(discord_id)
+    return await database.get_online_mentor_by_discord_id(discord_id)
 
 
 class BlockDateView(WorkspaceView):

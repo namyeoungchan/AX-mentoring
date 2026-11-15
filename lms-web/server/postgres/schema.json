@@ -307,7 +307,8 @@
         "verified_at",
         "platform_role",
         "must_change_password",
-        "must_complete_profile"
+        "must_complete_profile",
+        "is_super_admin"
       ],
       "identity": false
     },
@@ -612,6 +613,33 @@
         "data"
       ],
       "identity": false
+    },
+    "lms_mentoring_feedback_control": {
+      "columns": [
+        "id",
+        "activated_at"
+      ],
+      "identity": false
+    },
+    "lms_mentoring_feedback_requests": {
+      "columns": [
+        "id",
+        "booking_id",
+        "role",
+        "discord_id",
+        "name",
+        "created_at"
+      ],
+      "identity": false
+    },
+    "lms_mentoring_feedback_responses": {
+      "columns": [
+        "event_id",
+        "request_id",
+        "content",
+        "submitted_at"
+      ],
+      "identity": false
     }
   },
   "legacy": [
@@ -793,7 +821,7 @@
     {
       "name": "lms_users",
       "type": "table",
-      "sql": "CREATE TABLE lms_users (\n      id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL,\n      password_hash TEXT NOT NULL, discord_id TEXT NOT NULL UNIQUE, guild_id TEXT NOT NULL,\n      created_at INTEGER NOT NULL\n    , verified_at INTEGER, platform_role TEXT NOT NULL DEFAULT 'student' CHECK(platform_role IN ('admin','student')), must_change_password INTEGER NOT NULL DEFAULT 0, must_complete_profile INTEGER NOT NULL DEFAULT 0)"
+      "sql": "CREATE TABLE lms_users (\n      id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL,\n      password_hash TEXT NOT NULL, discord_id TEXT NOT NULL UNIQUE, guild_id TEXT NOT NULL,\n      created_at INTEGER NOT NULL\n    , verified_at INTEGER, platform_role TEXT NOT NULL DEFAULT 'student' CHECK(platform_role IN ('admin','student')), must_change_password INTEGER NOT NULL DEFAULT 0, must_complete_profile INTEGER NOT NULL DEFAULT 0, is_super_admin INTEGER NOT NULL DEFAULT 0 CHECK(is_super_admin IN (0,1)))"
     },
     {
       "name": "lms_registrations",
@@ -964,6 +992,26 @@
       "name": "lms_bot_settings",
       "type": "table",
       "sql": "CREATE TABLE lms_bot_settings(guild_id TEXT PRIMARY KEY,data TEXT NOT NULL)"
+    },
+    {
+      "name": "lms_mentoring_feedback_control",
+      "type": "table",
+      "sql": "CREATE TABLE lms_mentoring_feedback_control(id INTEGER PRIMARY KEY CHECK(id=1),activated_at INTEGER NOT NULL)"
+    },
+    {
+      "name": "lms_mentoring_feedback_requests",
+      "type": "table",
+      "sql": "CREATE TABLE lms_mentoring_feedback_requests(\n      id TEXT PRIMARY KEY,booking_id TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('mentor','mentee')),\n      discord_id TEXT NOT NULL,name TEXT NOT NULL,created_at INTEGER NOT NULL,UNIQUE(booking_id,role))"
+    },
+    {
+      "name": "lms_mentoring_feedback_responses",
+      "type": "table",
+      "sql": "CREATE TABLE lms_mentoring_feedback_responses(\n      event_id TEXT PRIMARY KEY,request_id TEXT NOT NULL REFERENCES lms_mentoring_feedback_requests(id),\n      content TEXT NOT NULL,submitted_at INTEGER NOT NULL)"
+    },
+    {
+      "name": "lms_mentoring_feedback_response_request",
+      "type": "index",
+      "sql": "CREATE INDEX lms_mentoring_feedback_response_request ON lms_mentoring_feedback_responses(request_id,submitted_at)"
     }
   ]
 }

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
 import { ApiError } from './store.mjs';
 import { issueMentorAccount } from './mentor-accounts.mjs';
+import { previewStaffAccounts, issueStaffAccounts } from './staff-import.mjs';
 import { studentLearning } from './student.mjs';
 import { configuredOrigins } from './origins.mjs';
 import { createRuntime } from './runtime.mjs';
@@ -31,6 +32,9 @@ async function prepareAssignmentAlerts() {
     for (const row of await (store.db.prepare('SELECT id FROM lms_workspaces WHERE archived_at IS NULL')).all()) {
         try {
             await assignmentAlerts.prepare(row.id, outbox.channel);
+            await runtime.onlineMentoring.prepare(row.id);
+            await runtime.mentoringCoordination.prepare(row.id);
+            await runtime.mentoringFeedback.prepare(row.id);
         }
         catch {
             console.error('Assignment notification preparation failed for workspace', row.id);
@@ -218,6 +222,15 @@ app.post('/api/integrations/discord/onboarding/:operation', async (req, res) => 
         return res.json(await onboarding.progress(req.body));
     return res.status(404).json({ error: '지원하지 않는 작업입니다.' });
 });
+app.post('/api/integrations/discord/mentoring/response', async (req, res) => {
+    if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
+    res.json(await runtime.mentoringFeedback.submit(req.body));
+});
+app.post('/api/integrations/discord/mentoring/coordination/:operation', async (req, res) => {
+    if (!provision.authorized(req.get('authorization'))) return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
+    await auth.limit('mentoring-coordination-bot', `${req.body?.guildId || ''}:${req.body?.discordId || ''}`, 60, 60000);
+    res.json(await runtime.mentoringCoordination.discord(req.body, req.params.operation));
+});
 app.post('/api/integrations/discord/outbox/:operation', async (req, res) => {
     if (!provision.authorized(req.get('authorization')))
         return res.status(401).json({ error: '봇 인증에 실패했습니다.' });
@@ -271,6 +284,8 @@ app.use('/api', async (req, res, next) => {
 app.get('/api/auth/me', (req, res) => res.json({ user: req.account }));
 app.post('/api/auth/first-login', maintenance.track(async (req, res) => setLogin(res, await auth.completeFirstLogin(req.account, req.body))));
 app.post('/api/auth/password', maintenance.track(async (req, res) => setLogin(res, await auth.changePassword(req.account, req.body))));
+app.get('/api/admin/discord-identities', async (req, res) => res.json(await runtime.discordIdentities.list(req.account)));
+app.delete('/api/admin/discord-identities/:discordId', async (req, res) => res.json(await runtime.discordIdentities.remove(req.account, req.params.discordId, req.body)));
 app.get('/api/admin/accounts', async (req, res) => res.json(await auth.accounts(req.account)));
 app.get('/api/admin/performance', async (req, res) => {
     await auth.platformAdmin(req.account);
@@ -331,7 +346,7 @@ app.get('/api/me/learning', async (req, res) => {
     const workspace = (await workspaces.list(req.account))[0];
     if (!workspace)
         return res.status(403).json({ error: '소속된 워크스페이스가 없습니다.' });
-    res.json(await studentLearning((await workspaces.open(workspace.id)).db, req.account, workspace.discordVerified));
+    res.json(await studentLearning((await workspaces.open(workspace.id)).db, req.account, workspace.discordVerified, workspace.guildIds[0]));
 });
 app.post('/api/logout', async (req, res) => {
     await auth.logout(await sessionToken(req));
@@ -350,6 +365,35 @@ app.use('/api/workspaces/:workspaceId', async (req, _res, next) => {
     next();
 });
 app.get('/api/workspaces/:workspaceId', (req, res) => res.json(req.workspace));
+app.get('/api/workspaces/:workspaceId/help', async (req, res) => res.set('Cache-Control', 'private, no-store').json(await runtime.helpGuides.list(req.workspaceId, req.account)));
+app.get('/api/workspaces/:workspaceId/help/manage', async (req, res) => res.set('Cache-Control', 'private, no-store').json(await runtime.helpGuides.management(req.workspaceId, req.account)));
+app.post('/api/workspaces/:workspaceId/help/manage/:guideId', async (req, res) => {
+    await auth.limit('help-upload', req.account.id, 60, 3600000);
+    res.json(await runtime.helpGuides.upload(req.workspaceId, req.params.guideId, req.body, req.account));
+});
+app.delete('/api/workspaces/:workspaceId/help/manage/:guideId', async (req, res) => res.json(await runtime.helpGuides.reset(req.workspaceId, req.params.guideId, req.body, req.account)));
+app.get('/api/workspaces/:workspaceId/help/:guideId/:type', async (req, res) => {
+    const file = await runtime.helpGuides.asset(req.workspaceId, req.params.guideId, req.params.type, req.account);
+    res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `inline; filename="guide.${req.params.type === 'pdf' ? 'pdf' : 'jpg'}"` }).type(file.mime).send(file.bytes);
+});
+app.get('/api/workspaces/:workspaceId/discord-identities', async (req, res) => res.json(await runtime.discordIdentities.list(req.account, req.workspaceId)));
+app.delete('/api/workspaces/:workspaceId/discord-identities/:discordId', async (req, res) => res.json(await runtime.discordIdentities.remove(req.account, req.params.discordId, req.body, req.workspaceId)));
+app.get('/api/workspaces/:workspaceId/mentoring/activities', async (req, res) => res.set('Cache-Control', 'private, no-store').json(await runtime.mentoringActivities.list(req.workspaceId, req.account)));
+app.post('/api/workspaces/:workspaceId/mentoring/activities', async (req, res) => res.status(201).json(await runtime.mentoringActivities.create(req.workspaceId, req.body, req.account)));
+app.patch('/api/workspaces/:workspaceId/mentoring/activities/:recordId', async (req, res) => res.json(await runtime.mentoringActivities.edit(req.workspaceId, req.params.recordId, req.body, req.account)));
+app.get('/api/workspaces/:workspaceId/mentoring/export', async (req, res) => {
+    const file = await runtime.mentoringExport.download(req.workspaceId, req.query, req.account);
+    res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `attachment; filename="mentoring.xlsx"; filename*=UTF-8''${encodeURIComponent(file.filename)}` })
+        .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(file.body);
+});
+app.put('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback/record', async (req, res) => res.json(await runtime.mentoringFeedback.saveRecord(req.workspaceId, req.params.bookingId, req.body, req.account)));
+app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback', async (req, res) => res.json(await runtime.mentoringFeedback.read(req.workspaceId, req.params.bookingId, req.account)));
+app.patch('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback/:requestId/responses/:responseId', async (req, res) => res.json(await runtime.mentoringFeedback.edit(req.workspaceId, req.params.bookingId, req.params.requestId, req.params.responseId, req.body, req.account)));
+app.get('/api/workspaces/:workspaceId/mentoring/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.list(req.workspaceId, req.account)));
+app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.read(req.workspaceId, req.params.bookingId, req.account)));
+app.post('/api/workspaces/:workspaceId/mentoring/:bookingId/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.act(req.workspaceId, req.params.bookingId, req.account, req.body)));
+app.post('/api/workspaces/:workspaceId/mentoring/:bookingId/coordination/:deliveryId/retry', async (req, res) => res.json(await runtime.mentoringCoordination.retry(req.workspaceId, req.params.bookingId, req.params.deliveryId, req.account)));
+app.post('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback/:requestId/retry', async (req, res) => res.json(await runtime.mentoringFeedback.retry(req.workspaceId, req.params.bookingId, req.params.requestId, req.account)));
 app.get('/api/workspaces/:workspaceId/videos', async (req, res) => res.json(await runtime.courseVideos.list(req.workspaceId, req.account)));
 app.post('/api/workspaces/:workspaceId/videos', async (req, res) => {
     await auth.limit('video-upload', req.account.id, 20, 3600000);
@@ -364,6 +408,10 @@ app.patch('/api/workspaces/:workspaceId/videos/:videoId', async (req, res) => {
     await auth.limit('video-edit', req.account.id, 60, 60000);
     res.json(await runtime.courseVideos.edit(req.workspaceId, req.params.videoId, req.body, req.account));
 });
+app.delete('/api/workspaces/:workspaceId/videos/:videoId', async (req, res) => {
+    await auth.limit('video-delete', req.account.id, 60, 60000);
+    res.json(await runtime.courseVideos.remove(req.workspaceId, req.params.videoId, req.body, req.account));
+});
 app.get('/api/workspaces/:workspaceId/videos/:videoId/playback', async (req, res) => res.json(await runtime.courseVideos.playback(req.workspaceId, req.params.videoId, req.account)));
 app.post('/api/workspaces/:workspaceId/me/verification', async (req, res) => {
     await workspaces.requireRole(req.workspaceId, req.account, ['admin', 'student']);
@@ -373,7 +421,7 @@ app.post('/api/workspaces/:workspaceId/me/verification', async (req, res) => {
 });
 app.get('/api/workspaces/:workspaceId/me/learning', async (req, res) => {
     await workspaces.requireRole(req.workspaceId, req.account, ['student']);
-    res.json(await studentLearning((await workspaces.open(req.workspaceId)).db, req.account, req.workspace.discordVerified));
+    res.json(await studentLearning((await workspaces.open(req.workspaceId)).db, req.account, req.workspace.discordVerified, req.workspace.guildIds[0]));
 });
 app.get('/api/workspaces/:workspaceId/teaching', async (req, res) => {
     await workspaces.requireRole(req.workspaceId, req.account, ['instructor']);
@@ -447,6 +495,8 @@ app.post('/api/workspaces/:workspaceId/discord/groups', async (req, res) => res.
 app.post('/api/workspaces/:workspaceId/archive', async (req, res) => res.json(await workspaces.setArchived(req.workspaceId, true, req.account)));
 app.post('/api/workspaces/:workspaceId/restore', async (req, res) => res.json(await workspaces.setArchived(req.workspaceId, false, req.account)));
 app.get('/api/workspaces/:workspaceId/members', async (req, res) => res.json(await staff.members(req.workspaceId, req.account)));
+app.get('/api/workspaces/:workspaceId/accounts/:userId/role', async (req, res) => res.json(await staff.accountRole(req.workspaceId, req.params.userId, req.account)));
+app.patch('/api/workspaces/:workspaceId/accounts/:userId/role', async (req, res) => res.json(await staff.changeAccountRole(req.workspaceId, req.params.userId, req.body, req.account)));
 app.patch('/api/workspaces/:workspaceId/members/:memberId', async (req, res) => res.json(await staff.editMember(req.workspaceId, req.params.memberId, req.body, req.account)));
 app.delete('/api/workspaces/:workspaceId/members/:memberId', async (req, res) => res.json(await staff.removeMember(req.workspaceId, req.params.memberId, req.account)));
 app.patch('/api/workspaces/:workspaceId/members/:memberId/assignment', async (req, res) => res.json(await workspaces.assignMentor(req.workspaceId, req.params.memberId, req.body, req.account)));
@@ -467,8 +517,19 @@ app.post('/api/workspaces/:workspaceId/mentor-accounts', maintenance.track(async
     await auth.limit('invitation-account', req.account.id, 20, 3600000);
     res.status(201).json(await issueMentorAccount(auth, workspaces, req.workspaceId, req.body, req.account));
 }));
+app.post('/api/workspaces/:workspaceId/staff-import/preview', async (req, res) => res.json(await previewStaffAccounts(store.db, workspaces, req.workspaceId, req.body, req.account)));
+app.post('/api/workspaces/:workspaceId/staff-import', maintenance.track(async (req, res) => {
+    await workspaces.requireRole(req.workspaceId, req.account, ['admin']);
+    await auth.limit('staff-import', req.account.id, 10, 3600000);
+    res.status(201).json(await issueStaffAccounts(store.db, auth, workspaces, req.workspaceId, req.body, req.account));
+}));
 app.patch('/api/workspaces/:workspaceId/invitations/:invitationId', async (req, res) => { await workspaces.editInvitation(req.workspaceId, req.params.invitationId, req.body, req.account); res.json(await staff.members(req.workspaceId, req.account)); });
 app.post('/api/workspaces/:workspaceId/invitations/:invitationId/revoke', async (req, res) => res.json(await workspaces.revokeInvitation(req.workspaceId, req.params.invitationId, req.account)));
+app.post('/api/workspaces/:workspaceId/invitations/:invitationId/reissue', async (req, res) => {
+    await workspaces.requireRole(req.workspaceId, req.account, ['admin']);
+    await auth.limit('invitation-reissue', req.account.id, 60, 3600000);
+    res.json(await workspaces.reissueInvitation(req.workspaceId, req.params.invitationId, req.account));
+});
 app.get('/api/workspaces/:workspaceId/workspace', async (req, res) => res.json(await workspaces.snapshot(req.workspaceId)));
 app.patch('/api/workspaces/:workspaceId/workspace', async (req, res) => res.json(await workspaces.mutate(req.workspaceId, req.body, req.account.username)));
 app.get('/api/workspaces/:workspaceId/audit', async (req, res) => res.json(await ((await workspaces.open(req.workspaceId)).db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 500')).all()));
@@ -492,6 +553,8 @@ app.patch('/api/workspace', async (req, res) => res.json(await workspaces.mutate
 app.get('/api/audit', async (_req, res) => res.json(await (store.db.prepare('SELECT * FROM lms_audit ORDER BY id DESC LIMIT 500')).all()));
 app.get('/api/integrations/render', async (_req, res) => res.json(await renderSync.read()));
 app.use('/api', async (_req, res) => res.status(404).json({ error: '지원하지 않는 API입니다.' }));
+// Legacy public PDFs must not bypass the role-checked help API.
+app.use('/guides', (_req, res) => res.status(410).send('로그인 후 도움말 탭에서 현재 역할의 가이드를 확인하세요.'));
 app.use(express.static(resolve(root, 'dist')));
 app.use(async (error, _req, res, _next) => {
     if (Number.isInteger(error.retryAfter) && error.retryAfter > 0) res.set('Retry-After', String(error.retryAfter));

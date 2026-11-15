@@ -18,7 +18,7 @@ test('deliver a new administrator account, change the initial password, and acce
   expect(delivery).toContain('초대 만료:')
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.getByRole('button', { name: '초대 안내문 복사' }).click()
-  await expect(page.getByRole('status')).toContainText('초대 안내문을 복사했습니다.')
+  await expect(page.getByRole('status')).toContainText('복사했습니다.')
   expect((await page.evaluate(() => navigator.clipboard.readText())).replaceAll('\r\n', '\n')).toBe(delivery)
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 })

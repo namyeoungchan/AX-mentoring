@@ -19,6 +19,24 @@ async def stream(values):
 
 
 class PanelTests(unittest.IsolatedAsyncioTestCase):
+    async def test_binding_setup_saves_all_channels_without_waiting_for_panel_statistics(self):
+        cog = module.AutoPanels(MagicMock())
+        cog.store = SimpleNamespace(put=AsyncMock())
+        cog.sync_once = AsyncMock(side_effect=TimeoutError('slow history scan'))
+        client = SimpleNamespace(request=AsyncMock(), refresh_settings=AsyncMock())
+        items = [{'id': key, 'type': 'text'} for key in ['start', 'assignment-dashboard', 'assignments', 'mentoring']]
+        results = [{'id': item['id'], 'discordId': str(123456789012345670 + i)} for i, item in enumerate(items)]
+        with patch('storage_client.client', client):
+            await cog.bind_channels(self.guild, items, results)
+        client.request.assert_awaited_once_with('bind-panels', {'guildId': str(self.guild.id), 'channels': {
+            'ONBOARDING_CHANNEL_ID': results[0]['discordId'],
+            'ASSIGNMENT_DASHBOARD_CHANNEL_ID': results[1]['discordId'],
+            'ASSIGNMENT_SUBMIT_CHANNEL_ID': results[2]['discordId'],
+            'MENTORING_CHANNEL_ID': results[3]['discordId'],
+        }})
+        client.refresh_settings.assert_awaited_once_with(self.guild.id)
+        cog.sync_once.assert_not_awaited()
+
     async def asyncSetUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -109,6 +127,39 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
             await cog.publish('dashboard')
         repair.assert_awaited_once_with(self.guild, None)
         self.channel.send.assert_awaited_once()
+
+    async def test_automatic_cooldown_precedes_channel_permission_queries(self):
+        import asyncio
+        cog = module.AutoPanels(MagicMock(get_guild=MagicMock(return_value=self.guild)))
+        cog.store = self.store
+        cog.resolve_channel = AsyncMock(return_value=self.channel)
+        repair = AsyncMock(return_value=self.channel)
+        cog.bot.get_cog.return_value = SimpleNamespace(ensure_dashboard=repair)
+        cog.build = AsyncMock(return_value=([discord.Embed(title='현황')], MagicMock()))
+        cog.legacy_id = AsyncMock(return_value=None)
+        with patch.object(module.database, 'save_assignment_panel', new_callable=AsyncMock):
+            await asyncio.gather(*(cog.publish('dashboard', force=False) for _ in range(5)))
+        repair.assert_awaited_once()
+        cog.resolve_channel.assert_awaited_once()
+
+    async def test_storage_failure_backs_off_before_touching_discord_and_recovers_same_panel(self):
+        cog = module.AutoPanels(MagicMock(get_guild=MagicMock(return_value=self.guild)))
+        cog.store = self.store
+        cog.resolve_channel = AsyncMock(return_value=self.channel)
+        cog.build = AsyncMock(return_value=([discord.Embed(title='출석')], MagicMock()))
+        cog.legacy_id = AsyncMock(return_value=None)
+        saved = AsyncMock(side_effect=[module.StorageUnavailable('archived', retryable=False), None])
+        with patch.object(module.database, 'save_assignment_panel', saved):
+            with self.assertRaises(module.StorageUnavailable):
+                await cog.publish('attendance', force=False)
+            self.assertIsNone(await cog.publish('attendance', force=False))
+            cog.resolve_channel.assert_awaited_once()
+            # Retry the existing persisted message once the failure delay expires.
+            cog.failures[(self.guild.id, 'attendance')] = (1, 0)
+            await cog.publish('attendance', force=False)
+        self.channel.send.assert_awaited_once()
+        self.message.edit.assert_awaited_once()
+        self.assertFalse(cog.failures)
 
 
 if __name__ == '__main__':

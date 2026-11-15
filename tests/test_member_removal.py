@@ -49,8 +49,8 @@ class RemovedMentorTests(unittest.IsolatedAsyncioTestCase):
         for base in (contexts.MentorWorkspaceView, contexts.MentorWorkspaceModal):
             with patch.object(contexts, 'enter_interaction', new=AsyncMock(return_value=True)):
                 view = base() if base is contexts.MentorWorkspaceView else base(title='예약 설정')
-                view.mentor = {'id': self.mentor_id}
-                interaction = SimpleNamespace(response=SimpleNamespace(send_message=AsyncMock()))
+                view.mentor = {'id': self.mentor_id, 'discord_id': '123456789012345678'}
+                interaction = SimpleNamespace(user=SimpleNamespace(id=123456789012345678), response=SimpleNamespace(send_message=AsyncMock()))
                 self.disable()
                 self.assertFalse(await view.interaction_check(interaction))
                 interaction.response.send_message.assert_awaited_once()

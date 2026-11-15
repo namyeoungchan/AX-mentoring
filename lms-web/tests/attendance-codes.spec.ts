@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
 
-test('mentor code UI accepts verified Discord check-ins, updates roster, preserves corrections and revokes codes', async ({ page }) => {
+test('mentor code UI accepts verified check-ins and preserves recorded evidence across code rotation and corrections', async ({ page }) => {
   const request = page.request, suffix = randomUUID().slice(0, 8)
   const guildId = '8' + Date.now().toString().padStart(17, '0'), discordId = '9' + Date.now().toString().padStart(17, '0')
   const legacy = await (await request.post('/api/login', { data: { password: 'test-only-password-1234' } })).json()
@@ -32,37 +32,84 @@ test('mentor code UI accepts verified Discord check-ins, updates roster, preserv
   await request.post('/api/auth/login', { data: { username, password } })
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message))
   await page.goto('/?workspace=' + workspace.id + '#attendance')
+  await expect(page.getByLabel('강의 시작 예정 시각')).toBeVisible()
+  for (const width of [1440, 360]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+    await page.screenshot({ path: `test-results/attendance-code-setup-${width}.png`, fullPage: true, animations: 'disabled' })
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 })
   await page.getByLabel('강의 시작 예정 시각').fill('10:00')
   await page.getByLabel('강의 종료 예정 시각').fill('12:00')
   await page.getByRole('button', { name: '시작 코드 생성 · 강의 시작', exact: true }).click()
   const codeOutput = page.getByLabel('발급된 출석 코드')
   await expect(codeOutput).toHaveText(/^\d{6}$/)
   const code = (await codeOutput.textContent())!
+  await page.locator('.attendance-code summary').click()
+  await expect(codeOutput).toBeVisible()
+  await page.locator('.attendance-code summary').click()
+  await expect(codeOutput).toHaveText(code)
   const path = '/api/integrations/discord/attendance/checkin'
   const check = (value = code) => request.post(path, { headers: botHeaders, data: { guildId, discordId, code: value } })
   expect((await request.post(path, { headers: studentHeaders, data: { guildId, discordId, code } })).status()).toBe(401)
   const results = await Promise.all([check(), check()])
   expect(results.map(r => r.status())).toEqual([200, 200])
-  expect((await Promise.all(results.map(r => r.json()))).map(r => r.alreadyRecorded).sort()).toEqual([false, true])
+  const recorded = await Promise.all(results.map(r => r.json()))
+  expect(recorded.map(r => r.alreadyRecorded).sort()).toEqual([false, true])
   await page.getByRole('button', {name:'명단 새로고침'}).click()
   await expect(page.locator('.attendance-summary')).toContainText('미처리 1명')
+  await expect(codeOutput).toHaveText(code)
+  await page.locator('.attendance-code summary').click()
   await expect(page.locator('.attendance-code-times')).toContainText('10:00–12:00')
+  const reissued = page.waitForResponse(response => response.url().endsWith(base + '/attendance/code') && response.request().method() === 'POST')
   await page.getByRole('button', { name: '시작 코드 재발급', exact: true }).click()
+  expect((await reissued).ok()).toBeTruthy()
+  await expect(codeOutput).toHaveText(/^\d{6}$/)
   await expect(codeOutput).not.toHaveText(code)
-  expect((await check()).status()).toBe(410)
+  // Retries return this verified student's committed evidence even after rotation.
+  const retry = await check()
+  expect(retry.status()).toBe(200)
+  expect(await retry.json()).toMatchObject({ alreadyRecorded: true, checkInAt: recorded[0].checkInAt })
   const nextCode = (await codeOutput.textContent())!
   page.once('dialog', dialog => dialog.accept())
+  const ended = page.waitForResponse(response => response.url().endsWith(base + '/attendance/code') && response.request().method() === 'POST')
+  await page.locator('.attendance-code summary').click()
   await page.getByRole('button', {name:'종료 코드 생성 · 강의 종료'}).click()
+  expect((await ended).ok()).toBeTruthy()
+  await expect(codeOutput).toHaveText(/^\d{6}$/)
   await expect(codeOutput).not.toHaveText(nextCode)
   const endCode = (await codeOutput.textContent())!
-  expect((await check(nextCode)).status()).toBe(410)
+  const endedRetry = await check(nextCode)
+  expect(endedRetry.status()).toBe(200)
+  expect(await endedRetry.json()).toMatchObject({ alreadyRecorded: true, checkInAt: recorded[0].checkInAt })
+  await page.getByRole('group', { name: '코드 학생 출결 상태', exact: true }).getByRole('button', { name: '출석', exact: true }).click()
+  await page.getByRole('button', { name: '출결 일괄 저장' }).click()
+  await expect(page.locator('.attendance-feedback [role="status"]')).toHaveText('명단 출결을 저장했습니다.')
+  await page.getByRole('button', { name: '확인 필요 1명' }).click()
+  await expect(page.getByRole('region', { name: '출결 명단' })).toContainText('퇴실 미등록')
   expect((await check(endCode)).status()).toBe(200)
+  // The same round can restart repeatedly without losing committed attendance.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.locator('.attendance-code summary').click()
+    await page.getByRole('button', { name: '시작 코드 생성 · 강의 재시작', exact: true }).click()
+    await expect(codeOutput).toHaveText(/^\d{6}$/)
+    await expect(page.getByRole('status').filter({ hasText: '강의를 다시 시작했습니다.' })).toBeVisible()
+    const restartedCode = (await codeOutput.textContent())!
+    expect(await (await check(restartedCode)).json()).toMatchObject({ alreadyRecorded: true, checkInAt: recorded[0].checkInAt })
+    await page.locator('.attendance-code summary').click()
+    page.once('dialog', dialog => dialog.accept())
+    await page.getByRole('button', { name: '종료 코드 생성 · 강의 종료', exact: true }).click()
+    await expect(codeOutput).not.toHaveText(restartedCode)
+    expect(await (await check((await codeOutput.textContent())!)).json()).toMatchObject({ alreadyRecorded: true, checkInAt: recorded[0].checkInAt })
+  }
   await page.getByRole('button', {name:'명단 새로고침'}).click()
+  await expect(page.getByRole('button', { name: '확인 필요 0명' })).toBeVisible()
+  await page.getByRole('button', { name: '전체 명단', exact: true }).click()
   await expect(page.getByRole('group', { name: '코드 학생 출결 상태', exact: true }).getByRole('button', { name: '출석', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('group', { name: '코드 학생 출결 상태', exact: true }).getByRole('button', { name: '지각', exact: true }).click()
   await page.getByLabel('등록·정정 사유').fill('멘토가 실제 도착 시간 확인')
   await page.getByRole('button', { name: '출결 일괄 저장' }).click()
-  await expect(page.locator('.attendance-panel > p[role="status"]')).toHaveText('명단 출결을 저장했습니다.')
+  await expect(page.locator('.attendance-feedback [role="status"]')).toHaveText('명단 출결을 저장했습니다.')
   expect((await (await check(endCode)).json()).status).toBe('지각')
   for (const width of [1440, 390, 360]) {
     await page.setViewportSize({ width, height: 1000 })
@@ -72,7 +119,7 @@ test('mentor code UI accepts verified Discord check-ins, updates roster, preserv
   }
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: '출결 확정', exact: true }).click()
-  await expect(page.locator('.attendance-panel > p[role="status"]')).toHaveText('회차를 마감했습니다.')
-  await expect(page.getByRole('button', { name: '종료 코드 재발급', exact: true })).toBeDisabled()
+  await expect(page.locator('.attendance-feedback [role="status"]')).toHaveText('회차를 마감했습니다.')
+  await expect(page.getByRole('region', { name: '강의 시작·종료 코드', exact: true })).toHaveCount(0)
   expect(errors).toEqual([])
 })

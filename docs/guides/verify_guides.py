@@ -1,7 +1,6 @@
 """Verify printable PDFs and build the combined handout and review previews."""
 from pathlib import Path
 import json
-from shutil import copyfile
 import pymupdf
 from PIL import Image, ImageDraw
 
@@ -35,11 +34,7 @@ for name, role in guides:
 combined.set_toc(toc)
 combined.set_metadata({'title': 'AX 학습관리시스템 역할별 운영 가이드', 'author': 'AX 학습관리시스템'})
 combined.save(root / 'all-role-guides.pdf', garbage=4, deflate=True)
-# Vite and the production Docker image serve these reviewed PDFs verbatim.
-public = root.parents[2] / 'lms-web' / 'public' / 'guides'
-public.mkdir(parents=True, exist_ok=True)
-for name in ['admin-guide', 'mentor-guide', 'student-guide', 'all-role-guides']:
-    copyfile(root / (name + '.pdf'), public / (name + '.pdf'))
+# Historical documents remain local; current guides use the authenticated help API.
 sheet = Image.new('RGB', (1050, 1500), '#e6ede8')
 draw = ImageDraw.Draw(sheet)
 for i, (path, _) in enumerate(previews):

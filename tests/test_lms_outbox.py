@@ -11,6 +11,88 @@ with patch.dict(os.environ, {'DISCORD_TOKEN': 'test-only', 'GUILD_ID': '12345678
 
 
 class OutboxTests(unittest.IsolatedAsyncioTestCase):
+    async def test_wake_starts_delivery_immediately_and_does_not_overlap_periodic_poll(self):
+        cog = module.LMSOutbox(SimpleNamespace(remove_dynamic_items=MagicMock()))
+        cog.url = 'https://example.com/outbox'
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def pending_delivery():
+            started.set()
+            await release.wait()
+
+        cog._drain = AsyncMock(side_effect=pending_delivery)
+        cog.wake()
+        first = cog._wake_task
+        await asyncio.wait_for(started.wait(), 1)
+        cog.wake()
+        await cog.drain()
+        self.assertIs(cog._wake_task, first)
+        cog._drain.assert_awaited_once()
+        release.set()
+        await first
+        self.assertEqual(cog._drain.await_count, 2)
+        cog.wake()
+        await cog._wake_task
+        self.assertEqual(cog._drain.await_count, 3)
+
+    async def test_wake_during_periodic_poll_is_not_lost(self):
+        cog = module.LMSOutbox(SimpleNamespace())
+        cog.url = 'https://example.com/outbox'
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def pending_poll():
+            started.set()
+            await release.wait()
+
+        cog._drain = AsyncMock(side_effect=pending_poll)
+        periodic = asyncio.create_task(cog.drain())
+        await asyncio.wait_for(started.wait(), 1)
+        cog.wake()
+        release.set()
+        await periodic
+        await cog._wake_task
+        self.assertEqual(cog._drain.await_count, 2)
+
+    async def test_unload_cancels_immediate_delivery(self):
+        cog = module.LMSOutbox(SimpleNamespace(remove_dynamic_items=MagicMock()))
+        cog.url = 'https://example.com/outbox'
+        cog._drain = AsyncMock(side_effect=asyncio.Event().wait)
+        cog.wake()
+        await asyncio.sleep(0)
+        await cog.cog_unload()
+        with self.assertRaises(asyncio.CancelledError):
+            await cog._wake_task
+        self.assertFalse(cog._drain_lock.locked())
+
+    async def test_mentoring_report_delivers_private_restart_safe_recipient_button(self):
+        bot, channel, job = self.fixture()
+        guild_id, user_id = '123456789012345678', '223456789012345678'
+        bot.get_guild = lambda _: SimpleNamespace(fetch_member=AsyncMock(return_value=SimpleNamespace(create_dm=AsyncMock(return_value=channel))))
+        result = await module.deliver(bot, {**job, 'id': 'd9b7a63d-5e4f-4a0c-b334-c51a56cefda1', 'guildId': guild_id,
+                                          'kind': 'mentoring_feedback', 'channelId': f'dm:{user_id}',
+                                          'payload': {**job['payload'], 'audience': 'individual', 'targetId': user_id}})
+        self.assertEqual(result['state'], 'sent')
+        view = channel.send.call_args.kwargs['view']
+        self.assertTrue(view.is_persistent())
+        self.assertEqual(view.children[0].user_id, int(user_id))
+
+    async def test_mentor_availability_dm_has_restart_safe_recipient_button(self):
+        bot, channel, job = self.fixture()
+        guild_id, user_id = '123456789012345678', '223456789012345678'
+        guild = SimpleNamespace(fetch_member=AsyncMock(return_value=SimpleNamespace(create_dm=AsyncMock(return_value=channel))))
+        bot.get_guild = lambda _: guild
+        result = await module.deliver(bot, {**job, 'guildId': guild_id, 'kind': 'mentor_availability', 'channelId': f'dm:{user_id}',
+                                          'payload': {**job['payload'], 'audience': 'individual', 'targetId': user_id}})
+        self.assertEqual(result['state'], 'sent')
+        view = channel.send.call_args.kwargs['view']
+        self.assertTrue(view.is_persistent())
+        button = view.children[0]
+        restored = await type(button).from_custom_id(None, button.item, button.template.fullmatch(button.custom_id))
+        self.assertEqual((restored.guild_id, restored.user_id), (int(guild_id), int(user_id)))
+        stranger = SimpleNamespace(user=SimpleNamespace(id=99), response=SimpleNamespace(send_message=AsyncMock()))
+        await restored.callback(stranger)
+        stranger.response.send_message.assert_awaited_once()
+
     async def test_submission_repairs_private_dashboard_and_individual_reminder_uses_dm(self):
         bot, channel, job = self.fixture()
         onboarding = SimpleNamespace(ensure_dashboard=AsyncMock(return_value=channel))

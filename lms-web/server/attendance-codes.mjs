@@ -47,12 +47,14 @@ export function createAttendanceCodes(identityDb, workspaces, attendance, { now 
                 session = { id: sessionKey(input), courseId: input.courseId, date: input.date, period: input.period, startTime: input.startTime, endTime: input.endTime, startedAt: timestamp, endedAt: null };
             } else {
                 if ((input.startTime && input.startTime !== session.startTime) || (input.endTime && input.endTime !== session.endTime)) throw new ApiError(409, '시작한 강의의 시간대는 코드 재발급으로 변경할 수 없습니다.');
-                if (input.phase === 'in' && session.endedAt) throw new ApiError(409, '강의가 종료되어 입실 코드를 생성할 수 없습니다.');
+                if (input.phase === 'in' && session.endedAt && !roster.canManage) throw new ApiError(403, '강의 재시작은 관리자 또는 메인 강사가 처리합니다.');
                 if (input.phase === 'out' && !roster.canManage) throw new ApiError(403, '강의 종료 코드는 관리자 또는 메인 강사가 생성합니다.');
             }
-            if (input.phase === 'out') {
-                session.endedAt ||= timestamp;
-                // Closing the lecture invalidates every instructor's entry code immediately.
+            const restarting = input.phase === 'in' && Boolean(session.endedAt);
+            if (restarting) session.endedAt = null;
+            if (input.phase === 'out') session.endedAt ||= timestamp;
+            if (restarting || input.phase === 'out') {
+                // Changing phases invalidates every instructor's previous codes.
                 await db.prepare('UPDATE lms_attendance_codes SET revoked_at=? WHERE course_id=? AND date=? AND period=? AND revoked_at IS NULL').run(timestamp, input.courseId, input.date, input.period);
             }
             await writeSession(db, session);

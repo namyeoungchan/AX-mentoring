@@ -61,11 +61,13 @@ class Reminder(commands.Cog):
 
             for r_type, lo, hi in REMINDER_WINDOWS:
                 if lo <= seconds_until < hi:
-                    if await database.is_reminder_sent(b["booking_id"], r_type):
+                    # A send that finishes after rescheduling must not mark the new schedule sent.
+                    receipt_type = f"{r_type}:v{b['schedule_version']}" if b.get('schedule_version') else r_type
+                    if await database.is_reminder_sent(b["booking_id"], receipt_type):
                         continue
 
                     await self._send(b, r_type)
-                    await database.mark_reminder_sent(b["booking_id"], r_type)
+                    await database.mark_reminder_sent(b["booking_id"], receipt_type)
 
     async def _send(self, booking: dict, reminder_type: str) -> None:
         # DM to user (mentee)

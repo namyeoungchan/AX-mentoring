@@ -94,7 +94,7 @@ class LMSAdmissions(commands.Cog):
             except Exception as error:
                 log.warning("LMS admission transport failed (%s)", type(error).__name__)
 
-    @tasks.loop(seconds=30)
+    @tasks.loop(seconds=5)
     async def worker(self):
         await self.run_once()
 

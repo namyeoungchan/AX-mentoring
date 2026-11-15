@@ -1,4 +1,11 @@
+import { helpGuidesScenario } from './help-guides-scenario.mjs';
+import { discordIdentitiesScenario } from './discord-identities-scenario.mjs';
+import { mentoringFeedbackScenario } from './mentoring-feedback-scenario.mjs';
+import { mentoringActivitiesScenario } from './mentoring-activities-scenario.mjs';
+import { mentoringCoordinationScenario } from './mentoring-coordination-scenario.mjs';
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
+import { superAdminScenario } from './super-admin-scenario.mjs';
+import { accountRoleScenario } from './account-role-scenario.mjs';
 import { verificationResumeScenario } from './verification-resume-scenario.mjs';
 import { attendancePresenceScenario } from './attendance-presence-scenario.mjs'
 import { courseManagementScenario } from './course-management-scenario.mjs'
@@ -12,7 +19,7 @@ import { BOT_TABLES } from './bot-storage.mjs'
 import { createRuntime } from './runtime.mjs'
 import { createDataMaintenance, decodeBackup } from './data-maintenance.mjs'
 import { createAttendanceCodes } from './attendance-codes.mjs'
-import { databaseContext, closePostgresConnections, identifier } from './postgres/database.mjs'
+import { databaseContext, closePostgresConnections, identifier, openPostgres } from './postgres/database.mjs'
 import { discard, importPostgres } from './postgres/backup.mjs'
 import { migrateBackup, verifyImportedData } from './postgres/migrate.mjs'
 import { schemas, exportPostgres } from './postgres/backup.mjs'
@@ -26,6 +33,60 @@ import { assignmentCourseScenario } from './assignment-course-scenario.mjs'
 const url=process.env.POSTGRES_TEST_URL
 const pgTest=(name,action)=>test(name,{skip:!url},t=>databaseContext(()=>action(t)))
 after(closePostgresConnections)
+pgTest('PostgreSQL manual mentoring records preserve permissions, retries, edits and backups', async t => {
+  const f = await fixture(t), result = await mentoringActivitiesScenario(f.runtime)
+  const backup = decodeBackup(await exportPostgres(f.connection))
+  await importPostgres(f.connection, backup)
+  const db = (await f.runtime.workspaces.open(result.workspaceId)).db
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_records WHERE kind='mentoringActivity'").get()).n, result.records)
+})
+pgTest('PostgreSQL mentoring coordination isolates participants and atomically replaces agreed appointments', async t => {
+  const f = await fixture(t)
+  const result = await mentoringCoordinationScenario(f.runtime)
+  const backup = decodeBackup(await exportPostgres(f.connection))
+  await importPostgres(f.connection, backup)
+  const db = (await f.runtime.workspaces.open(result.workspaceId)).db
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_records WHERE kind='mentoringCoordination'").get()).n, 2)
+})
+pgTest('PostgreSQL role-specific help files and PDF replacements remain isolated', async t => {
+  await helpGuidesScenario((await fixture(t)).runtime)
+})
+pgTest('PostgreSQL Discord authentication cleanup and re-verification', async t => {
+  const f=await fixture(t)
+  const configured=await createRuntime(join(f.dir,'identity.db'),{...f.env,LEARNINGOPS_AUTH_TOKEN:'test-token-123456789012345678901234567890'})
+  f.cleanups.push(()=>configured.close())
+  await discordIdentitiesScenario(configured,f.login.user)
+})
+pgTest('PostgreSQL mentoring end-time DM requests, replies and backup restoration', async t => {
+  const f=await fixture(t), result=await mentoringFeedbackScenario(f.runtime)
+  const backup=decodeBackup(await exportPostgres(f.connection))
+  await importPostgres(f.connection,backup)
+  const db=(await f.runtime.workspaces.open(result.workspaceId)).db
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM lms_mentoring_feedback_responses').get()).n,result.responses)
+  const edited = JSON.parse((await db.prepare("SELECT data FROM lms_records WHERE kind='mentoringFeedbackEdit' AND id=?").get(result.editedId)).data)
+  assert.equal(edited.content,'최종 보완 기록')
+  assert.equal(edited.revision,2)
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_audit WHERE action='mentoring.feedback.update'").get()).n,2)
+})
+pgTest('PostgreSQL pre-migration backup and upgrade preserve existing version 2 data', async t => {
+  const f=await fixture(t), db=f.runtime.store.db
+  await db.query('DROP TABLE lms_mentoring_feedback_responses,lms_mentoring_feedback_requests,lms_mentoring_feedback_control')
+  await db.query('DELETE FROM _ax_migrations WHERE version=3')
+  const before=decodeBackup(await exportPostgres(f.connection))
+  assert.ok(!before.databases.find(d=>d.id==='main').tables.some(table=>table.name==='lms_mentoring_feedback_requests'))
+  await openPostgres(f.connection)
+  assert.equal((await db.query('SELECT MAX(version) AS version FROM _ax_migrations')).rows[0].version,3)
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM lms_mentoring_feedback_responses').get()).n,0)
+  assert.ok(await db.prepare('SELECT 1 FROM lms_users WHERE id=?').get(f.login.user.id))
+})
+pgTest('PostgreSQL account role changes isolate workspaces, revoke sessions and preserve history', async t => {
+  const f = await fixture(t)
+  await accountRoleScenario(f.runtime, f.login.user)
+})
+pgTest('PostgreSQL console super accounts preserve existing administrators and protect credentials', async t => {
+  const f = await fixture(t)
+  await superAdminScenario(f.runtime.auth, f.runtime.store.db, f.login.user)
+})
 pgTest('PostgreSQL resumes completed Discord proof after code cleanup without crossing identity boundaries', async t => {
   const f = await fixture(t)
   await verificationResumeScenario(f.runtime)
@@ -79,12 +140,29 @@ async function fixture(t) {
 pgTest('PostgreSQL preserves bot receipts, duplicate booking semantics, worker reuse and submission outbox',async t=>{
   const f=await fixture(t),r=f.runtime,guildId='123456789012345678'
   const workspace=await r.workspaces.create({name:'PG 과정',guildId})
+  const {user}=await r.auth.signup({username:'pg.mentor',name:'멘토',password:'test-postgres-mentor-password'},()=>{})
+  await r.store.db.prepare('UPDATE lms_users SET discord_id=? WHERE id=?').run('223456789012345678',user.id)
+  await r.store.db.prepare('INSERT INTO lms_workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?)').run(workspace.id,user.id,'instructor',Date.now())
+  await r.store.db.prepare('INSERT INTO lms_mentor_scopes VALUES(?,?,?,?)').run(workspace.id,user.id,'group','[]')
+  await r.store.db.prepare('INSERT INTO lms_workspace_verifications VALUES(?,?,?,?,?)').run(workspace.id,user.id,guildId,'223456789012345678',Date.now())
   const call=(operation,args=[],requestId=randomUUID())=>r.botStorage.call({guildId,operation,args,requestId})
   const requestId=randomUUID(),mentor=await call('add_mentor',['223456789012345678','멘토',''],requestId)
   assert.deepEqual(await call('add_mentor',['223456789012345678','멘토',''],requestId),mentor)
-  const slot=await call('add_slot',[mentor.result,'2026-10-01T10:00:00','2026-10-01T10:50:00','예약'])
+  const bookingDate=new Date(Date.now()+86400000).toISOString().slice(0,10)
+  const slot=await call('add_slot',[mentor.result,`${bookingDate}T10:00:00`,`${bookingDate}T10:50:00`,'예약'])
+  const pastSlot=await call('add_slot',[mentor.result,'2020-10-01T10:00:00','2020-10-01T10:50:00','지난 시간'])
+  assert.deepEqual((await call('get_dates_with_available_slots',[mentor.result])).result,[bookingDate])
+  assert.deepEqual((await call('get_slots_for_mentor_date',[mentor.result,'2020-10-01'])).result,[])
+  assert.equal((await call('create_booking',[pastSlot.result,'323456789012345678','학생'])).result,false)
   assert.equal((await call('create_booking',[slot.result,'323456789012345678','학생'])).result,true)
   assert.equal((await call('create_booking',[slot.result,'423456789012345678','중복'])).result,false)
+  assert.deepEqual((await call('get_dates_with_available_slots',[mentor.result])).result,[])
+  await call('set_slot_template',[mentor.result,19,0,21,0,30])
+  const dayMs=24*60*60*1000
+  const futureDate=new Date(Date.now()+30*dayMs).toISOString().slice(0,10)
+  const dates=[mentor.result,{$lms:'date',value:futureDate},{$lms:'date',value:futureDate}]
+  assert.deepEqual((await call('generate_slots_for_range',dates)).result,{$lms:'tuple',value:[4,0]})
+  assert.deepEqual((await call('generate_slots_for_range',dates)).result,{$lms:'tuple',value:[0,0]})
   await (await r.workspaces.open(workspace.id)).db.prepare('INSERT INTO lms_records(kind,id,data) VALUES(?,?,?)').run('courses','assignment-course',JSON.stringify({id:'assignment-course',title:'과제 과정'}))
   const assignment=await call('create_assignment',[1,'과제','설명','2026-10-01','individual'])
   assert.equal((await call('create_submission',[assignment.result,'323456789012345678','학생','','제출',''])).result,true)
@@ -93,8 +171,10 @@ pgTest('PostgreSQL preserves bot receipts, duplicate booking semantics, worker r
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM bookings').get()).n,1)
   assert.equal(r.botStorage.diagnostics().workerStarts,1)
   await call('set_slot_template',[mentor.result,10,0,11,0,30])
-  await call('block_date',[mentor.result,'2026-10-03'])
-  const schedule=await call('generate_slots_for_range',[mentor.result,{$lms:'date',value:'2026-10-02'},{$lms:'date',value:'2026-10-03'}])
+  const start=new Date(Date.parse(futureDate)+dayMs).toISOString().slice(0,10)
+  const end=new Date(Date.parse(futureDate)+2*dayMs).toISOString().slice(0,10)
+  await call('block_date',[mentor.result,end])
+  const schedule=await call('generate_slots_for_range',[mentor.result,{$lms:'date',value:start},{$lms:'date',value:end}])
   assert.deepEqual(schedule.result,{$lms:'tuple',value:[2,1]})
   const round=await call('create_peer_round',['평가'])
   await call('save_peer_evaluation',[round.result,'1조','323456789012345678','423456789012345678','학생',[4,5,3,4],'의견'])

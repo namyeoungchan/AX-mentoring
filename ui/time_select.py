@@ -1,5 +1,6 @@
 from workspace_context import WorkspaceView
 """Step 2: User selects a time slot for the chosen date."""
+from bisect import bisect_left
 import discord
 import database
 from ui import embeds
@@ -59,10 +60,12 @@ class TimeSelectView(WorkspaceView):
             return
 
         slot_id = int(value)
-        slot = await database.get_slot(slot_id)
+        # Re-read availability in case this menu has been open since the slot started.
+        slots = await database.get_slots_for_mentor_date(self.mentor["id"], self.selected_date)
+        slot = next((s for s in slots if s["id"] == slot_id), None)
         if not slot:
             await interaction.response.edit_message(
-                embed=embeds.error_embed("슬롯 정보를 찾을 수 없습니다."), view=None
+                embed=embeds.error_embed("더 이상 신청할 수 없는 시간입니다. 예약 목록을 다시 열어 주세요."), view=None
             )
             return
 
@@ -82,7 +85,8 @@ class TimeSelectView(WorkspaceView):
         from ui.date_select import DateSelectView
 
         dates = await database.get_dates_with_available_slots(self.mentor["id"])
+        view = DateSelectView(self.mentor, dates, bisect_left(dates, self.selected_date) // embeds.DATE_PAGE_SIZE)
         await interaction.response.edit_message(
-            embed=embeds.date_select_embed(self.mentor, dates),
-            view=DateSelectView(self.mentor, dates),
+            embed=embeds.date_select_embed(self.mentor, dates, view.page),
+            view=view,
         )

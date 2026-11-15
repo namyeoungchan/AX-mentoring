@@ -23,7 +23,7 @@ export default function Dashboard({ data, query, go, selectCourse, addSession }:
   return <>
     <section className="welcome-banner operations-banner"><div><span className="welcome-kicker"><span className="live-dot" /> AX 학습관리시스템 · LEARNING OPERATIONS</span><h2>{data.name}</h2><p>과정 · 수강생 · 출결 · 성적 · 과제 · 멘토링</p><button onClick={() => go('bots')}>연동 상태 확인 <ArrowRight size={16} /></button></div><div className="banner-metrics"><div><span>운영 과정</span><strong>{data.courses.filter(c => c.status === '진행 중').length}<small>개</small></strong></div><div><span>수강생</span><strong>{learnerCount}<small>명</small></strong></div><div><span>승인 대기</span><strong>{pending}<small>건</small></strong></div></div></section>
     <section className="stats-grid" aria-label="운영 통계">{[
-      { label: '전체 수강생', value: learnerCount, unit: '명', icon: Users, color: 'sage', detail: '등록된 수강생', page: 'learners' },
+      { label: '전체 수강생', value: learnerCount, unit: '명', icon: Users, color: 'sage', detail: '등록된 수강생', page: 'student-accounts' },
       { label: '등록 과정', value: data.courses.length, unit: '개', icon: BookOpen, color: 'peach', detail: '준비 · 운영 · 종료 과정', page: 'courses' },
       { label: '이번 주 멘토링', value: data.sessions.filter(s => s.date >= dateKey(monday) && s.date <= dateKey(addDays(monday, 6)) && s.status !== '취소').length, unit: '건', icon: MessageSquare, color: 'lavender', detail: `승인 대기 ${pending}건`, page: 'mentoring' },
       { label: '과제 제출', value: data.assignments.reduce((sum, a) => sum + a.submitted, 0), unit: '건', icon: ClipboardList, color: 'sky', detail: '저장된 제출 건수', page: 'assignments' },

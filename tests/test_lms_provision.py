@@ -33,6 +33,25 @@ class Guild:
 
 
 class ProvisionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_rejected_storage_write_is_not_reported_as_discord_timeout(self):
+        import asyncio
+        from storage_client import StorageUnavailable
+        guild = Guild()
+        cog = object.__new__(LMSProvision)
+        cog.url, cog.lock, cog.pending_result = 'https://example.com', asyncio.Lock(), None
+        cog.bot = SimpleNamespace(get_guild=lambda _: guild)
+        job = {'id': 'job', 'claim': 'claim', 'plan': {'guildId': str(guild.id), 'channels': self.items()}}
+        for error, code in [(StorageUnavailable('HTTP 422', retryable=False), 'api_error'), (asyncio.TimeoutError(), 'timeout')]:
+            cog.post = AsyncMock(side_effect=[{'job': job}, {'ok': True}])
+            cog.apply_server = AsyncMock(side_effect=error)
+            with patch('cogs.lms_provision.worker_status', return_value={}):
+                await cog.run_once()
+            complete = cog.post.call_args.args
+            self.assertEqual(complete[1], 'complete')
+            self.assertFalse(complete[2]['success'])
+            self.assertEqual(complete[2]['errorCode'], code)
+            self.assertIsNone(cog.pending_result)
+
     def setUp(self):
         guide_patch = patch("cogs.lms_provision.ensure_guide", new_callable=AsyncMock)
         self.guide = guide_patch.start()

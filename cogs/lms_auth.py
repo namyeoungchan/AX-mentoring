@@ -1,16 +1,15 @@
 """Verify LMS registration from the invoking Discord member's identity."""
-import asyncio
 import logging
 import os
 import re
 from urllib.parse import urlsplit
 
-import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 import config
+from web_transport import WebTransport, TRANSIENT_STATUSES
 
 log = logging.getLogger("asanAX.lms_auth")
 
@@ -40,7 +39,8 @@ class VerificationView(discord.ui.View):
         self.stop()
         await interaction.response.edit_message(content="가입 인증 처리 중…", view=None)
         status, _ = await self.cog.api_request(self.code, self.member_id, self.guild_id, "verify")
-        if status == 410:
+        # The server may have committed verification before the response was lost.
+        if status == 410 or status in TRANSIENT_STATUSES:
             state_status, state = await self.cog.verification_state(self.member_id, self.guild_id)
             if state_status == 200 and isinstance(state, dict) and state.get("verified") is True:
                 status = 200
@@ -79,6 +79,7 @@ class LMSAuth(commands.Cog):
         self.bot = bot
         self.url = ""
         self.synced_guilds = set()
+        self.transport = WebTransport(timeout=15, connections=4)
         self.token = os.getenv("LEARNINGOPS_AUTH_TOKEN", "").strip()
         candidate = os.getenv("LEARNINGOPS_AUTH_URL", "").strip()
         if candidate and len(self.token) >= 32:
@@ -88,21 +89,19 @@ class LMSAuth(commands.Cog):
                 # Never log URLs, credentials, codes, or private response bodies.
                 log.warning("LMS verification disabled: invalid endpoint configuration")
 
+    async def cog_unload(self):
+        await self.transport.close()
+
     async def api_request(self, code, member_id, guild_id, operation):
-        try:
-            url = self.url.rsplit("/", 1)[0] + "/" + operation
-            body = {"discordId": str(member_id), "guildId": str(guild_id)}
-            if operation != "verification-state":
-                body["code"] = code
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
-                async with session.post(url, json=body,
-                                        headers={"Authorization": f"Bearer {self.token}"}, allow_redirects=False) as response:
-                    if response.status == 200:
-                        return response.status, await response.json()
-                    log.warning("LMS verification rejected (HTTP %s)", response.status)
-                    return response.status, None
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+        if not self.url:
             return 503, None
+        url = self.url.rsplit("/", 1)[0] + "/" + operation
+        body = {"discordId": str(member_id), "guildId": str(guild_id)}
+        if operation != "verification-state":
+            body["code"] = code
+        # A replayed verification consumes no second code; 410 is reconciled
+        # against this member's current guild-scoped proof by VerificationView.
+        return await self.transport.post_json(url, body=body, token=self.token, retry=True)
 
     async def verification_state(self, member_id, guild_id):
         if not self.url:

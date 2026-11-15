@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { workspaceRequest } from './api'
 
-export type AssignmentTarget = { revision: string; publishedAt: number | null; active: boolean; id: string; title: string; courseId: string; dueDate: string; type: string; submitted: number; total: number; unmatchedSubmissions: number; targets: { key: string; name: string; completed: boolean }[] }
+export type AssignmentTarget = { revision: string; publishedAt: number | null; active: boolean; id: string; title: string; courseId: string; dueDate: string; type: string; submitted: number; total: number; unmatchedSubmissions: number; targets: { key: string; name: string; completed: boolean; team?: string; learnerId?: string; targetId?: string }[] }
 type Delivery = { id: string; kind: string; assignmentId: string; state: string; attempts: number; error: string; messageId: string; payload: { title: string; description: string } }
 type Data = { policy: string; courses: { id: string; title: string }[]; assignments: AssignmentTarget[]; deliveries: Delivery[] }
 

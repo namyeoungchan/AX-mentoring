@@ -127,7 +127,7 @@ async def refresh_all_panels(bot: commands.Bot) -> None:
                 await manager.publish('mentoring', channel=channel)
         return
     panels = await database.get_panels()
-    mentors = await database.get_mentors()
+    mentors = await database.get_online_mentors()
     panel_embed = await build_panel_embed(mentors)
     view = MentorPanelView(mentors)
 

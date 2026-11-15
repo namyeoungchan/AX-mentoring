@@ -28,8 +28,15 @@ export async function exportPostgres(connection) {
     for (const schema of await schemas(connection, client)) {
       await client.query(`SET LOCAL search_path TO ${identifier(schema)},pg_catalog`)
       const tables = [], sequences = []
+      // Startup backs up the existing database before applying migrations.
+      // Older schemas do not yet contain the super-account flag.
+      const userColumns = (await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='lms_users'", [schema])).rows.map(row => row.column_name)
+      const existingTables = new Set((await client.query('SELECT table_name FROM information_schema.tables WHERE table_schema=$1', [schema])).rows.map(row => row.table_name))
       for (const [name, info] of Object.entries(metadata.tables)) {
-        const columns = info.columns
+        // Pre-migration startup backups must also work on schema versions 1 and 2.
+        if (['lms_mentoring_feedback_control','lms_mentoring_feedback_requests','lms_mentoring_feedback_responses'].includes(name) && !existingTables.has(name)) continue
+        const columns = name === 'lms_users' && !userColumns.includes('is_super_admin')
+          ? info.columns.filter(column => column !== 'is_super_admin') : info.columns
         const result = await client.query({ text: `SELECT ${columns.map(identifier).join(',')} FROM ${identifier(name)} ORDER BY _ax_order`, rowMode: 'array' })
         tables.push({ name, columns, rows: result.rows })
         if (info.identity) {
@@ -69,7 +76,10 @@ export async function importPostgres(connection, data) {
         if (seen.has(table.name)) throw new Error('Duplicate backup table')
         seen.add(table.name)
         if (table.name === 'sqlite_sequence') continue
-        const expected = metadata.tables[table.name]?.columns
+        const current = metadata.tables[table.name]?.columns
+        // Backups created before super accounts have no flag; the database default is 0.
+        const expected = table.name === 'lms_users' && Array.isArray(table.columns) && !table.columns.includes('is_super_admin')
+          ? current.filter(name => name !== 'is_super_admin') : current
         if (!expected || !Array.isArray(table.columns) || table.columns.length !== expected.length || new Set(table.columns).size !== expected.length || table.columns.some(name=>!expected.includes(name)) || !Array.isArray(table.rows)) throw new Error('Invalid backup columns')
         const sql = `INSERT INTO ${identifier(table.name)} (${table.columns.map(identifier).join(',')}) VALUES (${table.columns.map((_,i)=>`$${i+1}`).join(',')})`
         for (const row of table.rows) {

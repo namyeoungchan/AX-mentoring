@@ -64,18 +64,29 @@ class ActiveMentorInteraction:
         if not await super().interaction_check(interaction):
             return False
         import database
-        if await database.get_mentor_by_id(self.mentor['id']):
+        if str(interaction.user.id) == str(self.mentor['discord_id']) and await database.get_online_mentor_by_id(self.mentor['id']):
             return True
-        await interaction.response.send_message('이 워크스페이스의 멘토 권한이 해제되었습니다.', ephemeral=True)
+        await interaction.response.send_message('본인의 조 담당 멘토 계정으로만 가능 시간을 관리할 수 있습니다.', ephemeral=True)
         return False
 
 
 class MentorWorkspaceView(ActiveMentorInteraction, WorkspaceView):
-    pass
+    async def on_error(self, interaction, error, item):
+        await mentor_interaction_error(interaction, error)
 
 
 class MentorWorkspaceModal(ActiveMentorInteraction, WorkspaceModal):
-    pass
+    async def on_error(self, interaction, error):
+        await mentor_interaction_error(interaction, error)
+
+
+async def mentor_interaction_error(interaction, error):
+    log.warning('Mentor setup interaction failed (%s)', type(error).__name__)
+    message = '요청을 완료하지 못했습니다. 가능 시간 입력 버튼을 다시 눌러 저장 상태를 확인한 뒤 이어서 진행하세요.'
+    if interaction.response.is_done():
+        await interaction.followup.send(message, ephemeral=True)
+    else:
+        await interaction.response.send_message(message, ephemeral=True)
 
 
 def guild_event(callback):

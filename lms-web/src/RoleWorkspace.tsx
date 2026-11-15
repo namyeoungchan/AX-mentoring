@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowUpRight, ChevronRight, Command, Menu, RefreshCw, X, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, Command, Menu, X, type LucideIcon } from 'lucide-react'
 import { Avatar } from './components'
-import AccountSettings from './AccountSettings'
+import AccountMenu from './AccountMenu'
 import LogoutButton from './LogoutButton'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import type { WorkspaceMetadata } from './demoWorkspaces'
@@ -12,9 +12,9 @@ type Props = {
   role: 'mentor' | 'student'; name: string; username?: string; title: string; pages: RolePage[]; page: string; go: (page: string) => void;
   workspaces: WorkspaceMetadata[]; activeId: string; selectWorkspace: (id: string) => Promise<void>;
   setWorkspaceArchived?: (id: string, archived: boolean) => Promise<boolean>; saving?: boolean; error: string;
-  refresh: () => Promise<void>; logout: () => Promise<void>; children: ReactNode; status?: ReactNode;
+  refresh: () => Promise<void>; logout: () => Promise<void>; children: ReactNode; status?: ReactNode; actions?: ReactNode;
 }
-export default function RoleWorkspace({ role, name, username, title, pages, page, go, workspaces, activeId, selectWorkspace, setWorkspaceArchived, saving, error, refresh, logout, children, status }: Props) {
+export default function RoleWorkspace({ role, name, username, title, pages, page, go, workspaces, activeId, selectWorkspace, setWorkspaceArchived, saving, error, refresh, logout, children, status, actions }: Props) {
   const [open, setOpen] = useState(false), [refreshing, setRefreshing] = useState(false)
   const [mobile, setMobile] = useState(() => matchMedia('(max-width: 760px)').matches)
   const menuButton = useRef<HTMLButtonElement>(null), sidebar = useRef<HTMLElement>(null), focusPage = useRef(false)
@@ -60,7 +60,6 @@ export default function RoleWorkspace({ role, name, username, title, pages, page
   function closeMenu() { restoreMenuFocus.current = true; setOpen(false) }
   function navigate(next: string) { setOpen(false); focusPage.current = true; go(next); if (next === page && !open) { heading.current?.focus(); focusPage.current = false } }
   async function reload() { if (refreshing) return; setRefreshing(true); try { await refresh() } finally { setRefreshing(false) } }
-  const pdf = `${import.meta.env.BASE_URL}guides/${role}-guide.pdf`
   return <div className="app-shell role-workspace">
     <a className="skip-content" href="#role-main" onClick={e => { e.preventDefault(); heading.current?.focus() }}>본문으로 이동</a>
     {open && mobile && <button className="sidebar-overlay" aria-label="메뉴 닫기" onClick={closeMenu} />}
@@ -70,15 +69,14 @@ export default function RoleWorkspace({ role, name, username, title, pages, page
       <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={async id => { setOpen(false); await selectWorkspace(id) }} setWorkspaceArchived={setWorkspaceArchived} saving={saving} error={error} />
       <p className="nav-label">WORKSPACE</p>
       <nav aria-label="주 메뉴">{pages.map(item => <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.name}</span>{page === item.id && <span className="active-dot" />}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="help-card"><h3>이용 도움말</h3><a className="role-guide-link" href={pdf} target="_blank" rel="noreferrer">{roleName} 가이드 PDF <ArrowUpRight size={14} /></a></div><div className="profile"><Avatar name={name.slice(0, 1)} color="sage" /><span><strong>{name}</strong><small>{roleName}{username && ` · ${username}`}</small></span></div></div>
+      <div className="sidebar-bottom"><div className="help-card"><h3>이용 도움말</h3><button className="role-guide-link" onClick={() => navigate('help')}>기능별 도움말 <ArrowUpRight size={14} /></button></div><div className="profile"><Avatar name={name.slice(0, 1)} color="sage" /><span><strong>{name}</strong><small>{roleName}{username && ` · ${username}`}</small></span></div></div>
     </aside>
     <div className="main-shell" inert={mobile && open}>
-      <header className="topbar"><div className="role-breadcrumb"><button ref={menuButton} className="icon-button mobile-menu" aria-label="메뉴 열기" aria-expanded={open} onClick={() => setOpen(true)}><Menu size={22} /></button><span className="breadcrumb">{active?.name || '워크스페이스 참여'}</span><ChevronRight size={13} className="breadcrumb" /><strong>{current.name}</strong></div><div className="header-tools"><LogoutButton logout={logout} /></div></header>
-      <main id="role-main"><div className="page-heading"><div><div className="eyebrow">{role === 'mentor' ? 'TEACHING' : 'MY LEARNING'}</div><h1 ref={heading} tabIndex={-1}>{title}</h1><p>{current.description}</p></div></div>
-        <div className="demo-indicator"><span className="online-dot" /><span>{roleName} · {active?.name || '참여 준비'}</span>{status}<button className="text-button" disabled={saving || refreshing} onClick={() => void reload()}><RefreshCw size={13} />{refreshing ? '불러오는 중…' : '새로고침'}</button><AccountSettings /></div>
+      <header className="topbar"><div className="role-breadcrumb"><button ref={menuButton} className="icon-button mobile-menu" aria-label="메뉴 열기" aria-expanded={open} onClick={() => setOpen(true)}><Menu size={22} /></button><span className="breadcrumb">{active?.name || '워크스페이스 참여'}</span><ChevronRight size={13} className="breadcrumb" /><strong>{current.name}</strong></div><div className="header-tools"><AccountMenu name={name} role={roleName} refresh={reload} disabled={saving || refreshing} status={status} /><LogoutButton logout={logout} /></div></header>
+      <main id="role-main"><div className={`page-heading${page === 'mentoring' ? ' mentoring-page-heading' : ''}`}><div><div className="eyebrow">{role === 'mentor' ? 'TEACHING' : 'MY LEARNING'}</div><h1 ref={heading} tabIndex={-1}>{title}</h1><p>{current.description}</p></div>{actions && <div className="page-actions">{actions}</div>}</div>
         {error && <div className="inline-note error-note" role="alert">{error}<button className="text-button" disabled={refreshing} onClick={() => void reload()}>다시 불러오기</button></div>}
         <div className="role-content">{children}</div>
-      <footer><span>© {new Date().getFullYear()} {active?.name || 'AX 학습관리시스템'} · {roleName}</span><a href={pdf} target="_blank" rel="noreferrer">이용 가이드 PDF <ArrowUpRight size={12} /></a></footer>
+      <footer><span>© {new Date().getFullYear()} {active?.name || 'AX 학습관리시스템'} · {roleName}</span><button onClick={() => navigate('help')}>도움말 <ArrowUpRight size={12} /></button></footer>
       </main>
     </div>
   </div>

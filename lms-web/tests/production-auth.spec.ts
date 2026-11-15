@@ -30,6 +30,8 @@ test('production: one-time administrator setup, cookie login, password rotation 
   await expect(page.getByRole('heading', { name: '운영 대시보드', exact: true })).toBeVisible()
   expect((await request.post(`${base}/api/auth/setup`, { data: { username: 'second.owner', name: '다른 관리자', password: 'production-password-123456', setupKey } })).status()).toBe(409)
   const other = await (await request.post(`${base}/api/auth/login`, { data: { username: 'platform.owner', password: 'production-password-123456' } })).json()
+  await expect(page.getByRole('button', { name: '비밀번호 변경', exact: true })).not.toBeVisible()
+  await page.getByLabel('계정 메뉴', { exact: true }).click()
   await page.getByRole('button', { name: '비밀번호 변경', exact: true }).click()
   await page.getByLabel('현재 비밀번호', { exact: true }).fill('production-password-123456')
   await page.getByLabel('새 비밀번호', { exact: true }).fill('changed-production-password-123456')
