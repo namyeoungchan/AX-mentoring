@@ -381,6 +381,12 @@ app.delete('/api/workspaces/:workspaceId/discord-identities/:discordId', async (
 app.get('/api/workspaces/:workspaceId/mentoring/activities', async (req, res) => res.set('Cache-Control', 'private, no-store').json(await runtime.mentoringActivities.list(req.workspaceId, req.account)));
 app.post('/api/workspaces/:workspaceId/mentoring/activities', async (req, res) => res.status(201).json(await runtime.mentoringActivities.create(req.workspaceId, req.body, req.account)));
 app.patch('/api/workspaces/:workspaceId/mentoring/activities/:recordId', async (req, res) => res.json(await runtime.mentoringActivities.edit(req.workspaceId, req.params.recordId, req.body, req.account)));
+app.get('/api/workspaces/:workspaceId/mentoring/export', async (req, res) => {
+    const file = await runtime.mentoringExport.download(req.workspaceId, req.query, req.account);
+    res.set({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `attachment; filename="mentoring.xlsx"; filename*=UTF-8''${encodeURIComponent(file.filename)}` })
+        .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(file.body);
+});
+app.put('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback/record', async (req, res) => res.json(await runtime.mentoringFeedback.saveRecord(req.workspaceId, req.params.bookingId, req.body, req.account)));
 app.get('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback', async (req, res) => res.json(await runtime.mentoringFeedback.read(req.workspaceId, req.params.bookingId, req.account)));
 app.patch('/api/workspaces/:workspaceId/mentoring/:bookingId/feedback/:requestId/responses/:responseId', async (req, res) => res.json(await runtime.mentoringFeedback.edit(req.workspaceId, req.params.bookingId, req.params.requestId, req.params.responseId, req.body, req.account)));
 app.get('/api/workspaces/:workspaceId/mentoring/coordination', async (req, res) => res.json(await runtime.mentoringCoordination.list(req.workspaceId, req.account)));

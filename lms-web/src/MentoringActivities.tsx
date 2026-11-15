@@ -1,16 +1,51 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Pencil, Plus, RefreshCw } from 'lucide-react'
+import { FileSpreadsheet, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { ModalShell } from './components'
-import { workspaceRequest } from './api'
+import { apiDownload, workspaceRequest } from './api'
 import './MentoringActivities.css'
 
 type Fields = { mentorId: string; courseId: string; teamId: string; studentIds: string[]; title: string; date: string; time: string; endTime: string; content: string }
-type Activity = Fields & { id: string; mentorName: string; courseTitle: string; teamName: string; students: { id: string; name: string }[]; revision: number; canEdit: boolean }
+type Activity = Fields & { id: string; mentorName: string; courseTitle: string; teamName: string; students: { id: string; name: string }[]; revision: number; updatedAt?: number; canEdit: boolean }
 type Options = { admin: boolean; canCreate: boolean; mentors: { id: string; name: string; username: string }[]; courses: { id: string; title: string }[]; teams: { id: string; name: string; courseId: string }[]; students: { id: string; name: string; courseId: string; team: string }[]; records: Activity[] }
 const message = (error: unknown) => error instanceof Error ? error.message : '기록을 처리하지 못했습니다. 다시 시도하세요.'
 
 export function MentoringAddButton({ onClick, disabled = false }: { onClick: () => void; disabled?: boolean }) {
   return <button type="button" className="button primary mentoring-add-button" onClick={onClick} disabled={disabled} aria-label="멘토링 기록 추가" title="멘토링 기록 추가"><Plus size={20} aria-hidden="true" /></button>
+}
+
+const kstDate = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
+
+export function MentoringExportButton({ workspaceId, disabled = false }: { workspaceId: string; disabled?: boolean }) {
+  const [open, setOpen] = useState(false)
+  return <><button type="button" className="button secondary" onClick={() => setOpen(true)} disabled={disabled}><FileSpreadsheet size={16} aria-hidden="true" />엑셀 다운로드</button>
+    {open && <MentoringExport workspaceId={workspaceId} close={() => setOpen(false)} />}</>
+}
+
+function MentoringExport({ workspaceId, close }: { workspaceId: string; close: () => void }) {
+  const [to, setTo] = useState(kstDate), [from, setFrom] = useState(() => kstDate().slice(0, 8) + '01')
+  const [busy, setBusy] = useState(false), [error, setError] = useState('')
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (busy) return
+    if (!from || !to || from > to) { setError('시작일은 종료일보다 늦을 수 없습니다.'); return }
+    setBusy(true); setError('')
+    try {
+      const blob = await apiDownload(`workspaces/${encodeURIComponent(workspaceId)}/mentoring/export?from=${from}&to=${to}`)
+      const url = URL.createObjectURL(blob), link = document.createElement('a')
+      link.href = url; link.download = `멘토링-기록_${from}_${to}.xlsx`
+      document.body.append(link); link.click(); link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+      close()
+    } catch (failure) { setError(message(failure)) } finally { setBusy(false) }
+  }
+  return <ModalShell title="멘토링 기록 엑셀 다운로드" close={close} busy={busy} className="mentoring-activity-modal">
+    <form className="modal-form" onSubmit={submit}>
+      <p className="mentoring-activity-hint">기간 안에 진행된 예약 멘토링과 직접 입력한 기록을 내려받습니다. 첫 시트는 멘토별 요약이고, 이어서 멘토마다 시트가 하나씩 나뉩니다.</p>
+      <div className="mentoring-activity-grid"><label>시작일<input data-modal-autofocus type="date" required value={from} max={to} onChange={e => { setFrom(e.target.value); setError('') }} /></label><label>종료일<input type="date" required value={to} min={from} onChange={e => { setTo(e.target.value); setError('') }} /></label></div>
+      {error && <p className="mentoring-activity-error" role="alert">{error}</p>}
+      <div className="modal-actions"><button type="button" className="button secondary" onClick={close} disabled={busy}>취소</button><button type="submit" className="button primary" disabled={busy}>{busy ? '파일 만드는 중…' : '다운로드'}</button></div>
+    </form>
+  </ModalShell>
 }
 
 export default function MentoringActivities({ workspaceId, open, close, demo = false }: { workspaceId: string; open: boolean; close: () => void; demo?: boolean }) {
@@ -53,7 +88,7 @@ export default function MentoringActivities({ workspaceId, open, close, demo = f
     {expanded && <div className="mentoring-activity-list">
       {!shown.length && <p>{demo ? '실제 워크스페이스에서 기록을 추가할 수 있습니다.' : data ? '등록된 멘토링 기록이 없습니다.' : '기록을 불러오는 중입니다.'}</p>}
       {shown.map(record => <article key={record.id}>
-        <div className="mentoring-activity-heading"><div><p>{record.date} · {record.time}–{record.endTime} · {record.mentorName}</p><h3>{record.title}</h3></div>{record.canEdit && <button className="button secondary" aria-label={`${record.title} 수정`} onClick={() => { setEditing(record); setNotice('') }}><Pencil size={15} />수정</button>}</div>
+        <div className="mentoring-activity-heading"><div><p>{record.date} · {record.time}–{record.endTime} · {record.mentorName}{record.revision > 1 && record.updatedAt ? ` · 수정 ${new Date(record.updatedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}</p><h3>{record.title}</h3></div>{record.canEdit && <button className="button secondary" aria-label={`${record.title} 수정`} onClick={() => { setEditing(record); setNotice('') }}><Pencil size={15} />수정</button>}</div>
         <p>{record.courseTitle}{record.teamName && ` · ${record.teamName}`}{record.students.length > 0 && ` · ${record.students.map(v => v.name).join(', ')}`}</p>
         <p className="mentoring-activity-content">{record.content}</p>
       </article>)}

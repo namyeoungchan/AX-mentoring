@@ -1,5 +1,5 @@
 .page-actions .mentoring-add-button { width: 44px; min-width: 44px; height: 44px; padding: 0; justify-content: center; }
-.mentoring-page-heading .page-actions { flex-direction: row; align-items: center; }
+.mentoring-page-heading .page-actions { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; align-items: center; flex-shrink: 1; min-width: 0; }
 .mentoring-activities { margin: 20px 0; padding: 16px 20px; background: #fff; border: 1px solid #dce3de; border-radius: 10px; color: #293e32; font-size: 14px; }
 .role-content > .mentoring-activities { margin: 0; }
 .mentoring-activities-heading, .mentoring-activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

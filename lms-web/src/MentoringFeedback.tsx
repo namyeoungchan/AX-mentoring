@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { MessageSquare, Pencil, RefreshCw } from 'lucide-react'
+import { ClipboardPen, MessageSquare, Pencil, RefreshCw } from 'lucide-react'
 import { workspaceRequest } from './api'
 import { ModalShell } from './components'
 import { registerNavigationGuard } from './navigationGuard'
@@ -7,7 +7,8 @@ import type { Session } from './data'
 
 type Response = { id: string; content: string; submittedAt: number; revision: number; updatedAt: number | null }
 type Request = { id: string; role: 'mentor' | 'mentee'; name: string; state: string; error: string; sentAt: number | null; canEdit?: boolean; responses: Response[] }
-type Feedback = { activatedAt: number; endAt: string | null; requests: Request[] }
+type SessionRecord = { date: string; time: string; endTime: string; content: string; revision: number; updatedAt: number; updatedByName?: string }
+type Feedback = { activatedAt: number; endAt: string | null; record?: SessionRecord | null; canRecord?: boolean; requests: Request[] }
 const dateTime = (value: number) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 const deliveryLabel: Record<string, string> = { pending: 'DM 발송 대기', sending: 'DM 발송 중', sent: 'DM 발송 완료 · 응답 대기', failed: 'DM 발송 실패', uncertain: 'DM 발송 여부 확인 필요', reconcile: 'DM 발송 여부 확인 중', cancelled: '발송 취소' }
 const errorLabel: Record<string, string> = { permissions: 'DM 수신 허용 여부를 확인해 주세요.', channel_missing: 'Discord 서버 참여 여부를 확인해 주세요.', timeout: 'Discord 응답이 지연되었습니다.', not_found: '기존 DM을 확인하지 못했습니다. 중복 발송 방지를 위해 자동 재발송하지 않습니다.' }
@@ -16,20 +17,21 @@ export default function MentoringFeedback({ workspaceId, session, demo }: { work
   const [open, setOpen] = useState(false), [data, setData] = useState<Feedback | null>(null)
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [version, setVersion] = useState(0)
   const [editing, setEditing] = useState<{ requestId: string; response: Response } | null>(null), [notice, setNotice] = useState('')
+  const [recording, setRecording] = useState(false)
   useEffect(() => {
-    if (!open || demo || !workspaceId || editing) return
+    if (!open || demo || !workspaceId || editing || recording) return
     const controller = new AbortController()
     workspaceRequest(workspaceId, `mentoring/${encodeURIComponent(session.id)}/feedback`, { signal: controller.signal })
       .then(value => { if (!controller.signal.aborted) { setData(value); setError('') } })
       .catch(reason => { if (!controller.signal.aborted) setError(reason.message || '기록을 불러오지 못했습니다.') })
       .finally(() => { if (!controller.signal.aborted) setBusy(false) })
     return () => controller.abort()
-  }, [open, demo, workspaceId, session.id, version, editing])
+  }, [open, demo, workspaceId, session.id, version, editing, recording])
   useEffect(() => {
-    if (!open || demo || editing) return
+    if (!open || demo || editing || recording) return
     const timer = window.setInterval(() => { setBusy(true); setVersion(value => value + 1) }, 30000)
     return () => window.clearInterval(timer)
-  }, [open, demo, editing])
+  }, [open, demo, editing, recording])
   async function retry(request: Request) {
     if (!workspaceId || busy) return
     setBusy(true); setError('')
@@ -42,11 +44,16 @@ export default function MentoringFeedback({ workspaceId, session, demo }: { work
   return <><details className="mentoring-report" onToggle={event => { setOpen(event.currentTarget.open); if (event.currentTarget.open && !demo) setBusy(true) }}>
     <summary><MessageSquare size={15} /><span>멘토링 기록</span><small>{data?.requests.some(request => request.responses.length) ? `응답 ${data.requests.filter(request => request.responses.length).length}/2` : '멘토·멘티 응답 확인'}</small></summary>
     {open && <div className="mentoring-report-body">
-      <div className="mentoring-report-heading"><p>{awaiting}</p>{!demo && <button type="button" className="text-button" disabled={busy || Boolean(editing)} onClick={() => { setBusy(true); setVersion(value => value + 1) }}><RefreshCw size={14} />{busy ? '확인 중…' : '새로고침'}</button>}</div>
+      <div className="mentoring-report-heading"><p>{awaiting}</p>{!demo && <button type="button" className="text-button" disabled={busy || Boolean(editing) || recording} onClick={() => { setBusy(true); setVersion(value => value + 1) }}><RefreshCw size={14} />{busy ? '확인 중…' : '새로고침'}</button>}</div>
       {demo && <p>실제 운영에서는 Discord DM으로 제출한 내용이 이곳에 저장됩니다.</p>}
       {error && <p role="alert" className="error-note">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {!data && !demo && busy && <p role="status">멘토링 기록을 불러오는 중입니다.</p>}
+      {data && (data.record || data.canRecord) && <section className="mentoring-session-record" aria-label="실제 진행 기록">
+        <header><div><strong>실제 진행 기록</strong><small>{data.record ? `${data.record.date} · ${data.record.time}–${data.record.endTime} (한국시간)` : '종료된 멘토링의 실제 진행 시간과 내용을 남길 수 있습니다.'}</small></div>
+          {data.canRecord && <button type="button" className="button secondary" disabled={busy || Boolean(editing)} onClick={() => { setRecording(true); setNotice('') }}><ClipboardPen size={14} aria-hidden="true" />{data.record ? '수정' : '기록하기'}</button>}</header>
+        {data.record && <><p>{data.record.content}</p><small>최종 수정: {dateTime(data.record.updatedAt)} · 한국시간{data.record.updatedByName && ` · ${data.record.updatedByName}`}</small></>}
+      </section>}
       {(data || demo) && <div className="mentoring-report-grid">{(['mentor', 'mentee'] as const).map(role => {
         const request = data?.requests.find(row => row.role === role)
         return <section key={role} aria-label={`${role === 'mentor' ? '멘토' : '멘티'} 응답`}>
@@ -61,7 +68,55 @@ export default function MentoringFeedback({ workspaceId, session, demo }: { work
       })}</div>}
     </div>}
   </details>{editing && workspaceId && <FeedbackEditor workspaceId={workspaceId} bookingId={session.id} requestId={editing.requestId} response={editing.response}
-    close={() => setEditing(null)} saved={value => { setData(value); setEditing(null); setNotice('멘토 응답을 수정했습니다.') }} />}</>
+    close={() => setEditing(null)} saved={value => { setData(value); setEditing(null); setNotice('멘토 응답을 수정했습니다.') }} />}
+  {recording && workspaceId && data && <SessionRecordEditor workspaceId={workspaceId} session={session} record={data.record || null}
+    draft={data.requests.find(request => request.role === 'mentor')?.responses.map(response => response.content).join('\n\n') || ''}
+    close={() => setRecording(false)} saved={value => { setData(value); setRecording(false); setNotice('실제 진행 기록을 저장했습니다.') }} />}</>
+}
+
+function SessionRecordEditor({ workspaceId, session, record, draft, close, saved }: { workspaceId: string; session: Session; record: SessionRecord | null; draft: string; close: () => void; saved: (value: Feedback) => void }) {
+  const [initial] = useState(() => record ? { date: record.date, time: record.time, endTime: record.endTime, content: record.content } : { date: session.date, time: session.time, endTime: session.endTime || '', content: draft })
+  const [fields, setFields] = useState(initial), [busy, setBusy] = useState(false), [error, setError] = useState('')
+  const locked = useRef(false)
+  const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null)
+  const dirty = (Object.keys(initial) as (keyof typeof initial)[]).some(key => initial[key] !== fields[key])
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
+  useEffect(() => registerNavigationGuard(() => !locked.current && (!dirty || window.confirm('저장하지 않은 진행 기록을 버리고 이동할까요?'))), [dirty])
+  function field(key: keyof typeof initial, value: string) { setFields(previous => ({ ...previous, [key]: value })); setError('') }
+  function restoreFocus() { requestAnimationFrame(() => { if (opener?.isConnected) opener.focus({ preventScroll: true }) }) }
+  function dismiss() {
+    if (locked.current || (dirty && !window.confirm('저장하지 않은 진행 기록을 버릴까요?'))) return
+    close(); restoreFocus()
+  }
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (locked.current || !fields.content.trim()) return
+    if (fields.endTime <= fields.time) { setError('종료 시간은 같은 날의 시작 시간 이후로 입력하세요.'); return }
+    locked.current = true; setBusy(true); setError('')
+    try {
+      const value = await workspaceRequest(workspaceId, `mentoring/${encodeURIComponent(session.id)}/feedback/record`, {
+        method: 'PUT', body: JSON.stringify({ ...fields, revision: record?.revision ?? 0 }),
+      })
+      saved(value); restoreFocus()
+    } catch (failure) {
+      const status = (failure as { status?: number })?.status
+      setError(!status || status >= 500 ? '저장 결과를 확인하지 못했습니다. 작성 내용을 보관한 뒤 최신 기록을 확인해 주세요.' : failure instanceof Error ? failure.message : '진행 기록을 저장하지 못했습니다.')
+    } finally { locked.current = false; setBusy(false) }
+  }
+  return <ModalShell title="실제 진행 기록" close={dismiss} busy={busy} className="mentoring-response-modal">
+    <form className="modal-form" onSubmit={submit}>
+      <p>예약 시간과 다르게 진행했다면 실제 시간을 입력하세요. 예약 일정은 그대로 두고, 관리자 엑셀 보고서에는 이 기록을 사용합니다.</p>
+      <fieldset className="mentoring-record-fields" disabled={busy}>
+        <label>진행일<input type="date" required max={today} value={fields.date} onChange={event => field('date', event.target.value)} /></label>
+        <label>시작 시간<input type="time" required value={fields.time} onChange={event => field('time', event.target.value)} /></label>
+        <label>종료 시간<input type="time" required value={fields.endTime} onChange={event => field('endTime', event.target.value)} /></label>
+      </fieldset>
+      <label>멘토링 내용<textarea data-modal-autofocus required rows={10} maxLength={4000} disabled={busy} value={fields.content} onChange={event => field('content', event.target.value)} placeholder="다룬 주제, 주요 피드백, 다음 할 일을 적어 주세요." /></label>
+      <small>{fields.content.length.toLocaleString()} / 4,000자</small>
+      {error && <p role="alert" className="error-note">{error}</p>}
+      <div className="modal-actions"><button type="button" className="button secondary" disabled={busy} onClick={dismiss}>취소</button><button type="submit" className="button primary" disabled={busy || !fields.content.trim() || (Boolean(record) && !dirty)}>{busy ? '저장 중…' : '저장'}</button></div>
+    </form>
+  </ModalShell>
 }
 
 function FeedbackEditor({ workspaceId, bookingId, requestId, response, close, saved }: { workspaceId: string; bookingId: string; requestId: string; response: Response; close: () => void; saved: (value: Feedback) => void }) {
