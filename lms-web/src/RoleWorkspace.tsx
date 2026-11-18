@@ -12,9 +12,9 @@ type Props = {
   role: 'mentor' | 'student'; name: string; username?: string; title: string; pages: RolePage[]; page: string; go: (page: string) => void;
   workspaces: WorkspaceMetadata[]; activeId: string; selectWorkspace: (id: string) => Promise<void>;
   setWorkspaceArchived?: (id: string, archived: boolean) => Promise<boolean>; saving?: boolean; error: string;
-  refresh: () => Promise<void>; logout: () => Promise<void>; children: ReactNode; status?: ReactNode; actions?: ReactNode;
+  refresh: () => Promise<void>; logout: () => Promise<void>; children: ReactNode; status?: ReactNode; actions?: ReactNode; menu?: ReactNode;
 }
-export default function RoleWorkspace({ role, name, username, title, pages, page, go, workspaces, activeId, selectWorkspace, setWorkspaceArchived, saving, error, refresh, logout, children, status, actions }: Props) {
+export default function RoleWorkspace({ role, name, username, title, pages, page, go, workspaces, activeId, selectWorkspace, setWorkspaceArchived, saving, error, refresh, logout, children, status, actions, menu }: Props) {
   const [open, setOpen] = useState(false), [refreshing, setRefreshing] = useState(false)
   const [mobile, setMobile] = useState(() => matchMedia('(max-width: 760px)').matches)
   const menuButton = useRef<HTMLButtonElement>(null), sidebar = useRef<HTMLElement>(null), focusPage = useRef(false)
@@ -69,7 +69,7 @@ export default function RoleWorkspace({ role, name, username, title, pages, page
       <WorkspaceSwitcher workspaces={workspaces} activeId={activeId} selectWorkspace={async id => { setOpen(false); await selectWorkspace(id) }} setWorkspaceArchived={setWorkspaceArchived} saving={saving} error={error} />
       <p className="nav-label">WORKSPACE</p>
       <nav aria-label="주 메뉴">{pages.map(item => <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.name}</span>{page === item.id && <span className="active-dot" />}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="help-card"><h3>이용 도움말</h3><button className="role-guide-link" onClick={() => navigate('help')}>기능별 도움말 <ArrowUpRight size={14} /></button></div><div className="profile"><Avatar name={name.slice(0, 1)} color="sage" /><span><strong>{name}</strong><small>{roleName}{username && ` · ${username}`}</small></span></div></div>
+      <div className="sidebar-bottom">{menu}<div className="help-card"><h3>이용 도움말</h3><button className="role-guide-link" onClick={() => navigate('help')}>기능별 도움말 <ArrowUpRight size={14} /></button></div><div className="profile"><Avatar name={name.slice(0, 1)} color="sage" /><span><strong>{name}</strong><small>{roleName}{username && ` · ${username}`}</small></span></div></div>
     </aside>
     <div className="main-shell" inert={mobile && open}>
       <header className="topbar"><div className="role-breadcrumb"><button ref={menuButton} className="icon-button mobile-menu" aria-label="메뉴 열기" aria-expanded={open} onClick={() => setOpen(true)}><Menu size={22} /></button><span className="breadcrumb">{active?.name || '워크스페이스 참여'}</span><ChevronRight size={13} className="breadcrumb" /><strong>{current.name}</strong></div><div className="header-tools"><AccountMenu name={name} role={roleName} refresh={reload} disabled={saving || refreshing} status={status} /><LogoutButton logout={logout} /></div></header>

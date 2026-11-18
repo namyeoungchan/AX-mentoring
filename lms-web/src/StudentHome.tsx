@@ -3,7 +3,8 @@ import MentoringCoordination from './MentoringCoordination'
 import StudentAttendance from './StudentAttendance'
 import StudentAssignments, { type StudentAssignment } from './StudentAssignments'
 import CourseVideos from './CourseVideos'
-import { HomeAnnouncements } from './Announcements'
+import { AnnouncementBanners, AnnouncementPopups, MenuBanner } from './Announcements'
+import { useAnnouncements } from './useAnnouncements'
 import { AdmissionStatus } from './Admissions'
 import RoleWorkspace, { type RolePage } from './RoleWorkspace'
 import { useRolePage } from './useRolePage'
@@ -34,8 +35,10 @@ export type Learning = {
 export default function StudentHome({ user, learning, error, refresh, logout, workspaces, activeId, selectWorkspace, setWorkspaceArchived, saving }: { setWorkspaceArchived?: (id: string, archived: boolean) => Promise<boolean>; saving?: boolean; workspaces: WorkspaceMetadata[]; activeId: string; selectWorkspace: (id: string) => Promise<void>; user: Account; learning: Learning | null; error: string; refresh: () => Promise<void>; logout: () => Promise<void> }) {
   const activeWorkspace = workspaces.find(w => w.id === activeId)
   const [page, go] = useRolePage(pages, 'learning')
-  return <RoleWorkspace role="student" username={user.username} name={user.name} title={pages.find(p => p.id === page)!.name} pages={pages} page={page} go={go} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={setWorkspaceArchived} saving={saving} error={error} refresh={refresh} logout={logout} status={<Badge>{activeWorkspace?.discordVerified ? 'Discord 인증 완료' : 'Discord 참여 대기'}</Badge>}>
-    {activeWorkspace && <HomeAnnouncements key={`announcements:${activeId}`} workspaceId={activeId} showBanners={page === 'learning'} />}
+  const announcements = useAnnouncements(activeWorkspace ? activeId : '')
+  return <RoleWorkspace role="student" username={user.username} name={user.name} title={pages.find(p => p.id === page)!.name} pages={pages} page={page} go={go} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={setWorkspaceArchived} saving={saving} error={error} refresh={refresh} logout={logout} status={<Badge>{activeWorkspace?.discordVerified ? 'Discord 인증 완료' : 'Discord 참여 대기'}</Badge>} menu={<MenuBanner announcements={announcements} />}>
+    <AnnouncementBanners announcements={announcements} tab={page === 'learning' ? 'home' : page} />
+    <AnnouncementPopups announcements={announcements} />
     {(page === 'participation' || page === 'learning' && !activeWorkspace?.discordVerified) && <>
       <AdmissionStatus key={activeId || user.id} workspace={activeWorkspace} refreshWorkspace={refresh} />
     </>}

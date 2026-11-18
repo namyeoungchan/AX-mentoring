@@ -74,6 +74,30 @@
 .ax-popup-dialog[open] .ax-popup-frame { animation: ax-pop .28s cubic-bezier(.2, .8, .25, 1); }
 @keyframes ax-pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
 
+/* Menu banner: a compact card inside the sidebar, sized explicitly because the sidebar is not a size container */
+.ax-sidebar { border-radius: 14px; }
+.ax-sidebar .ax-copy { padding: 16px 15px; gap: 6px; }
+.ax-sidebar .ax-copy h2 { font-size: 14px; line-height: 1.35; letter-spacing: -.015em; }
+.ax-sidebar .ax-copy p { font-size: 11px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ax-sidebar .ax-cta { margin-top: 4px; padding: 7px 12px; min-height: 32px; font-size: 11px; gap: 6px; box-shadow: none; }
+.ax-sidebar.ax-layout-text .ax-orb { width: 160px; height: 160px; right: -60px; top: -70px; }
+.ax-sidebar.ax-layout-text .ax-orb::after { inset: 38px; }
+.ax-sidebar.ax-layout-split { display: flex; flex-direction: column; }
+.ax-sidebar.ax-layout-split .ax-media img { aspect-ratio: 16 / 10; object-fit: cover; }
+.ax-sidebar.ax-layout-image { background: #eef2ea; }
+.ax-sidebar.ax-layout-image img { max-height: 260px; object-fit: cover; }
+.ax-sidebar.ax-layout-overlay { min-height: 190px; padding: 16px 14px; }
+.ax-sidebar.ax-layout-overlay .ax-copy { max-width: 100%; padding: 0; }
+.ax-carousel-sidebar { margin: 0 5px 14px; }
+.ax-carousel-sidebar .ax-slide { position: relative; }
+.ax-carousel-sidebar .ax-carousel-controls { justify-content: center; margin-top: 4px; }
+.ax-carousel-sidebar .ax-dots button { width: 14px; height: 22px; }
+.ax-carousel-sidebar .ax-dots button span { width: 5px; height: 5px; }
+.ax-carousel-sidebar .ax-dots button.active { width: 28px; }
+.ax-carousel-sidebar .ax-dots button.active span { width: 20px; }
+.ax-card-hide { position: absolute; z-index: 2; top: 8px; right: 8px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #10181459; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: .8; }
+.ax-card-hide:hover, .ax-card-hide:focus-visible { opacity: 1; background: #101814a6; }
+
 /* Banner carousel */
 .ax-carousel { container-type: inline-size; margin-bottom: 22px; }
 .role-content > .ax-carousel { margin-bottom: 0; }
@@ -141,6 +165,7 @@
 
 .announcement-choice { display: grid; gap: 10px; }
 .announcement-choice.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.announcement-choice.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .announcement-choice.layouts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .announcement-modal .announcement-choice label { position: relative; gap: 4px; padding: 12px; border: 1px solid #e1e7dc; border-radius: 14px; background: #fff; cursor: pointer; transition: border-color .18s, box-shadow .18s, background .18s, transform .18s; }
 .announcement-choice label:hover { border-color: #b9cbb8; transform: translateY(-1px); }
@@ -195,6 +220,17 @@
 .announcement-image-preview img { width: 120px; height: 72px; object-fit: cover; border-radius: 9px; }
 .announcement-image-preview > div { display: flex; gap: 8px; flex-wrap: wrap; }
 .announcement-modal .announcement-image-preview label { position: relative; flex-direction: row; cursor: pointer; }
+.announcement-field { display: grid; gap: 9px; }
+.announcement-field > span { font-size: 12px; font-weight: 600; color: #4f6357; }
+.announcement-field > small { color: #738078; font-size: 11px; line-height: 1.55; }
+.announcement-menu-preview { width: 236px; padding: 18px 13px 14px; border: 1px solid #e7eae5; border-radius: 16px; background: #fdfdfb; box-shadow: 0 12px 32px #1b32171a; }
+.announcement-menu-brand { display: flex; align-items: center; gap: 8px; margin: 0 6px 14px; color: #294f3e; font-size: 18px; font-weight: 750; letter-spacing: -.5px; }
+.announcement-menu-brand i { width: 24px; height: 24px; border-radius: 7px 7px 7px 2px; background: #294f3e; }
+.announcement-menu-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; margin-bottom: 2px; border-radius: 7px; color: #7a847d; font-size: 11px; }
+.announcement-menu-item i { width: 14px; height: 14px; border-radius: 4px; background: #dfe5dc; }
+.announcement-menu-item.active { background: #eaf0e5; color: #2c533c; font-weight: 700; }
+.announcement-menu-item.active i { background: #9fbcac; }
+.announcement-menu-slot { margin-top: 16px; }
 .announcement-hint { font-size: 11px; color: #738078; line-height: 1.6; }
 
 .announcement-modal .announcement-switch { position: relative; flex-direction: row; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; flex-wrap: wrap; }
@@ -211,6 +247,7 @@
 .announcement-preview-bar { display: flex; align-items: center; justify-content: space-between; }
 .announcement-preview-bar strong { font-size: 13px; color: #243a2e; }
 .announcement-device { display: inline-flex; padding: 3px; border-radius: 999px; background: #eef2ea; }
+.announcement-device[hidden] { display: none; }
 .announcement-modal .announcement-device label { position: relative; flex-direction: row; align-items: center; gap: 5px; min-height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12px; color: #5f6d64; cursor: pointer; }
 .announcement-modal .announcement-device label.selected { background: #fff; color: #243a2e; box-shadow: 0 1px 3px #0000001a; }
 .announcement-stage { display: grid; place-items: center; align-content: center; gap: 10px; min-height: 360px; padding: 22px; border-radius: 18px; background: radial-gradient(circle at 1px 1px, #d9e0d5 1px, transparent 0) 0 0 / 16px 16px, #f4f6f2; transition: padding .25s ease; }
@@ -232,7 +269,7 @@
 }
 @media (max-width: 640px) {
   .announcement-choice.layouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .announcement-grid, .announcement-choice.two { grid-template-columns: minmax(0, 1fr); }
+  .announcement-grid, .announcement-choice.two, .announcement-choice.three { grid-template-columns: minmax(0, 1fr); }
   .announcement-list article { flex-wrap: wrap; }
   .announcement-manager { padding: 16px; }
   .announcement-modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea) { font-size: 16px; }
