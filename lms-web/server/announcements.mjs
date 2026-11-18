@@ -8,10 +8,12 @@ const date = z.union([z.literal(''), z.string().date()]);
 const image = z.union([z.literal(''), z.string().max(1_500_000).regex(/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/, '이미지는 PNG, JPG, WEBP, GIF만 사용할 수 있습니다.')]);
 const link = z.union([z.literal(''), z.string().trim().max(500).url().refine(v => /^https?:\/\//i.test(v), '링크는 http 또는 https 주소만 사용할 수 있습니다.')]);
 const positions = ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-center', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right'];
+// Tab keys shared by every role; each role maps its landing page to 'home'.
+const tabs = ['all', 'home', 'assignments', 'attendance', 'scores', 'videos', 'mentoring', 'help'];
 const themes = ['forest', 'mint', 'sand', 'sky', 'lilac', 'ink'];
 // New fields default so records and clients from before layouts existed keep working.
 const fields = {
-    placement: z.enum(['banner', 'popup']), layout: z.enum(['text', 'image', 'split', 'overlay']).optional(),
+    placement: z.enum(['banner', 'sidebar', 'popup']), pages: z.array(z.enum(tabs)).max(tabs.length).optional(), layout: z.enum(['text', 'image', 'split', 'overlay']).optional(),
     textPosition: z.enum(positions).default('middle-left'), imageSide: z.enum(['left', 'right']).default('right'), theme: z.enum(themes).default('forest'), title: z.string().trim().min(1).max(100), body: z.string().trim().max(1000),
     image, linkUrl: link, linkLabel: z.string().trim().max(30), audience: z.array(z.enum(audiences)).min(1).max(audiences.length),
     startDate: date, endDate: date, enabled: z.boolean(),
@@ -38,7 +40,10 @@ export function createAnnouncements(workspaces, { now = Date.now } = {}) {
         return row ? JSON.parse(row.data) : null;
     }
     function validate(parsed) {
-        const input = { ...parsed, layout: parsed.layout || (parsed.image ? 'split' : 'text') };
+        const input = { ...parsed, layout: parsed.layout || (parsed.image ? 'split' : 'text'), pages: parsed.placement === 'banner' ? parsed.pages || ['home'] : [] };
+        if (input.placement === 'banner' && !input.pages.length) throw new ApiError(422, '배너를 보여 줄 탭을 1개 이상 선택하세요.');
+        if (new Set(input.pages).size !== input.pages.length) throw new ApiError(422, '같은 탭을 중복 선택할 수 없습니다.');
+        if (input.pages.includes('all')) input.pages = ['all'];
         if (input.startDate && input.endDate && input.endDate < input.startDate) throw new ApiError(422, '종료일은 시작일 이후로 입력하세요.');
         if (input.linkLabel && !input.linkUrl) throw new ApiError(422, '버튼 문구를 쓰려면 링크 주소도 입력하세요.');
         if (input.layout !== 'text' && !input.image) throw new ApiError(422, '이 유형은 이미지가 필요합니다. 이미지를 넣거나 텍스트형을 선택하세요.');
@@ -48,7 +53,7 @@ export function createAnnouncements(workspaces, { now = Date.now } = {}) {
     const layoutOf = record => record.layout || (record.image ? 'split' : 'text');
     function summary(record) {
         const { createRequest: _request, ...result } = record;
-        return { textPosition: 'middle-left', imageSide: 'right', theme: 'forest', ...result, layout: layoutOf(record) };
+        return { textPosition: 'middle-left', imageSide: 'right', theme: 'forest', ...result, layout: layoutOf(record), pages: record.pages || (record.placement === 'banner' ? ['home'] : []) };
     }
     // Audit rows stay small: the image is recorded only as present or absent.
     const audited = record => record && JSON.stringify({ ...summary(record), image: record.image ? '(이미지)' : '' });
@@ -65,10 +70,11 @@ export function createAnnouncements(workspaces, { now = Date.now } = {}) {
         const shown = (await all((await workspaces.open(id)).db)).filter(v => v.enabled && v.audience.includes(meta.role)
             && (!v.startDate || v.startDate <= today) && (!v.endDate || today <= v.endDate));
         const visible = record => {
-            const { id: key, placement, layout, textPosition, imageSide, theme, title, body, image, linkUrl, linkLabel, revision } = summary(record);
-            return { id: key, placement, layout, textPosition, imageSide, theme, title, body, image, linkUrl, linkLabel, revision };
+            const { id: key, placement, pages, layout, textPosition, imageSide, theme, title, body, image, linkUrl, linkLabel, revision } = summary(record);
+            return { id: key, placement, pages, layout, textPosition, imageSide, theme, title, body, image, linkUrl, linkLabel, revision };
         };
-        return { banners: shown.filter(v => v.placement === 'banner').map(visible), popups: shown.filter(v => v.placement === 'popup').map(visible) };
+        const at = placement => shown.filter(v => v.placement === placement).map(visible);
+        return { banners: at('banner'), sidebars: at('sidebar'), popups: at('popup') };
     }
     async function create(id, raw, user) {
         const parsed = createInput.parse(raw), c = await context(id, user, true);

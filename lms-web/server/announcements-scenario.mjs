@@ -42,7 +42,7 @@ export async function announcementsScenario(r) {
     assert.equal(forStudent.banners[0].createdBy, undefined, 'members only receive display fields');
     const forMentor = await service.active(w.id, mentor);
     assert.deepEqual([forMentor.banners.length, forMentor.popups.map(v => v.title)], [1, ['멘토 전용 공지']]);
-    assert.deepEqual(await service.active(w.id, manager), { banners: [], popups: [] });
+    assert.deepEqual(await service.active(w.id, manager), { banners: [], sidebars: [], popups: [] });
     const { id: _id, ...fields } = banner;
     await assert.rejects(service.edit(w.id, created.id, { ...fields, revision: 1 }, mentor), { status: 403 });
     const changed = await service.edit(w.id, created.id, { ...fields, revision: 1, audience: ['student'] }, manager);
@@ -70,10 +70,23 @@ export async function announcementsScenario(r) {
     assert.deepEqual(shownLayouts[overlay.id], ['overlay', 'bottom-right']);
     assert.deepEqual(shownLayouts[legacyId], ['split', 'middle-left']);
     assert.equal((await service.edit(w.id, legacyId, { ...fields, revision: 1, layout: 'image' }, manager)).layout, 'image');
-    for (const v of [textOnly, overlay]) await service.remove(w.id, v.id, { revision: 1 }, manager);
+    // Banners pick their tabs; menu banners and popups carry none.
+    assert.deepEqual(textOnly.pages, ['home'], 'older clients without tabs keep the first-screen banner');
+    await assert.rejects(service.create(w.id, { ...banner, id: randomUUID(), pages: [] }, manager), { status: 422 });
+    await assert.rejects(service.create(w.id, { ...banner, id: randomUUID(), pages: ['home', 'home'] }, manager), { status: 422 });
+    await assert.rejects(service.create(w.id, { ...banner, id: randomUUID(), pages: ['settings'] }, manager));
+    const everywhere = await service.create(w.id, { ...banner, id: randomUUID(), pages: ['all', 'assignments'] }, manager);
+    assert.deepEqual(everywhere.pages, ['all']);
+    const menu = await service.create(w.id, { ...banner, id: randomUUID(), placement: 'sidebar', title: '메뉴 배너', pages: ['assignments'] }, manager);
+    assert.deepEqual(menu.pages, []);
+    const placed = await service.active(w.id, student);
+    assert.deepEqual(placed.sidebars.map(v => v.title), ['메뉴 배너']);
+    assert.equal(placed.banners.find(v => v.id === everywhere.id).pages[0], 'all');
+    assert.deepEqual(placed.banners.find(v => v.id === legacyId).pages, ['home']);
+    for (const v of [textOnly, overlay, everywhere, menu]) await service.remove(w.id, v.id, { revision: 1 }, manager);
     await service.remove(w.id, legacyId, { revision: 2 }, manager);
     const audits = await db.prepare("SELECT before_json,after_json FROM lms_audit WHERE action LIKE 'announcement.%'").all();
-    assert.equal(audits.length, 13);
+    assert.equal(audits.length, 17);
     assert.ok(audits.every(row => !`${row.before_json}${row.after_json}`.includes('base64')), 'audit log omits image bytes');
     await r.workspaces.setArchived(w.id, true, admin);
     assert.equal((await service.list(w.id, manager)).canEdit, false);

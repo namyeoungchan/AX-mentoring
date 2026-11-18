@@ -4,7 +4,8 @@ import { useState } from 'react'
 import MentoringManagement from './MentoringManagement'
 import MentoringActivities, { MentoringAddButton } from './MentoringActivities'
 import CourseVideos from './CourseVideos'
-import { HomeAnnouncements } from './Announcements'
+import { AnnouncementBanners, AnnouncementPopups, MenuBanner } from './Announcements'
+import { useAnnouncements } from './useAnnouncements'
 import MentorOnboarding from './MentorOnboarding'
 import { CalendarDays, BookOpen, CheckCheck, ClipboardList, Users, GraduationCap } from 'lucide-react'
 import RoleWorkspace, { type RolePage } from './RoleWorkspace'
@@ -30,8 +31,10 @@ export default function InstructorHome({ workspace }: { workspace: ReturnType<ty
   const [filter, setFilter] = useState('전체')
   const [activityOpen, setActivityOpen] = useState(false)
   const [page, go] = useRolePage(pages, data.onboardingComplete ? 'courses' : 'onboarding')
-  return <RoleWorkspace role="mentor" username={account?.username} name={account?.name || '멘토'} title={['courses', 'onboarding'].includes(page) ? '멘토 활동 관리' : pages.find(p => p.id === page)!.name} pages={pages} page={page} go={go} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={saving} error={error} refresh={refresh} logout={logout} actions={page === 'mentoring' && <MentoringAddButton onClick={() => setActivityOpen(true)} disabled={data.mode === 'demo' || workspaces.find(w => w.id === activeId)?.archivedAt != null} />}>
-    <HomeAnnouncements key={`announcements:${activeId}`} workspaceId={activeId} showBanners={page === 'courses'} demo={data.mode === 'demo'} />
+  const announcements = useAnnouncements(activeId, data.mode === 'demo')
+  return <RoleWorkspace role="mentor" username={account?.username} name={account?.name || '멘토'} title={['courses', 'onboarding'].includes(page) ? '멘토 활동 관리' : pages.find(p => p.id === page)!.name} pages={pages} page={page} go={go} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={workspace.setWorkspaceArchived} saving={saving} error={error} refresh={refresh} logout={logout} menu={<MenuBanner announcements={announcements} />} actions={page === 'mentoring' && <MentoringAddButton onClick={() => setActivityOpen(true)} disabled={data.mode === 'demo' || workspaces.find(w => w.id === activeId)?.archivedAt != null} />}>
+    <AnnouncementBanners announcements={announcements} tab={page === 'courses' ? 'home' : page} />
+    <AnnouncementPopups announcements={announcements} />
     {page === 'mentoring' && data.mentorType === 'group' && data.mode !== 'demo' && <MentoringCoordination key={`coordination:${activeId}`} workspaceId={activeId} onChanged={workspace.refreshQuietly} />}
     {page === 'help' ? <HelpCenter key={activeId} workspaceId={activeId} go={go} demo={data.mode === 'demo'} /> : page === 'mentoring' ? <MentoringManagement key={activeId} error={error} data={data} filter={filter} setFilter={setFilter} change={async updater => update(updater)} saving={saving} /> : page === 'videos' ? <CourseVideos key={activeId} workspaceId={activeId} /> : page === 'onboarding' ? <MentorOnboarding workspace={workspace} /> : page === 'teams' ? <TeamOperations key={activeId} workspaceId={activeId} refresh={workspace.refreshQuietly} /> : page !== 'courses' ? <Operations refresh={workspace.refreshQuietly} key={page} page={page} data={data} query="" change={async updater => update(updater)} saving={saving} error={error} /> : <>
       {data.courses.map(c => <section className="panel student-course" key={c.id}><Badge>{c.status}</Badge><h2>{c.title}</h2><p>{c.description}</p><span>수강생 {c.learners}명 · {c.startDate} — {c.endDate}</span></section>)}
