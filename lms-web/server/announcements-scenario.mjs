@@ -56,8 +56,24 @@ export async function announcementsScenario(r) {
     const foreign = await r.workspaces.create({ name: '다른 워크스페이스' });
     await assert.rejects(service.active(foreign.id, student), { status: 403 });
     await assert.rejects(service.edit(foreign.id, changed.id, { ...fields, revision: 2 }, admin), { status: 404 });
+    // Layouts: image layouts need an image, text-only drops it, and records saved before layouts existed still render.
+    for (const layout of ['image', 'split', 'overlay'])
+        await assert.rejects(service.create(w.id, { ...banner, id: randomUUID(), layout, image: '' }, manager), { status: 422 });
+    await assert.rejects(service.create(w.id, { ...banner, id: randomUUID(), layout: 'overlay', textPosition: 'top-middle' }, manager));
+    await assert.rejects(service.create(w.id, { ...banner, id: randomUUID(), theme: 'neon' }, manager));
+    const textOnly = await service.create(w.id, { ...banner, id: randomUUID(), layout: 'text', theme: 'ink' }, manager);
+    assert.deepEqual([textOnly.layout, textOnly.image, textOnly.theme], ['text', '', 'ink']);
+    const overlay = await service.create(w.id, { ...banner, id: randomUUID(), layout: 'overlay', textPosition: 'bottom-right' }, manager);
+    const legacyId = randomUUID();
+    await db.prepare('INSERT INTO lms_records(kind,id,data) VALUES(?,?,?)').run('announcement', legacyId, JSON.stringify({ ...banner, id: legacyId, revision: 1, createdAt: 1, updatedAt: 1 }));
+    const shownLayouts = Object.fromEntries((await service.active(w.id, student)).banners.map(v => [v.id, [v.layout, v.textPosition]]));
+    assert.deepEqual(shownLayouts[overlay.id], ['overlay', 'bottom-right']);
+    assert.deepEqual(shownLayouts[legacyId], ['split', 'middle-left']);
+    assert.equal((await service.edit(w.id, legacyId, { ...fields, revision: 1, layout: 'image' }, manager)).layout, 'image');
+    for (const v of [textOnly, overlay]) await service.remove(w.id, v.id, { revision: 1 }, manager);
+    await service.remove(w.id, legacyId, { revision: 2 }, manager);
     const audits = await db.prepare("SELECT before_json,after_json FROM lms_audit WHERE action LIKE 'announcement.%'").all();
-    assert.equal(audits.length, 7);
+    assert.equal(audits.length, 13);
     assert.ok(audits.every(row => !`${row.before_json}${row.after_json}`.includes('base64')), 'audit log omits image bytes');
     await r.workspaces.setArchived(w.id, true, admin);
     assert.equal((await service.list(w.id, manager)).canEdit, false);

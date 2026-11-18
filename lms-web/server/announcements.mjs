@@ -7,8 +7,12 @@ const date = z.union([z.literal(''), z.string().date()]);
 // Inline images keep the record self-contained; the client downsizes before upload.
 const image = z.union([z.literal(''), z.string().max(1_500_000).regex(/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/, '이미지는 PNG, JPG, WEBP, GIF만 사용할 수 있습니다.')]);
 const link = z.union([z.literal(''), z.string().trim().max(500).url().refine(v => /^https?:\/\//i.test(v), '링크는 http 또는 https 주소만 사용할 수 있습니다.')]);
+const positions = ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-center', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right'];
+const themes = ['forest', 'mint', 'sand', 'sky', 'lilac', 'ink'];
+// New fields default so records and clients from before layouts existed keep working.
 const fields = {
-    placement: z.enum(['banner', 'popup']), title: z.string().trim().min(1).max(100), body: z.string().trim().max(1000),
+    placement: z.enum(['banner', 'popup']), layout: z.enum(['text', 'image', 'split', 'overlay']).optional(),
+    textPosition: z.enum(positions).default('middle-left'), imageSide: z.enum(['left', 'right']).default('right'), theme: z.enum(themes).default('forest'), title: z.string().trim().min(1).max(100), body: z.string().trim().max(1000),
     image, linkUrl: link, linkLabel: z.string().trim().max(30), audience: z.array(z.enum(audiences)).min(1).max(audiences.length),
     startDate: date, endDate: date, enabled: z.boolean(),
 };
@@ -33,13 +37,18 @@ export function createAnnouncements(workspaces, { now = Date.now } = {}) {
         const row = await db.prepare('SELECT data FROM lms_records WHERE kind=? AND id=?').get(kind, id);
         return row ? JSON.parse(row.data) : null;
     }
-    function validate(input) {
+    function validate(parsed) {
+        const input = { ...parsed, layout: parsed.layout || (parsed.image ? 'split' : 'text') };
         if (input.startDate && input.endDate && input.endDate < input.startDate) throw new ApiError(422, '종료일은 시작일 이후로 입력하세요.');
         if (input.linkLabel && !input.linkUrl) throw new ApiError(422, '버튼 문구를 쓰려면 링크 주소도 입력하세요.');
+        if (input.layout !== 'text' && !input.image) throw new ApiError(422, '이 유형은 이미지가 필요합니다. 이미지를 넣거나 텍스트형을 선택하세요.');
+        // A text-only layout never shows its image, so it is not stored.
+        return input.layout === 'text' ? { ...input, image: '' } : input;
     }
+    const layoutOf = record => record.layout || (record.image ? 'split' : 'text');
     function summary(record) {
         const { createRequest: _request, ...result } = record;
-        return result;
+        return { textPosition: 'middle-left', imageSide: 'right', theme: 'forest', ...result, layout: layoutOf(record) };
     }
     // Audit rows stay small: the image is recorded only as present or absent.
     const audited = record => record && JSON.stringify({ ...summary(record), image: record.image ? '(이미지)' : '' });
@@ -55,13 +64,15 @@ export function createAnnouncements(workspaces, { now = Date.now } = {}) {
         const meta = await workspaces.requireAccess(id, user), today = kstDate(now());
         const shown = (await all((await workspaces.open(id)).db)).filter(v => v.enabled && v.audience.includes(meta.role)
             && (!v.startDate || v.startDate <= today) && (!v.endDate || today <= v.endDate));
-        const visible = ({ id: key, placement, title, body, image, linkUrl, linkLabel, revision }) => ({ id: key, placement, title, body, image, linkUrl, linkLabel, revision });
+        const visible = record => {
+            const { id: key, placement, layout, textPosition, imageSide, theme, title, body, image, linkUrl, linkLabel, revision } = summary(record);
+            return { id: key, placement, layout, textPosition, imageSide, theme, title, body, image, linkUrl, linkLabel, revision };
+        };
         return { banners: shown.filter(v => v.placement === 'banner').map(visible), popups: shown.filter(v => v.placement === 'popup').map(visible) };
     }
     async function create(id, raw, user) {
-        const input = createInput.parse(raw), c = await context(id, user, true);
-        validate(input);
-        const createRequest = JSON.stringify(input);
+        const parsed = createInput.parse(raw), c = await context(id, user, true);
+        const input = validate(parsed), createRequest = JSON.stringify(parsed);
         await c.db.exec('BEGIN IMMEDIATE');
         try {
             const timestamp = now();
@@ -76,8 +87,7 @@ export function createAnnouncements(workspaces, { now = Date.now } = {}) {
         } catch (error) { await c.db.exec('ROLLBACK'); throw error; }
     }
     async function edit(id, recordId, raw, user) {
-        const input = editInput.parse(raw), c = await context(id, user, true);
-        validate(input);
+        const input = validate(editInput.parse(raw)), c = await context(id, user, true);
         await c.db.exec('BEGIN IMMEDIATE');
         try {
             const before = await read(c.db, recordId);
