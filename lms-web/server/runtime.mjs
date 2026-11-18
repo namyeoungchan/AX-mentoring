@@ -23,6 +23,7 @@ import { createAttendanceCodes } from './attendance-codes.mjs';
 import { createStudentRoster } from './student-roster.mjs';
 import { createCourseVideos } from './course-videos.mjs';
 import { createHelpGuides } from './help-guides.mjs';
+import { createAnnouncements } from './announcements.mjs';
 // All database handles belong to one generation and are replaced together.
 export async function createRuntime(dbPath, env = process.env) {
     const store = await createStore(dbPath, { postgres: postgresConnection(env) });
@@ -59,7 +60,8 @@ export async function createRuntime(dbPath, env = process.env) {
         const attendancePresence = attendanceCodes.presence;
         const discordIdentities = createDiscordIdentities(store.db, auth);
         const helpGuides = createHelpGuides(workspaces);
-        return { mentoringActivities, mentoringExport, mentoringCoordination, helpGuides, discordIdentities, store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, onlineMentoring, mentoringFeedback, outbox, attendance, attendanceCodes, attendancePresence,
+        const announcements = createAnnouncements(workspaces);
+        return { announcements, mentoringActivities, mentoringExport, mentoringCoordination, helpGuides, discordIdentities, store, renderSync, auth, provision, workspaces, admissions, onboarding, staff, studentRoster, courseVideos, courseManagement, teamOperations, botStorage, assignmentAlerts, onlineMentoring, mentoringFeedback, outbox, attendance, attendanceCodes, attendancePresence,
             close() { botStorage.close(); workspaces.close(); store.db.close(); } };
     }
     catch (error) {

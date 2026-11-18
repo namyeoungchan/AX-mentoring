@@ -378,6 +378,11 @@ app.get('/api/workspaces/:workspaceId/help/:guideId/:type', async (req, res) => 
 });
 app.get('/api/workspaces/:workspaceId/discord-identities', async (req, res) => res.json(await runtime.discordIdentities.list(req.account, req.workspaceId)));
 app.delete('/api/workspaces/:workspaceId/discord-identities/:discordId', async (req, res) => res.json(await runtime.discordIdentities.remove(req.account, req.params.discordId, req.body, req.workspaceId)));
+app.get('/api/workspaces/:workspaceId/announcements', async (req, res) => res.set('Cache-Control', 'private, no-store').json(await runtime.announcements.list(req.workspaceId, req.account)));
+app.get('/api/workspaces/:workspaceId/announcements/active', async (req, res) => res.set('Cache-Control', 'private, no-store').json(await runtime.announcements.active(req.workspaceId, req.account)));
+app.post('/api/workspaces/:workspaceId/announcements', async (req, res) => res.status(201).json(await runtime.announcements.create(req.workspaceId, req.body, req.account)));
+app.patch('/api/workspaces/:workspaceId/announcements/:announcementId', async (req, res) => res.json(await runtime.announcements.edit(req.workspaceId, req.params.announcementId, req.body, req.account)));
+app.delete('/api/workspaces/:workspaceId/announcements/:announcementId', async (req, res) => res.json(await runtime.announcements.remove(req.workspaceId, req.params.announcementId, req.body, req.account)));
 app.get('/api/workspaces/:workspaceId/mentoring/activities', async (req, res) => res.set('Cache-Control', 'private, no-store').json(await runtime.mentoringActivities.list(req.workspaceId, req.account)));
 app.post('/api/workspaces/:workspaceId/mentoring/activities', async (req, res) => res.status(201).json(await runtime.mentoringActivities.create(req.workspaceId, req.body, req.account)));
 app.patch('/api/workspaces/:workspaceId/mentoring/activities/:recordId', async (req, res) => res.json(await runtime.mentoringActivities.edit(req.workspaceId, req.params.recordId, req.body, req.account)));
