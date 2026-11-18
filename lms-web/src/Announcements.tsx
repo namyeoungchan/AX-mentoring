@@ -248,7 +248,7 @@ function AnnouncementForm({ workspaceId, record, close, saved }: { workspaceId: 
   </ModalShell>
 }
 
-function BannerCarousel({ banners, variant, hide }: { banners: Shown[]; variant: 'banner' | 'sidebar'; hide?: (v: Shown) => void }) {
+function BannerCarousel({ banners, variant }: { banners: Shown[]; variant: 'banner' | 'sidebar' }) {
   const [index, setIndex] = useState(0), [paused, setPaused] = useState(false)
   const [still] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches)
   const current = index % banners.length, many = banners.length > 1, shown = banners[current]
@@ -258,10 +258,9 @@ function BannerCarousel({ banners, variant, hide }: { banners: Shown[]; variant:
     return () => clearTimeout(timer)
   }, [current, many, paused, still, banners.length])
   const move = (step: number) => setIndex((current + step + banners.length) % banners.length)
-  return <section className={`ax-carousel ax-carousel-${variant}`} aria-roledescription="캐러셀" aria-label={variant === 'sidebar' ? '메뉴 안내' : '워크스페이스 안내'} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false) }}>
+  return <section className={`ax-carousel ax-carousel-${variant}`} aria-roledescription="캐러셀" aria-label={variant === 'sidebar' ? '메뉴 안내' : '워크스페이스 안내'} onFocus={() => setPaused(true)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false) }}>
     <div className="ax-slide" key={shown.id} aria-roledescription="슬라이드" aria-label={`${current + 1} / ${banners.length}`}>
       <AnnouncementView v={shown} variant={variant} />
-      {hide && <button type="button" className="ax-card-hide" aria-label={`${shown.title} 오늘 하루 숨기기`} title="오늘 하루 숨기기" onClick={() => hide(shown)}><X size={13} /></button>}
     </div>
     {many && <div className="ax-carousel-controls">
       {variant === 'banner' && <button type="button" aria-label="이전 배너" onClick={() => move(-1)}><ChevronLeft size={16} /></button>}
@@ -289,7 +288,7 @@ export function AnnouncementBanners({ announcements, tab }: { announcements: Ann
 }
 
 export function MenuBanner({ announcements }: { announcements: Announcements }) {
-  return announcements.sidebars.length ? <BannerCarousel banners={announcements.sidebars} variant="sidebar" hide={announcements.hideSidebar} /> : null
+  return announcements.sidebars.length ? <BannerCarousel banners={announcements.sidebars} variant="sidebar" /> : null
 }
 
 export function AnnouncementPopups({ announcements }: { announcements: Announcements }) {
