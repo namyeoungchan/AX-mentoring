@@ -12,8 +12,6 @@
 .ax-copy h2 { font-size: clamp(19px, 3.1cqi, 30px); font-weight: 750; line-height: 1.25; letter-spacing: -.025em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
 .ax-copy p { font-size: clamp(13px, 1.6cqi, 15px); line-height: 1.65; color: var(--ax-muted); white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; max-width: 56ch; }
 .ax-cta { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; padding: 11px 18px; min-height: 42px; border-radius: 999px; background: var(--ax-cta-bg); color: var(--ax-cta-fg); font-size: 13px; font-weight: 650; box-shadow: 0 6px 18px #0000001f; }
-.ax-cta svg { transition: transform .2s ease; }
-.ax-cta:hover svg { transform: translateX(3px); }
 .ax-orb { position: absolute; z-index: 0; right: -70px; top: -90px; width: 300px; height: 300px; border-radius: 50%; background: radial-gradient(circle, var(--ax-orb) 0%, transparent 68%); opacity: .55; pointer-events: none; }
 .ax-orb::after { content: ''; position: absolute; inset: 70px; border: 1px solid currentColor; border-radius: 50%; opacity: .18; }
 
@@ -28,8 +26,6 @@
 .ax-banner.ax-layout-image { background: #eef2ea; min-height: 0; }
 .ax-banner.ax-layout-image img { height: auto; max-height: 380px; object-fit: cover; }
 .ax-image-link { display: block; }
-.ax-image-link img { transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
-.ax-image-link:hover img { transform: scale(1.015); }
 .ax-layout-overlay { --ax-fg: #fff; --ax-muted: #ffffffd9; --ax-cta-bg: #fff; --ax-cta-fg: #17221c; display: grid; background: #1c2521; }
 .ax-banner.ax-layout-overlay { min-height: clamp(240px, 33.3cqi, 440px); padding: clamp(22px, 4.5cqi, 48px); }
 .ax-backdrop { position: absolute; inset: 0; z-index: -2; height: 100%; object-fit: cover; }
@@ -89,14 +85,11 @@
 .ax-sidebar.ax-layout-overlay { min-height: 190px; padding: 16px 14px; }
 .ax-sidebar.ax-layout-overlay .ax-copy { max-width: 100%; padding: 0; }
 .ax-carousel-sidebar { margin: 0 5px 14px; }
-.ax-carousel-sidebar .ax-slide { position: relative; }
 .ax-carousel-sidebar .ax-carousel-controls { justify-content: center; margin-top: 4px; }
 .ax-carousel-sidebar .ax-dots button { width: 14px; height: 22px; }
 .ax-carousel-sidebar .ax-dots button span { width: 5px; height: 5px; }
 .ax-carousel-sidebar .ax-dots button.active { width: 28px; }
 .ax-carousel-sidebar .ax-dots button.active span { width: 20px; }
-.ax-card-hide { position: absolute; z-index: 2; top: 8px; right: 8px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #10181459; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: .8; }
-.ax-card-hide:hover, .ax-card-hide:focus-visible { opacity: 1; background: #101814a6; }
 
 /* Banner carousel */
 .ax-carousel { container-type: inline-size; margin-bottom: 22px; }
@@ -127,7 +120,6 @@
 @media (prefers-reduced-motion: reduce) {
   .ax-slide, .ax-popup-dialog[open] .ax-popup-frame { animation: none; }
   .ax-dots button.active span::after { animation: none; transform: none; }
-  .ax-image-link img, .ax-cta svg { transition: none; }
 }
 
 /* ── Admin list ── */

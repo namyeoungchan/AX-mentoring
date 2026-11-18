@@ -14,6 +14,7 @@ const hideKey = (workspaceId: string, v: Shown) => `ax-announcement-hidden:${wor
 function hiddenToday(workspaceId: string, v: Shown) { try { return localStorage.getItem(hideKey(workspaceId, v)) === kstDate() } catch { return false } }
 
 // Fetched once per workspace screen and shared by the tab banners, the menu banner and the popups.
+// The menu banner has no close control, so only popups honour "오늘 하루 보지 않기".
 export function useAnnouncements(workspaceId: string, demo = false) {
   const [state, setState] = useState<{ banners: Shown[]; sidebars: Shown[]; popups: Shown[] }>({ banners: [], sidebars: [], popups: [] })
   useEffect(() => {
@@ -22,8 +23,8 @@ export function useAnnouncements(workspaceId: string, demo = false) {
     workspaceRequest(workspaceId, 'announcements/active', { signal: controller.signal })
       .then((result: { banners: Shown[]; sidebars?: Shown[]; popups: Shown[] }) => {
         if (controller.signal.aborted) return
-        const visible = (items: Shown[] = []) => items.filter(v => !hiddenToday(workspaceId, v))
-        setState({ banners: result.banners, sidebars: visible(result.sidebars), popups: visible(result.popups) })
+        const visible = (items: Shown[]) => items.filter(v => !hiddenToday(workspaceId, v))
+        setState({ banners: result.banners, sidebars: result.sidebars || [], popups: visible(result.popups) })
       })
       .catch(() => {})
     return () => controller.abort()
@@ -32,7 +33,6 @@ export function useAnnouncements(workspaceId: string, demo = false) {
   return {
     ...state,
     dismissPopup(today: boolean) { const [popup] = state.popups; if (today && popup) hideToday(popup); setState(previous => ({ ...previous, popups: previous.popups.slice(1) })) },
-    hideSidebar(v: Shown) { hideToday(v); setState(previous => ({ ...previous, sidebars: previous.sidebars.filter(item => item.id !== v.id) })) },
   }
 }
 export type Announcements = ReturnType<typeof useAnnouncements>
