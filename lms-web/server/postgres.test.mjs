@@ -2,6 +2,7 @@ import { helpGuidesScenario } from './help-guides-scenario.mjs';
 import { discordIdentitiesScenario } from './discord-identities-scenario.mjs';
 import { mentoringFeedbackScenario } from './mentoring-feedback-scenario.mjs';
 import { mentoringActivitiesScenario } from './mentoring-activities-scenario.mjs';
+import { announcementsScenario } from './announcements-scenario.mjs';
 import { mentoringCoordinationScenario } from './mentoring-coordination-scenario.mjs';
 import { mentorAccountsScenario } from './mentor-accounts-scenario.mjs';
 import { superAdminScenario } from './super-admin-scenario.mjs';
@@ -39,6 +40,13 @@ pgTest('PostgreSQL manual mentoring records preserve permissions, retries, edits
   await importPostgres(f.connection, backup)
   const db = (await f.runtime.workspaces.open(result.workspaceId)).db
   assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_records WHERE kind='mentoringActivity'").get()).n, result.records)
+})
+pgTest('PostgreSQL main banners and popups preserve permissions, retries, audits and backups', async t => {
+  const f = await fixture(t), result = await announcementsScenario(f.runtime)
+  const backup = decodeBackup(await exportPostgres(f.connection))
+  await importPostgres(f.connection, backup)
+  const db = (await f.runtime.workspaces.open(result.workspaceId)).db
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM lms_records WHERE kind='announcement'").get()).n, result.announcements)
 })
 pgTest('PostgreSQL mentoring coordination isolates participants and atomically replaces agreed appointments', async t => {
   const f = await fixture(t)
