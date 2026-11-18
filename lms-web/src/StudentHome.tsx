@@ -35,7 +35,7 @@ export default function StudentHome({ user, learning, error, refresh, logout, wo
   const activeWorkspace = workspaces.find(w => w.id === activeId)
   const [page, go] = useRolePage(pages, 'learning')
   return <RoleWorkspace role="student" username={user.username} name={user.name} title={pages.find(p => p.id === page)!.name} pages={pages} page={page} go={go} workspaces={workspaces} activeId={activeId} selectWorkspace={selectWorkspace} setWorkspaceArchived={setWorkspaceArchived} saving={saving} error={error} refresh={refresh} logout={logout} status={<Badge>{activeWorkspace?.discordVerified ? 'Discord 인증 완료' : 'Discord 참여 대기'}</Badge>}>
-    {activeWorkspace && <HomeAnnouncements key={activeId} workspaceId={activeId} showBanners={page === 'learning'} />}
+    {activeWorkspace && <HomeAnnouncements key={`announcements:${activeId}`} workspaceId={activeId} showBanners={page === 'learning'} />}
     {(page === 'participation' || page === 'learning' && !activeWorkspace?.discordVerified) && <>
       <AdmissionStatus key={activeId || user.id} workspace={activeWorkspace} refreshWorkspace={refresh} />
     </>}
